@@ -8,7 +8,7 @@ import {
 } from "src/linkAttributes/linkAttributes"
 import { SuperchargedLinksSettings, DEFAULT_SETTINGS } from "src/settings/SuperchargedLinksSettings"
 import { Prec } from "@codemirror/state";
-import { buildCMViewPlugin } from "./src/linkAttributes/livePreview";
+import { buildCMViewPlugin } from "./linkAttributes/livePreview";
 
 export default class SuperchargedLinks extends Plugin {
 	settings: SuperchargedLinksSettings;
