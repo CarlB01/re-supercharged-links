@@ -1,13 +1,10 @@
-import SuperchargedLinks from "main"
-import {
-    Modal,
-    Setting
-} from "obsidian"
-import {matchTypes, matchPreview, CSSLink, matchPreviewPath, selectorType, SelectorTypes, MatchTypes} from './cssLink'
-import {SuperchargedLinksSettings} from "../settings/SuperchargedLinksSettings";
-import { processKey } from "src/linkAttributes/linkAttributes";
+import { Modal, Setting } from "obsidian";
+import { CSSLink, matchPreview, matchPreviewPath, MatchTypes, matchTypes, selectorType, SelectorTypes } from "./cssLink";
+import RechargedSuperchargedLinks from "./main";
+import { SCLSettings } from "./Settings";
+import { processKey } from "./linkAttributes";
 
-export function displayText(link: CSSLink, settings: SuperchargedLinksSettings): string {
+export function displayText(link: CSSLink, settings: SCLSettings): string {
     if (link.type === 'tag') {
         if (!link.value) {
             return "<b>Please choose a tag</b>";
@@ -32,7 +29,7 @@ export function displayText(link: CSSLink, settings: SuperchargedLinksSettings):
     return `The path of the <span class="data-link-icon data-link-text data-link-icon-after" data-link-path="${link.value}">note</span> ${matchPreviewPath[link.match]} <b>${link.value}</b>`
 }
 
-export function updateDisplay(textArea: HTMLElement, link: CSSLink, settings: SuperchargedLinksSettings): boolean {
+export function updateDisplay(textArea: HTMLElement, link: CSSLink, settings: SCLSettings): boolean {
     let toDisplay: string = displayText(link, settings);
     let disabled = false;
     if (link.type === 'tag') {
@@ -61,22 +58,25 @@ export function updateDisplay(textArea: HTMLElement, link: CSSLink, settings: Su
 }
 
 class CSSBuilderModal extends Modal {
+    // 🚀 2. Bruk declare for å sikre trygg arv i Obsidian
+    declare plugin: RechargedSuperchargedLinks;
+    declare cssLink: CSSLink;
+    declare saveCallback: (cssLink: CSSLink) => void;
 
-    plugin: SuperchargedLinks
-    cssLink: CSSLink
-    saveCallback: (cssLink: CSSLink) => void;
-
-    constructor(plugin: SuperchargedLinks, saveCallback: (cssLink: CSSLink) => void, cssLink: CSSLink=null) {
-        super(plugin.app)
-        this.cssLink = cssLink;
-        if (!cssLink) {
-            this.cssLink = new CSSLink();
-        }
+    // 🚀 3. FIKSET: Tillat eksplisitt 'null' som standardverdi
+    constructor(plugin: RechargedSuperchargedLinks, saveCallback: (cssLink: CSSLink) => void, cssLink: CSSLink | null = null) {
+        super(plugin.app);
+        
         this.plugin = plugin;
         this.saveCallback = saveCallback;
+        
+        // Håndter null-verdien trygt
+        if (!cssLink) {
+            this.cssLink = new CSSLink();
+        } else {
+            this.cssLink = cssLink;
+        }
     }
-
-
 
     onOpen() {
         this.titleEl.setText(`Select what links to style!`)
@@ -99,17 +99,23 @@ class CSSBuilderModal extends Modal {
             .setDesc("Attributes selects YAML and DataView attributes" +
                 ", tags chooses the tags of a note, and path considers the name of the note including in what folder it is.")
             .addDropdown(dc => {
-                Object.keys(selectorType).forEach((type: SelectorTypes) => {
-                    dc.addOption(type, selectorType[type]);
-                    if (type === this.cssLink.type) {
-                        dc.setValue(type);
-                    }
-                });
-                dc.onChange((type: SelectorTypes) => {
+            // 🚀 FIKSET: Fortell TypeScript at nøklene faktisk er SelectorTypes
+            (Object.keys(selectorType) as (keyof typeof selectorType)[]).forEach((type) => {
+                dc.addOption(type, selectorType[type]);
+                if (type === this.cssLink.type) {
+                    dc.setValue(type);
+                }
+            });
+            dc.onChange((value: string) => {
+                // 🚀 Sjekk at verdien faktisk er en gyldig SelectorTypes
+                if (value === 'attribute' || value === 'tag' || value === 'path') {
+                    const type = value as SelectorTypes;
                     cssLink.type = type;
                     updateContainer(cssLink.type);
                     saveButton.setDisabled(updateDisplay(preview, this.cssLink, this.plugin.settings));
-                });
+                }
+            });
+
             });
 
         // attribute name
@@ -149,15 +155,19 @@ class CSSBuilderModal extends Modal {
             .setName("Matching type")
             .setDesc("How to compare the attribute or path with the given value.")
             .addDropdown(dc => {
-                Object.keys(matchTypes).forEach((key: MatchTypes)=> {
-                    dc.addOption(key, matchTypes[key])
+                // 🚀 FIKSET: Fortell TypeScript at nøklene er MatchTypes
+                (Object.keys(matchTypes) as (keyof typeof matchTypes)[]).forEach((key) => {
+                    dc.addOption(key, matchTypes[key]);
                     if (key == cssLink.match) {
-                        dc.setValue(key)
+                        dc.setValue(key);
                     }
-                })
-                dc.onChange((value: "exact" | "contains" | "startswith" | "endswith") => {
-                    cssLink.match = value;
-                    saveButton.setDisabled(updateDisplay(preview, cssLink, plugin.settings));
+                });
+                dc.onChange((value: string) => {
+                    // 🚀 FIKSET: Sjekk at verdien er en gyldig nøkkel i matchTypes
+                    if (value in matchTypes) {
+                        cssLink.match = value as "exact" | "contains" | "startswith" | "endswith";
+                        saveButton.setDisabled(updateDisplay(preview, cssLink, plugin.settings));
+                    }
                 });
             })
 
@@ -175,7 +185,12 @@ class CSSBuilderModal extends Modal {
             })
 
         if (!this.cssLink.name && this.plugin.settings.targetAttributes.length > 0) {
-           this.cssLink.name = this.plugin.settings.targetAttributes[0];
+            const firstAttribute = this.plugin.settings.targetAttributes[0];
+
+            // 🚀 FIKSET: Sjekk eksplisitt at attributten faktisk eksisterer (ikke er undefined)
+            if (!this.cssLink.name && firstAttribute !== undefined) {
+                this.cssLink.name = firstAttribute;
+            }
         }
 
         const updateContainer = function(type: SelectorTypes) {

@@ -1,76 +1,70 @@
 import {Plugin, debounce, TFile} from 'obsidian';
-import SuperchargedLinksSettingTab from "src/settings/SuperchargedLinksSettingTab"
-import {
-	updateElLinks,
-	updateVisibleLinks,
-	clearExtraAttributes,
-	updateDivExtraAttributes, updatePropertiesPane,
-} from "src/linkAttributes/linkAttributes"
-import { SuperchargedLinksSettings, DEFAULT_SETTINGS } from "src/settings/SuperchargedLinksSettings"
-import { Prec } from "@codemirror/state";
-import { buildCMViewPlugin } from "./linkAttributes/livePreview";
 
-export default class SuperchargedLinks extends Plugin {
-	settings: SuperchargedLinksSettings;
-	settingTab: SuperchargedLinksSettingTab
-	private observers: [MutationObserver, string, string][];
+import { Prec } from "@codemirror/state";
+import { DEFAULT_SETTINGS, SCLSettings } from './Settings';
+import SCLSettingTab from './SettingTab';
+import { clearExtraAttributes, updateDivExtraAttributes, updateElLinks, updatePropertiesPane, updateVisibleLinks } from './linkAttributes';
+import { buildCMViewPlugin } from './livePreview';
+
+export default class RechargedSuperchargedLinks extends Plugin {
+	declare settings: SCLSettings;
+	declare settingTab: SCLSettingTab
+	declare observers: [MutationObserver, string, string][];
 	private modalObservers: MutationObserver[] = [];
 
-	async onload(): Promise<void> {
-		console.log('Supercharged links loaded');
-		await this.loadSettings();
+async onload(): Promise<void> {
+    console.log('Supercharged links loaded');
+    
+    // 1. Initialiser variablene FØRST så de aldri er udefinerte
+    this.observers = [];
+    this.modalObservers = [];
 
-		this.addSettingTab(new SuperchargedLinksSettingTab(this.app, this));
-		this.registerMarkdownPostProcessor((el, ctx) => {
-			updateElLinks(this.app, this, el, ctx)
-		});
+    await this.loadSettings();
 
-		const plugin = this;
-		const updateLinks = function(_file: TFile) {
-			updateVisibleLinks(plugin.app, plugin);
-			plugin.observers.forEach(([observer, type, own_class]) => {
-				const leaves = plugin.app.workspace.getLeavesOfType(type);
-				leaves.forEach(leaf => {
-					plugin.updateContainer(leaf.view.containerEl, plugin, own_class);
-				})
-			});
-		}
+    this.addSettingTab(new SCLSettingTab(this.app, this));
+    this.registerMarkdownPostProcessor((el, ctx) => {
+        updateElLinks(this.app, this, el, ctx)
+    });
 
-		// Live preview
-		const ext = Prec.lowest(buildCMViewPlugin(this.app, this.settings));
-		this.registerEditorExtension(ext);
+    const plugin = this;
+    const updateLinks = function(_file: TFile) {
+        updateVisibleLinks(plugin.app, plugin);
+        plugin.observers.forEach(([observer, type, own_class]) => {
+            const leaves = plugin.app.workspace.getLeavesOfType(type);
+            leaves.forEach(leaf => {
+                plugin.updateContainer(leaf.view.containerEl, plugin, own_class);
+            })
+        });
+    }
 
-		this.observers = [];
+    // Live preview - Nå er det trygt å kjøre denne fordi observers eksisterer!
+    const ext = Prec.lowest(buildCMViewPlugin(this.app, this.settings));
+    this.registerEditorExtension(ext);
 
-		this.app.workspace.onLayoutReady(() => {
-			this.initViewObservers(this);
-			this.initModalObservers(this, document);
-			updateVisibleLinks(this.app, this);
-		});
+    this.app.workspace.onLayoutReady(() => {
+        this.initViewObservers(this);
+        this.initModalObservers(this, document);
+        updateVisibleLinks(this.app, this);
+    });
 
-		// Initialization
-		this.registerEvent(this.app.workspace.on("window-open", (window, win) => this.initModalObservers(this, window.getContainer().doc)));
+    // Initialization
+    this.registerEvent(this.app.workspace.on("window-open", (window, win) => this.initModalObservers(this, window.getContainer().doc)));
 
-		// Update when 
-		// Debounced to prevent lag when writing
-		this.registerEvent(this.app.metadataCache.on('changed', debounce(updateLinks, 500, true)));
+    // Update when 
+    // Debounced to prevent lag when writing
+    this.registerEvent(this.app.metadataCache.on('changed', debounce(updateLinks, 500, true)));
 
-		// Update when layout changes
-		// @ts-ignore
-		this.registerEvent(this.app.workspace.on("layout-change", debounce(updateLinks, 10, true)));
-		// Update plugin views when layout changes
-		// TODO: This is an expensive operation that seems like it is called fairly frequently. Maybe we can do this more efficiently?
-		this.registerEvent(this.app.workspace.on("layout-change", () => this.initViewObservers(this)));
+    // Update when layout changes
+    // @ts-ignore
+    this.registerEvent(this.app.workspace.on("layout-change", debounce(updateLinks, 10, true)));
+    // Update plugin views when layout changes
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.initViewObservers(this)));
+}
 
-		// DEBUG: When adding a new view, to get the proper id of that view, uncomment this and reload the plugin
-		// this.app.workspace.iterateAllLeaves(leaf => {
-		// 	console.log(leaf.view.getViewType());
-		// });
-	}
 
-	initViewObservers(plugin: SuperchargedLinks) {
+	initViewObservers(plugin: RechargedSuperchargedLinks) {
 		// Reset observers
-		plugin.observers.forEach(([observer, type]) => {
+    plugin.observers.forEach(([observer, type, _ownClass]) => {
 			observer.disconnect();
 		});
 		plugin.observers = [];
@@ -118,19 +112,28 @@ export default class SuperchargedLinks extends Plugin {
 			// console.log("Supercharged links: Enabling backlinks in document support");
 			plugin.registerViewType('markdown', plugin, '.embedded-backlinks .tree-item-inner', true);
 		}
+
 		const propertyLeaves = this.app.workspace.getLeavesOfType("file-properties");
 		for (let i = 0; i < propertyLeaves.length; i++) {
-			const container = propertyLeaves[i].view.containerEl;
-			let observer = new MutationObserver((records, _) =>{
-				const file = this.app.workspace.getActiveFile();
-				if (!!file) {
-					updatePropertiesPane(container, this.app.workspace.getActiveFile(), this.app, plugin);
-				}
-			});
-			observer.observe(container, {subtree: true, childList: true, attributes: false});
-			plugin.observers.push([observer, "file-properties" + i, ""]);
-			// TODO: No proper unloading!
+				const leaf = propertyLeaves[i];
+				if (!leaf) continue; // Sikrer at leafet faktisk eksisterer
+
+				const container = leaf.view.containerEl;
+				if (!container) continue; // Sikrer at containerEl ikke er undefined
+
+				let observer = new MutationObserver((records, _) => {
+						const file = this.app.workspace.getActiveFile();
+						if (file) {
+								// Bruker den lokale, sjekkede 'file'-variabelen og 'container'
+								updatePropertiesPane(container, file, this.app, plugin);
+						}
+				});
+
+				observer.observe(container, { subtree: true, childList: true, attributes: false });
+				plugin.observers.push([observer, "file-properties" + i, ""]);
+				// TODO: No proper unloading!
 		}
+
 		plugin.registerViewType('file-properties', plugin, 'div.internal-link > .multi-select-pill-content');
 		if (plugin.app?.plugins?.plugins?.['notebook-navigator']) {
 			plugin.registerViewType('notebook-navigator', plugin, 'span.nn-shortcut-label');
@@ -138,64 +141,66 @@ export default class SuperchargedLinks extends Plugin {
 		}
 	}
 
-	initModalObservers(plugin: SuperchargedLinks, doc: Document) {
-		const config = {
-			subtree: false,
-			childList: true,
-			attributes: false
-		};
+initModalObservers(plugin: RechargedSuperchargedLinks, doc: Document) {
+    const config = {
+        subtree: false,
+        childList: true,
+        attributes: false
+    };
 
-		this.modalObservers.push(new MutationObserver(records => {
-			records.forEach((mutation) => {
-				if (mutation.type === 'childList') {
-					mutation.addedNodes.forEach(n => {
-						if ('className' in n &&
-							// @ts-ignore
-							(n.className.includes('modal-container') && plugin.settings.enableQuickSwitcher
-								// @ts-ignore
-								|| n.className.includes('suggestion-container') && plugin.settings.enableSuggestor)) {
-							let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
-							// @ts-ignore
-							if (n.className.includes('suggestion-container')) {
-								selector = ".suggestion-title, .suggestion-note";
-							}
-							plugin.updateContainer(n as HTMLElement, plugin, selector);
-							plugin._watchContainer(null, n as HTMLElement, plugin, selector);
-						}
-					});
-				}
-			});
-		}));
-		this.modalObservers.last().observe(doc.body, config);
-	}
+    // 1. Opprett observeren i en egen konstant først
+    const observer = new MutationObserver(records => {
+        records.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(n => {
+                    if ('className' in n &&
+                        // @ts-ignore
+                        (n.className.includes('modal-container') && plugin.settings.enableQuickSwitcher
+                            // @ts-ignore
+                            || n.className.includes('suggestion-container') && plugin.settings.enableSuggestor)) {
+                        let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
+                        // @ts-ignore
+                        if (n.className.includes('suggestion-container')) {
+                            selector = ".suggestion-title, .suggestion-note";
+                        }
+                        plugin.updateContainer(n as HTMLElement, plugin, selector);
+                        plugin._watchContainer(null, n as HTMLElement, plugin, selector);
+                    }
+                });
+            }
+        });
+    });
 
-	registerViewType(viewTypeName: string, plugin: SuperchargedLinks, selector: string, updateDynamic = false, filter_collapsible: boolean = false) {
+    // 2. Legg den til i arrayen
+    this.modalObservers.push(observer);
+
+    // 3. Bruk konstanten direkte – den er garantert ALDRI undefined!
+    observer.observe(doc.body, config);
+}
+
+
+registerViewType(viewTypeName: string, plugin: RechargedSuperchargedLinks, selector: string, updateDynamic = false, filter_collapsible: boolean = false) {
 		const leaves = this.app.workspace.getLeavesOfType(viewTypeName);
-		// if (leaves.length > 1) {
-		 for (let i = 0; i < leaves.length; i++) {
-			const container = leaves[i].view.containerEl;
+		
+		for (let i = 0; i < leaves.length; i++) {
+			const leaf = leaves[i];
+			// 🚀 1. Sikre at leaf faktisk eksisterer (fjerner undefined-feil på leaves[i])
+			if (!leaf) continue; 
+
+			const container = leaf.view?.containerEl;
+			// 🚀 2. Sikre at containerEl faktisk eksisterer før den sendes til funksjonene
+			if (!container) continue; 
+
 			if (updateDynamic) {
-				plugin._watchContainerDynamic(viewTypeName + i, container, plugin, selector)
-			}
-			 else {
+				plugin._watchContainerDynamic(viewTypeName + i, container, plugin, selector);
+			} else {
 				plugin._watchContainer(viewTypeName + i, container, plugin, selector, filter_collapsible);
 			}
-		 }
-		// }
-		// else if (leaves.length < 1) return;
-		// else {
-		// 	const container = leaves[0].view.containerEl;
-		// 	this.updateContainer(container, plugin, selector);
-		// 	if (updateDynamic) {
-		// 		plugin._watchContainerDynamic(viewTypeName, container, plugin, selector)
-		// 	}
-		// 	else {
-		// 		plugin._watchContainer(viewTypeName, container, plugin, selector);
-		// 	}
-		// }
+		}
 	}
 
-	updateContainer(container: HTMLElement, plugin: SuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
+
+	updateContainer(container: HTMLElement, plugin: RechargedSuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
 		if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
 		if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
 		const nodes = container.findAll(selector);
@@ -213,41 +218,59 @@ export default class SuperchargedLinks extends Plugin {
 		}
 	}
 
-	_watchContainer(viewType: string, container: HTMLElement, plugin: SuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
-		let observer = new MutationObserver((records, _) => {
-			plugin.updateContainer(container, plugin, selector, filter_collapsible);
-		});
-		observer.observe(container, { subtree: true, childList: true, attributes: false });
-		if (viewType) {
-			plugin.observers.push([observer, viewType, selector]);
-		}
-	}
+    // Fikset: Tillater nå at viewType kan være null
+    private _watchContainer(
+        viewType: string | null, 
+        container: HTMLElement, 
+        plugin: RechargedSuperchargedLinks, 
+        selector: string, 
+        filter_collapsible: boolean = false
+    ): void {
+        let observer = new MutationObserver((records, _) => {
+            plugin.updateContainer(container, plugin, selector, filter_collapsible);
+        });
+        observer.observe(container, { subtree: true, childList: true, attributes: false });
+        
+        // Sjekken fungerer fortsatt perfekt om viewType er null
+        if (viewType) {
+            plugin.observers.push([observer, viewType, selector]);
+        }
+    }
 
-	_watchContainerDynamic(viewType: string, container: HTMLElement, plugin: SuperchargedLinks, selector: string, parent_class = 'tree-item') {
-		// Used for efficient updating of the backlinks panel
-		// Only loops through newly added DOM nodes instead of changing all of them
-		if (!plugin.settings.enableBacklinks) return;
-		let observer = new MutationObserver((records, _) => {
-			records.forEach((mutation) => {
-				if (mutation.type === 'childList') {
-					mutation.addedNodes.forEach((n) => {
-						if ('className' in n) {
-							// @ts-ignore
-							if (n.className.includes && typeof n.className.includes === 'function' && n.className.includes(parent_class)) {
-								const fileDivs = (n as HTMLElement).findAll(selector);
-								for (let i = 0; i < fileDivs.length; ++i) {
-									const link = fileDivs[i] as HTMLElement;
-									updateDivExtraAttributes(plugin.app, plugin.settings, link, "");
-								}
-							}
-						}
-					});
-				}
-			});
-		});
-		observer.observe(container, { subtree: true, childList: true, attributes: false });
-		plugin.observers.push([observer, viewType, selector]);
-	}
+    // Fikset: Gjort privat og lagt til typering på returverdi (: void)
+    private _watchContainerDynamic(
+        viewType: string, 
+        container: HTMLElement, 
+        plugin: RechargedSuperchargedLinks, 
+        selector: string, 
+        parent_class = 'tree-item'
+    ): void {
+        // Brukt for effektiv oppdatering av backlinks-panelet
+        if (!plugin.settings.enableBacklinks) return;
+        
+        let observer = new MutationObserver((records, _) => {
+            records.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach((n) => {
+                        // Sjekk om det er et HTMLElement før vi leser className (mye tryggere enn @ts-ignore)
+                        if (n instanceof HTMLElement) {
+                            if (n.className && typeof n.className.includes === 'function' && n.className.includes(parent_class)) {
+                                const fileDivs = n.findAll(selector);
+                                for (let i = 0; i < fileDivs.length; ++i) {
+                                    const link = fileDivs[i] as HTMLElement;
+                                    updateDivExtraAttributes(plugin.app, plugin.settings, link, "");
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        });
+        
+        observer.observe(container, { subtree: true, childList: true, attributes: false });
+        plugin.observers.push([observer, viewType, selector]);
+    }
+
 
 
 	onunload() {

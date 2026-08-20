@@ -1,34 +1,52 @@
-name: Publish plugin
+name: Release
 
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
-      - "*" # Push events to matching any tag format, i.e. 1.0, 20.15.10
+      - "*"
 
-env:
-  PLUGIN_NAME: ${{ github.event.repository.name }}
-  RELEASE_VER: ${{ github.ref }}
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Create release and Upload
-        id: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Sørg for at styles.css ligger i roten etter build (juster hvis nødvendig)
+      - name: Verify assets
         run: |
-          TAG_NAME=${RELEASE_VER##*/}
-          mkdir "${PLUGIN_NAME}"
-          assets=()
-          for f in main.js manifest.json styles.css; do
-            if [[ -f $f ]]; then
-              cp $f "${PLUGIN_NAME}/"
-              assets+=(-a "$f")
-            fi
-          done
-          zip -r "$PLUGIN_NAME".zip "$PLUGIN_NAME"
-          hub release create "${assets[@]}" -a "$PLUGIN_NAME".zip -m "$TAG_NAME" "$TAG_NAME"
+          test -f main.js
+          test -f styles.css
+
+      - name: Generate build provenance attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            main.js
+            styles.css
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            styles.css
+            manifest.json

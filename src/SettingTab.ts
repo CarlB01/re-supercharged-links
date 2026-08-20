@@ -1,14 +1,15 @@
 import { App, PluginSettingTab, Setting, debounce } from "obsidian"
-import SuperchargedLinks from "main"
-import { CSSBuilderModal, updateDisplay } from "../cssBuilder/cssBuilderModal";
-import { buildCSS } from "../cssBuilder/cssBuilder";
-import {updateVisibleLinks} from "../linkAttributes/linkAttributes";
+import RechargedSuperchargedLinks from "./main";
+import { updateVisibleLinks } from "./linkAttributes";
+import { buildCSS } from "./cssBuilder";
+import { CSSBuilderModal, updateDisplay } from "./cssBuilderModal";
 
-export default class SuperchargedLinksSettingTab extends PluginSettingTab {
-	plugin: SuperchargedLinks;
+
+export default class SCLSettingTab extends PluginSettingTab {
+	plugin: RechargedSuperchargedLinks;
 	debouncedGenerate: Function;
 
-	constructor(app: App, plugin: SuperchargedLinks) {
+	constructor(app: App, plugin: RechargedSuperchargedLinks) {
 		super(app, plugin);
 		this.plugin = plugin;
 		this.debouncedGenerate = debounce(this._generateSnippet, 1000, true);
@@ -193,10 +194,12 @@ Styling can be done using the Style Settings plugin.
 				.addButton(button => {
 					button.onClick(() => {
 						const oldSelector = selectors[i + 1];
+						// 🚀 1. FIKSET: Sikre at det neste elementet faktisk eksisterer
+						if (oldSelector === undefined) return;
+
 						selectors[i + 1] = selector;
 						selectors[i] = oldSelector;
 						this.drawSelectors(div);
-
 					});
 					button.setIcon("down-arrow-with-tail");
 					button.setTooltip("Move selector down");
@@ -207,10 +210,12 @@ Styling can be done using the Style Settings plugin.
 				.addButton(button => {
 					button.onClick(() => {
 						const oldSelector = selectors[i - 1];
+						// 🚀 2. FIKSET: Sikre at det forrige elementet faktisk eksisterer
+						if (oldSelector === undefined) return;
+
 						selectors[i - 1] = selector;
 						selectors[i] = oldSelector;
 						this.drawSelectors(div);
-
 					});
 					button.setIcon("up-arrow-with-tail");
 					button.setTooltip("Move selector up");
@@ -259,4 +264,5 @@ Styling can be done using the Style Settings plugin.
 				button.setButtonText("New");
 			});
 	}
+
 }

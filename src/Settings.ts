@@ -1,6 +1,6 @@
-import { CSSLink } from "../cssBuilder/cssLink";
+import { CSSLink } from "./cssLink";
 
-export interface SuperchargedLinksSettings {
+export interface SCLSettings {
 	targetAttributes: Array<string>;
 	targetTags: boolean;
 	getFromInlineField: boolean;
@@ -15,7 +15,7 @@ export interface SuperchargedLinksSettings {
 	selectors: CSSLink[];
 }
 
-export const DEFAULT_SETTINGS: SuperchargedLinksSettings = {
+export const DEFAULT_SETTINGS: SCLSettings = {
 	targetAttributes: [],
 	targetTags: true,
 	getFromInlineField: false,
