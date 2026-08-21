@@ -1,5 +1,5 @@
 import { CSSLink, matchSign } from "./cssLink";
-import RechargedSuperchargedLinks from "./main";
+import ResuperchargedLinks from "./main";
 
 // En 2D-matrise (tabell) som inneholder 6 rader, der hver rad har 6 HEX-fargekoder.
 const colorSet = [[
@@ -67,7 +67,7 @@ function hash(uid: string) {
  *  (/* @settings ... Det er denne kommentarseksjonen Style Settings-pluginet leser 
  * for å lage brukergrensesnittet sitt!
  */
-export async function buildCSS(selectors: CSSLink[], plugin: RechargedSuperchargedLinks) {
+export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks) {
     // 1. STARTER PÅ FILEN: Lager en liste med tekstlinjer og legger til en advarsel øverst.
     const instructions: string[] = [
         "/* WARNING: This file will be overwritten by the plugin.",

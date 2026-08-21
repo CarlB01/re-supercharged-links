@@ -1,6 +1,6 @@
 import { App, getAllTags, getLinkpath, LinkCache, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian"
 import { SCLSettings } from "./Settings"
-import RechargedSuperchargedLinks from "./main"
+import ResuperchargedLinks from "./main"
 
 /**
  * Renser et HTML-element for alle egendefinerte attributter som starter med 'data-link'.
@@ -314,7 +314,7 @@ export function updateDivExtraAttributes(
  */
 export function updateElLinks(
     app: App, 
-    plugin: RechargedSuperchargedLinks, 
+    plugin: ResuperchargedLinks, 
     el: HTMLElement, 
     ctx: MarkdownPostProcessorContext
 ): void {
@@ -344,7 +344,7 @@ export function updatePropertiesPane(
     propertiesEl: HTMLElement, 
     file: TFile, 
     app: App, 
-    plugin: RechargedSuperchargedLinks
+    plugin: ResuperchargedLinks
 ): void {
     // Henter frontmatter for filen som vises i panelet. Avbryt hvis den er tom.
     const frontmatter = app.metadataCache.getCache(file.path)?.frontmatter as Record<string, unknown> | undefined;
@@ -432,7 +432,7 @@ export function updatePropertiesPane(
  * @param app - Obsidians globale App-instans
  * @param plugin - Hovedinstansen til pluginet ditt
  */
-export function updateVisibleLinks(app: App, plugin: RechargedSuperchargedLinks): void {
+export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
     const settings = plugin.settings; // Henter brukerens innstillinger
     
     // 1. ITERERING: Går igjennom hvert eneste "blad" (fane/vindu) i Obsidians hovedgrensesnitt

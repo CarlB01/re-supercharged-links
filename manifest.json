@@ -1,11 +1,11 @@
 {
-  "id": "recharged-supercharged-links",
-  "name": "Recharged Supercharged Links",
-  "version": "0.0.3",
+  "id": "re-supercharged-links",
+  "name": "Re-supercharged Links",
+  "version": "0.0.5",
   "minAppVersion": "1.11.0",
   "description": "continued development & fixes for The original Obsidian Supercarged Links, by mdelobelle & Emile",
   "author": "CarlB",
   "authorUrl": "https://github.com/CarlB01/CarlB01",
-  "helpUrl": "https://github.com/CarlB01/recharged_supercharged-links#readme",
+  "helpUrl": "https://github.com/CarlB01/re-supercharged-links#readme",
   "isDesktopOnly": false
 }

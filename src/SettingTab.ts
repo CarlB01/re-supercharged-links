@@ -1,15 +1,15 @@
 import { App, PluginSettingTab, Setting, debounce } from "obsidian"
-import RechargedSuperchargedLinks from "./main";
+import ResuperchargedLinks from "./main";
 import { updateVisibleLinks } from "./linkAttributes";
 import { buildCSS } from "./cssBuilder";
 import { CSSBuilderModal, updateDisplay } from "./cssBuilderModal";
 
 
 export default class SCLSettingTab extends PluginSettingTab {
-	plugin: RechargedSuperchargedLinks;
+	plugin: ResuperchargedLinks;
 	debouncedGenerate: Function;
 
-	constructor(app: App, plugin: RechargedSuperchargedLinks) {
+	constructor(app: App, plugin: ResuperchargedLinks) {
 		super(app, plugin);
 		this.plugin = plugin;
 		this.debouncedGenerate = debounce(this._generateSnippet, 1000, true);

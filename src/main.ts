@@ -6,7 +6,7 @@ import SCLSettingTab from './SettingTab';
 import { clearExtraAttributes, updateDivExtraAttributes, updateElLinks, updatePropertiesPane, updateVisibleLinks } from './linkAttributes';
 import { buildCMViewPlugin } from './livePreview';
 
-export default class RechargedSuperchargedLinks extends Plugin {
+export default class ResuperchargedLinks extends Plugin {
 	declare settings: SCLSettings;
 	declare settingTab: SCLSettingTab
 	declare observers: [MutationObserver, string, string][];
@@ -62,7 +62,7 @@ async onload(): Promise<void> {
 }
 
 
-	initViewObservers(plugin: RechargedSuperchargedLinks) {
+	initViewObservers(plugin: ResuperchargedLinks) {
 		// Reset observers
     plugin.observers.forEach(([observer, type, _ownClass]) => {
 			observer.disconnect();
@@ -141,7 +141,7 @@ async onload(): Promise<void> {
 		}
 	}
 
-initModalObservers(plugin: RechargedSuperchargedLinks, doc: Document) {
+initModalObservers(plugin: ResuperchargedLinks, doc: Document) {
     const config = {
         subtree: false,
         childList: true,
@@ -179,7 +179,7 @@ initModalObservers(plugin: RechargedSuperchargedLinks, doc: Document) {
 }
 
 
-registerViewType(viewTypeName: string, plugin: RechargedSuperchargedLinks, selector: string, updateDynamic = false, filter_collapsible: boolean = false) {
+registerViewType(viewTypeName: string, plugin: ResuperchargedLinks, selector: string, updateDynamic = false, filter_collapsible: boolean = false) {
 		const leaves = this.app.workspace.getLeavesOfType(viewTypeName);
 		
 		for (let i = 0; i < leaves.length; i++) {
@@ -200,7 +200,7 @@ registerViewType(viewTypeName: string, plugin: RechargedSuperchargedLinks, selec
 	}
 
 
-	updateContainer(container: HTMLElement, plugin: RechargedSuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
+	updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
 		if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
 		if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
 		const nodes = container.findAll(selector);
@@ -222,7 +222,7 @@ registerViewType(viewTypeName: string, plugin: RechargedSuperchargedLinks, selec
     private _watchContainer(
         viewType: string | null, 
         container: HTMLElement, 
-        plugin: RechargedSuperchargedLinks, 
+        plugin: ResuperchargedLinks, 
         selector: string, 
         filter_collapsible: boolean = false
     ): void {
@@ -241,7 +241,7 @@ registerViewType(viewTypeName: string, plugin: RechargedSuperchargedLinks, selec
     private _watchContainerDynamic(
         viewType: string, 
         container: HTMLElement, 
-        plugin: RechargedSuperchargedLinks, 
+        plugin: ResuperchargedLinks, 
         selector: string, 
         parent_class = 'tree-item'
     ): void {

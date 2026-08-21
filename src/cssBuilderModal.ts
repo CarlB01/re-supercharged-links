@@ -1,6 +1,6 @@
 import { Modal, Setting } from "obsidian";
 import { CSSLink, matchPreview, matchPreviewPath, MatchTypes, matchTypes, selectorType, SelectorTypes } from "./cssLink";
-import RechargedSuperchargedLinks from "./main";
+import ResuperchargedLinks from "./main";
 import { SCLSettings } from "./Settings";
 import { processKey } from "./linkAttributes";
 
@@ -124,13 +124,13 @@ export function updateDisplay(textArea: HTMLElement, link: CSSLink, settings: SC
  */
 class CSSBuilderModal extends Modal {
     // 🚀 Bruk 'declare' for å fortelle TypeScript at disse egenskapene arves trygt via Obsidian uten å krasje konstruktøren
-    declare plugin: RechargedSuperchargedLinks;
+    declare plugin: ResuperchargedLinks;
     declare cssLink: CSSLink;
     declare saveCallback: (cssLink: CSSLink) => void;
 
     // Konstruktør: Kjøres når modalen opprettes (f.eks. `new CSSBuilderModal(...)`)
     // Tillater eksplisitt 'null' som standardverdi hvis man lager en helt ny regel fra bunnen av
-    constructor(plugin: RechargedSuperchargedLinks, saveCallback: (cssLink: CSSLink) => void, cssLink: CSSLink | null = null) {
+    constructor(plugin: ResuperchargedLinks, saveCallback: (cssLink: CSSLink) => void, cssLink: CSSLink | null = null) {
         super(plugin.app); // Initialiserer Obsidians standard modal-applikasjon
         
         this.plugin = plugin;
