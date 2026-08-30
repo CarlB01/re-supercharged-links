@@ -38,7 +38,7 @@ async onload(): Promise<void> {
     }
 
     // Live preview - Nå er det trygt å kjøre denne fordi observers eksisterer!
-    const ext = Prec.lowest(buildCMViewPlugin(this.app, this.settings));
+    const ext = Prec.lowest(buildCMViewPlugin(this.app, this));
     this.registerEditorExtension(ext);
 
     this.app.workspace.onLayoutReady(() => {
@@ -201,12 +201,15 @@ registerViewType(viewTypeName: string, plugin: ResuperchargedLinks, selector: st
 
 
 	updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filter_collapsible: boolean = false) {
+		if (!container || typeof container.findAll !== "function") return;
+
 		if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
 		if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
 		const nodes = container.findAll(selector);
 		for (let i = 0; i < nodes.length; ++i) {
 			const el = nodes[i] as HTMLElement;
-			updateDivExtraAttributes(plugin.app, plugin.settings, el, "", undefined, filter_collapsible);
+			// 🚀 FIKSET: Bytt ut plugin.settings med plugin som andre parameter
+			updateDivExtraAttributes(plugin.app, plugin, el, "", undefined, filter_collapsible);
 		}
 	}
 
@@ -258,7 +261,7 @@ registerViewType(viewTypeName: string, plugin: ResuperchargedLinks, selector: st
                                 const fileDivs = n.findAll(selector);
                                 for (let i = 0; i < fileDivs.length; ++i) {
                                     const link = fileDivs[i] as HTMLElement;
-                                    updateDivExtraAttributes(plugin.app, plugin.settings, link, "");
+                                    updateDivExtraAttributes(plugin.app, plugin, link, "");
                                 }
                             }
                         }

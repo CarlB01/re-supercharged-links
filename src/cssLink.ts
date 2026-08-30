@@ -12,6 +12,8 @@ export interface CSSLink {
     // De 4 egenskapene du bryr deg om:
     iconBefore: string;
     iconAfter: string;
+    fontWeight: "normal" | "lighter" | "bold";
+    fontStyle: "normal" | "italic" | "underline" | "line-through";
     lightColor: string;
     darkColor: string;
 }
@@ -56,7 +58,7 @@ export const matchTypes: Record<MatchTypes, string> = {
 
 export class CSSLink {
     constructor() {
-        this.type = 'attribute';
+        this.type = 'tag';
         this.name = "";
         this.value = "";
         this.matchCaseSensitive = false;
@@ -68,6 +70,7 @@ export class CSSLink {
         // Standardverdier for dine nye kjerne-funksjoner:
         this.iconBefore = "";
         this.iconAfter = "";
+        this.fontStyle = "normal";
         this.lightColor = "#aa0000"; // Mørkere rød for hvit bakgrunn
         this.darkColor = "#ff5555";  // Klar rød for mørk bakgrunn
     }

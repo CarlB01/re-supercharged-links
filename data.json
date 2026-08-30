@@ -1,5 +1,4 @@
 {
-  "targetAttributes": [],
   "targetTags": true,
   "getFromInlineField": false,
   "enableTabHeader": true,
@@ -14,26 +13,41 @@
     {
       "type": "tag",
       "name": "",
-      "value": "her",
+      "value": "him",
       "matchCaseSensitive": false,
       "match": "exact",
-      "uid": "6a4f-8ecb",
-      "selectText": true,
-      "selectAppend": false,
-      "selectPrepend": true,
-      "selectBackground": false
+      "uid": "ed89-b784",
+      "iconBefore": "👤",
+      "iconAfter": "",
+      "lightColor": "#5773ff",
+      "darkColor": "#a9b6f9"
     },
     {
       "type": "tag",
       "name": "",
-      "value": "him",
+      "value": "her",
       "matchCaseSensitive": false,
       "match": "exact",
-      "uid": "55be-a375",
-      "selectText": true,
-      "selectAppend": false,
-      "selectPrepend": true,
-      "selectBackground": false
+      "uid": "cd5e-deab",
+      "iconBefore": "👩🏼‍🎤",
+      "iconAfter": "",
+      "lightColor": "#df2020",
+      "darkColor": "#ff5555"
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "tekst",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "1327-142d",
+      "iconBefore": "📄",
+      "iconAfter": "",
+      "lightColor": "#c9ae26",
+      "darkColor": "#fdff7a",
+      "fontWeight": "bold",
+      "fontStyle": "line-through"
     }
-  ]
+  ],
+  "targetAttributes": []
 }

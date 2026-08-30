@@ -16,7 +16,7 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
         lightVars.push(`    --scl-color-${selector.uid}: ${selector.lightColor};`);
         darkVars.push(`    --scl-color-${selector.uid}: ${selector.darkColor};`);
 
-        // 2. Bygg opp CSS-selektoren
+        // 2. Bygg opp CSS-selektoren basert på type (tag, attributt eller filbane)
         let cssSelector: string;
         if (selector.type === 'attribute') {
             cssSelector = `[data-link-${selector.name}${matchSign[selector.match]}="${selector.value}" ${selector.matchCaseSensitive ? "" : " i"}]`;
@@ -25,14 +25,29 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
         } else {
             cssSelector = `[data-link-path${matchSign[selector.match]}="${selector.value}" ${selector.matchCaseSensitive ? "" : "i"}]`;
         }
-
-        // 3. Generer den modusuavhengige stylingen for tekstfarge
-        rules.push(...[
+        // 3. Generer den modusuavhengige stylingen for tekstfarge, vekt og stil
+        const textStyles: string[] = [
             `div[data-id="${selector.uid}"] div.setting-item-description,`,
             `${cssSelector} {`,
-            `    color: var(--scl-color-${selector.uid}) !important;`,
-            `}`
-        ]);
+            `    color: var(--scl-color-${selector.uid}) !important;`
+        ];
+
+        // Sjekk og legg til tekstvekt hvis den ikke er normal (Tynn eller Kraftig)
+        if (selector.fontWeight && selector.fontWeight !== "normal") {
+            textStyles.push(`    font-weight: ${selector.fontWeight} !important;`);
+        }
+
+        // Sjekk og legg til tekststil (Kursiv, Understreket eller Overstrøket)
+        if (selector.fontStyle === "italic") {
+            textStyles.push(`    font-style: italic !important;`);
+        } else if (selector.fontStyle === "underline") {
+            textStyles.push(`    text-decoration: underline !important;`);
+        } else if (selector.fontStyle === "line-through") {
+            textStyles.push(`    text-decoration: line-through !important;`);
+        }
+
+        textStyles.push(`}`);
+        rules.push(...textStyles);
 
         // 4. Generer logikk for ikon FØR lenken
         if (selector.iconBefore) {
@@ -54,14 +69,13 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
             ]);
         }
     });
-
     lightVars.push("}");
     darkVars.push("}");
 
-    // Kombiner alt sammen
+    // Kombiner absolutt alle genererte CSS-rader sammen
     const finalCSS = [...instructions, ...lightVars, "", ...darkVars, ...rules].join("\n");
 
-    // Lagre til fil (akkurat som din originale logikk)
+    // Fysisk lagring til fil i hvelvets snippet-mappe
     const vault = plugin.app.vault;
     const configDir = vault.configDir ?? ".obsidian";
     const pathDir = configDir + "/snippets";
@@ -73,7 +87,7 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
     }
     await vault.create(path, finalCSS);
 
-    // Trigger oppdatering i Obsidian
+    // Trigger den native oppdateringen i Obsidian i sanntid
     if (plugin.settings.activateSnippet) {
         // @ts-ignore
         const customCss = plugin.app.customCss;

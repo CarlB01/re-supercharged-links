@@ -1,7 +1,6 @@
 import { CSSLink } from "./cssLink";
 
 export interface SCLSettings {
-	targetAttributes: Array<string>;
 	targetTags: boolean;
 	getFromInlineField: boolean;
 	activateSnippet: boolean;
@@ -16,7 +15,6 @@ export interface SCLSettings {
 }
 
 export const DEFAULT_SETTINGS: SCLSettings = {
-	targetAttributes: [],
 	targetTags: true,
 	getFromInlineField: false,
 	enableTabHeader: true,

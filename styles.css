@@ -13,3 +13,27 @@ div.supercharged-modal h4 {
 span.data-link-text > a.cm-underline {
     color: inherit;
 }
+
+/* Endrer muspekeren til en hånd når brukeren holder over en listerad */
+.scl-clickable-row {
+    cursor: pointer !important;
+}
+
+/* Gir en standard, ren hover-effekt på radene */
+.scl-clickable-row:hover {
+    background-color: var(--background-modifier-hover) !important;
+}
+
+/* Felles stil for fargeindikatorene (prikkene) foran pilene */
+.scl-color-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.scl-color-dot.is-dark {
+    margin-right: 14px;
+}

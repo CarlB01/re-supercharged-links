@@ -9,7 +9,9 @@ import { ViewPlugin, EditorView, ViewUpdate, DecorationSet, WidgetType, Decorati
 // 3. Dine egne interne plugin-filer
 import { SCLSettings } from "./Settings";
 import { fetchTargetAttributesSync, processValue } from "./linkAttributes"
-export function buildCMViewPlugin(app: App, _settings: SCLSettings)
+import ResuperchargedLinks from "./main";
+export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks) 
+
 {
     // Implements the live preview supercharging
     // Code structure based on https://github.com/nothingislost/obsidian-cm6-attributes/blob/743d71b0aa616407149a0b6ea5ffea28e2154158/src/main.ts
@@ -60,7 +62,7 @@ class HeaderWidget extends WidgetType {
 }
 
 
-    const settings = _settings;
+    const settings = plugin.settings;
     const viewPlugin = ViewPlugin.fromClass(
         class {
             decorations: DecorationSet;
@@ -170,7 +172,7 @@ class HeaderWidget extends WidgetType {
                                 }
 
                                 if (file) {
-                                    let _attributes = fetchTargetAttributesSync(app, settings, file, true);
+                                    let _attributes = fetchTargetAttributesSync(app, plugin, file, true);
                                     let attributes: Record<string, string> = {};
                                     
                                     // 🚀 3. FIKSET: Bruk trygg Object.entries i stedet for usikker for...in

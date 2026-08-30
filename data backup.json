@@ -1,0 +1,99 @@
+{
+  "targetAttributes": [],
+  "targetTags": true,
+  "getFromInlineField": false,
+  "enableTabHeader": true,
+  "activateSnippet": true,
+  "enableEditor": true,
+  "enableFileList": true,
+  "enableBacklinks": true,
+  "enableQuickSwitcher": true,
+  "enableSuggestor": true,
+  "enableBases": true,
+  "selectors": [
+    {
+      "type": "tag",
+      "name": "",
+      "value": "hun",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "db41-82b9",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "han",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "b0b1-f3d8",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "tekst",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "89cf-2671",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "klinikk",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "69b9-ffd1",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "gruppe",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "f4f3-3772",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "overnatting",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "c42f-bc7b",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "sted",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "2be1-e378",
+      "selectText": true,
+      "selectAppend": false,
+      "selectPrepend": true,
+      "selectBackground": false
+    }
+  ]
+}
