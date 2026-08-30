@@ -16,6 +16,8 @@ export interface CSSLink {
     fontStyle: "normal" | "italic" | "underline" | "line-through";
     lightColor: string;
     darkColor: string;
+    lightBgColor: string;
+    darkBgColor: string;
 }
 
 export const matchSign: Record<MatchTypes, string> = {

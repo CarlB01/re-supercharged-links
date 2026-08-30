@@ -44,9 +44,10 @@
       "iconBefore": "📄",
       "iconAfter": "",
       "lightColor": "#c9ae26",
-      "darkColor": "#fdff7a",
+      "darkColor": "#dbdc79",
       "fontWeight": "bold",
-      "fontStyle": "line-through"
+      "fontStyle": "line-through",
+      "lightBgColor": "#f9c3c3"
     }
   ],
   "targetAttributes": []

@@ -12,11 +12,14 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
     let rules: string[] = [""];
 
     selectors.forEach(selector => {
-        // 1. Generer variablene for lys og mørk modus separat
+        // 1. Generer variablene for lys og mørk modus separat (Inkludert bakgrunnsfarge)
         lightVars.push(`    --scl-color-${selector.uid}: ${selector.lightColor};`);
-        darkVars.push(`    --scl-color-${selector.uid}: ${selector.darkColor};`);
+        lightVars.push(`    --scl-bg-${selector.uid}: ${selector.lightBgColor || "transparent"};`); 
 
-        // 2. Bygg opp CSS-selektoren basert på type (tag, attributt eller filbane)
+        darkVars.push(`    --scl-color-${selector.uid}: ${selector.darkColor};`);
+        darkVars.push(`    --scl-bg-${selector.uid}: ${selector.darkBgColor || "transparent"};`);   
+
+        // 2. Bygg opp CSS-selektoren
         let cssSelector: string;
         if (selector.type === 'attribute') {
             cssSelector = `[data-link-${selector.name}${matchSign[selector.match]}="${selector.value}" ${selector.matchCaseSensitive ? "" : " i"}]`;
@@ -25,19 +28,27 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
         } else {
             cssSelector = `[data-link-path${matchSign[selector.match]}="${selector.value}" ${selector.matchCaseSensitive ? "" : "i"}]`;
         }
-        // 3. Generer den modusuavhengige stylingen for tekstfarge, vekt og stil
+        // 3. Generer den modusuavhengige stylingen for tekstfarge, vekt, stil og bakgrunn
         const textStyles: string[] = [
             `div[data-id="${selector.uid}"] div.setting-item-description,`,
             `${cssSelector} {`,
             `    color: var(--scl-color-${selector.uid}) !important;`
         ];
 
-        // Sjekk og legg til tekstvekt hvis den ikke er normal (Tynn eller Kraftig)
+        // Hvis bakgrunnsfarge er satt og ikke er transparent, aktiverer vi bakgrunnen i CSS-en
+        if (selector.lightBgColor || selector.darkBgColor) {
+            textStyles.push(`    background-color: var(--scl-bg-${selector.uid}) !important;`);
+            textStyles.push(`    padding: 1px 4px !important;`);       
+            textStyles.push(`    border-radius: 3px !important;`);    
+            textStyles.push(`    display: inline-block;`);            
+        }
+
+        // Sjekk tekstvekt
         if (selector.fontWeight && selector.fontWeight !== "normal") {
             textStyles.push(`    font-weight: ${selector.fontWeight} !important;`);
         }
 
-        // Sjekk og legg til tekststil (Kursiv, Understreket eller Overstrøket)
+        // Sjekk tekststil
         if (selector.fontStyle === "italic") {
             textStyles.push(`    font-style: italic !important;`);
         } else if (selector.fontStyle === "underline") {
@@ -48,7 +59,7 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
 
         textStyles.push(`}`);
         rules.push(...textStyles);
-
+        
         // 4. Generer logikk for ikon FØR lenken
         if (selector.iconBefore) {
             rules.push(...[
@@ -68,7 +79,7 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
                 `}`
             ]);
         }
-    });
+    }); // 🚀 FIKSET: Her lukkes selectors.forEach-løkken trygt og korrekt!
     lightVars.push("}");
     darkVars.push("}");
 

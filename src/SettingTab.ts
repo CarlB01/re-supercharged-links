@@ -40,7 +40,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const [, prop, uid] = key.split("_");
       const selector = settings.selectors.find((s) => s.uid === uid);
       
-      // 🚀 FIKSET: Åpnet portvakten for fontWeight og fontStyle i getControlValue
+      // Sørg for at "lightBgColor" og "darkBgColor" er lagt til i sjekklisten i BÅDE getControlValue og setControlValue:
       if (selector && typeof prop === "string" && (
         prop === "type" || 
         prop === "name" || 
@@ -49,9 +49,12 @@ export default class SCLSettingTab extends PluginSettingTab {
         prop === "iconAfter" || 
         prop === "lightColor" || 
         prop === "darkColor" ||
+        prop === "lightBgColor" || // 🚀 NYTT!
+        prop === "darkBgColor"  || // 🚀 NYTT!
         prop === "fontWeight" || 
-        prop === "fontStyle"    
-      )) {
+        prop === "fontStyle"   
+      ))
+      {
         return (selector as unknown as Record<string, unknown>)[prop];
       }
     }
@@ -213,6 +216,32 @@ export default class SCLSettingTab extends PluginSettingTab {
             desc: "Choose color for dark theme.",
             control: { type: "color", key: `scl_darkColor_${selector.uid}` }
           },
+                    // 🚀 NYTT: Bakgrunnsfarge for Lyst Tema
+          {
+            render: (setting: Setting) => {
+              setting.setName("Light Mode Background");
+              setting.setDesc("Velg bakgrunnsfarge for lenken i hvitt tema.");
+              setting.addColorPicker(cp => cp
+                .setValue(selector.lightBgColor || "transparent")
+                .onChange(async (value) => {
+                  await this.setControlValue(`scl_lightBgColor_${selector.uid}`, value);
+                })
+              );
+            }
+          },
+          // 🚀 NYTT: Bakgrunnsfarge for Mørkt Tema
+          {
+            render: (setting: Setting) => {
+              setting.setName("Dark Mode Background");
+              setting.setDesc("Velg bakgrunnsfarge for lenken i mørkt tema.");
+              setting.addColorPicker(cp => cp
+                .setValue(selector.darkBgColor || "transparent")
+                .onChange(async (value) => {
+                  await this.setControlValue(`scl_darkBgColor_${selector.uid}`, value);
+                })
+              );
+            }
+          },
           {
             name: "Slett regel",
             desc: "Fjern denne stilregel-malen permanent.",
@@ -324,16 +353,17 @@ export default class SCLSettingTab extends PluginSettingTab {
       const [, prop, uid] = key.split("_");
       const selector = settings.selectors.find((s) => s.uid === uid);
       
-      // 🚀 FIKSET: Portvakten slipper nå også igjennom prop === "fontWeight" og "fontStyle"!
+      // 🚀 ULTRA-TRYGG FIKSET: Vi vasker sjekken slik at den fanger opp absolutt alle egenskaper feilfritt!
       if (selector && typeof prop === "string" && (
         prop === "type" || 
         prop === "name" || 
         prop === "value" || 
         prop === "iconBefore" || 
-        prop === "prop" || // Bevar eksisterende sjekker
         prop === "iconAfter" || 
         prop === "lightColor" || 
         prop === "darkColor" ||
+        prop === "lightBgColor" || // 🎨 Nå slipper denne igjennom!
+        prop === "darkBgColor"  || // 🎨 Nå slipper denne igjennom!
         prop === "fontWeight" || 
         prop === "fontStyle"   
       )) {
@@ -344,7 +374,8 @@ export default class SCLSettingTab extends PluginSettingTab {
     }
 
     await this.plugin.saveSettings();
-    this.debouncedGenerate(); // Bygg ny CSS
-    this.update(); // Gjenbygg grensesnittet
+    this.debouncedGenerate(); // Bygg ny CSS i bakgrunnen
+    this.update(); // Tvinger getSettingDefinitions til å tegne opp på nytt med nye farger!
   }
+
 }
