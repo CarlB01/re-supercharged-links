@@ -1,5 +1,7 @@
+/* =========================================================================
+   1. MAIN RULES LIST LAYOUT (Shared across Mac, PC & iOS)
+   ========================================================================= */
 
-/* Unified Layout Architecture for Mac, PC & iOS */
 .vertical-tab-content-container .setting-item.scl-clickable-row {
   cursor: pointer; 
   display: flex; 
@@ -10,74 +12,104 @@
   padding: 0.6em; 
   width: 100%;
 
-  &:hover { background-color: var(--background-modifier-hover); }
-
-  /* 🚀 NYTT: Går målrettet etter alle utvidede detaljlinjer som ligger under den aktive raden */
-  &.is-active ~ .setting-item:not(.scl-clickable-row) {
-    padding-top: 0.4em;
-    padding-bottom: 0.4em;
-    border-top: none; /* Valgfritt: fjerner linjer mellom detaljene hvis du vil ha det tettere */
+  &:hover { 
+    background-color: var(--background-modifier-hover); 
   }
   
   .setting-item-control {
-    display: flex; flex-wrap: nowrap; flex-direction: row;
-    align-items: center; justify-content: flex-end; flex-shrink: 0;
+    display: flex; 
+    flex-wrap: nowrap; 
+    flex-direction: row;
+    align-items: center; 
+    justify-content: flex-end; 
+    flex-shrink: 0;
   }
   
   .scl-badge-container {
-    display: flex; flex-direction: row; align-items: center; margin-right: 12px;
+    display: flex; 
+    flex-direction: row; 
+    align-items: center; 
+    margin-right: 12px;
   }
 
-  /* BACKGROUND CAPSULE */
+  /* Compact Background Capsules */
   .scl-bg-capsule {
-    display: flex; align-items: center; justify-content: center;
-    width: 24px; height: 20px; border-radius: 4px; margin-right: 6px;
-    border: 1px solid var(--background-modifier-border); box-sizing: border-box; flex-shrink: 0;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    width: 24px; 
+    height: 20px; 
+    border-radius: 4px; 
+    margin-right: 6px;
+    border: 1px solid var(--background-modifier-border); 
+    box-sizing: border-box; 
+    flex-shrink: 0;
 
-    /* 🔑 SNAKKE-TITT: Uses Obsidian's current theme variables directly as default fallback */
     &.is-transparent { 
       background-color: var(--background-primary); 
       border: 1px dashed var(--text-muted); 
       opacity: 0.8; 
     }
     
-    /* Mørk modus placeholder bruker sekundær bakgrunnsfarge for nydelig kontrast */
     &.is-dark.is-transparent {
       background-color: var(--background-secondary);
     }
-
-    &.is-dark { margin-right: 0; }
+    
+    &.is-dark { 
+      margin-right: 0; 
+    }
   }
-
   
   /* Centered Foreground Text Dots */
   .scl-color-dot {
-    display: inline-block; width: 8px; height: 8px; min-width: 8px; min-height: 8px;
-    border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.15); box-sizing: border-box;
+    display: inline-block; 
+    width: 8px; 
+    height: 8px; 
+    min-width: 8px; 
+    min-height: 8px;
+    border-radius: 50%; 
+    flex-shrink: 0; 
+    border: 1px solid rgba(0, 0, 0, 0.15); 
+    box-sizing: border-box;
   }
 
-  /* Rectangular Control Actions */
+  /* Rectangular Control Actions (Arrows & Delete) */
   button {
-    -webkit-appearance: none; appearance: none;
-    flex: 0 0 28px; width: 28px; min-width: 28px; max-width: 28px; height: 28px;
-    border-radius: 4px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+    -webkit-appearance: none; 
+    appearance: none;
+    flex: 0 0 28px; 
+    width: 28px; 
+    min-width: 28px; 
+    max-width: 28px; 
+    height: 28px;
+    border-radius: 4px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    box-sizing: border-box;
   }
 
-    /* Ensures the extra clear button (cross icon) aligns beautifully in the form row */
-  .setting-item-control .clickable-icon {
-    margin-left: 6px;
-    flex-shrink: 0;
+  .scl-order-btn { 
+    padding: 4px; 
   }
-
-  .scl-order-btn { padding: 4px; }
-  button svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-  /* =========================================================================
-     🚀 DETAIL MATCHER: Circles for Text Colors, Rectangles for Backgrounds
-     ========================================================================= */
   
-  /* 1. Universal reset for ALLE fargevelgere i detaljskjemaet */
-  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"] {
+  button svg { 
+    width: 16px; 
+    height: 16px; 
+    flex-shrink: 0; 
+  }
+}
+
+/* =========================================================================
+   2. EXCLUSIVELY COLOR PICKER FIELDS STYLING (Mac & PC Optimization)
+   ========================================================================= */
+
+.vertical-tab-content-container .setting-item.scl-color-row {
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  border-top: none;
+
+  .setting-item-control input[type="color"] {
     -webkit-appearance: none;
     appearance: none;
     padding: 0;
@@ -86,34 +118,107 @@
     box-sizing: border-box;
     cursor: pointer;
     background: transparent;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    &::-webkit-color-swatch {
+      border: none;
+      border-radius: inherit; 
+    }
   }
 
-  /* Tvinger nettleserens interne fargeflekk til å arve formen fra forelderen feilfritt */
-  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"]::-webkit-color-swatch-wrapper {
-    padding: 0;
+  .clickable-icon {
+    margin-left: 6px;
+    flex-shrink: 0;
   }
-  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"]::-webkit-color-swatch {
-    border: none;
-    border-radius: inherit; /* Meget viktig for iOS Safari */
-  }
+}
 
-  /* 2. 🟢 TEKSTFARGER (Farge 1 og 2) = PERFEKTE SIRKLER */
-  /* Treffer de ordinære fargeradene som IKKE har fått bakgrunnsklassen vår */
-  &.is-active ~ .setting-item:not(.scl-clickable-row):not(.scl-bg-picker-row) .setting-item-control input[type="color"] {
-    width: 20px;
-    height: 20px;
-    min-width: 20px;
-    max-width: 20px;
-    border-radius: 50%; /* 100% Perfekt rund kule */
-  }
+/* 💻 HIDE MOBILE LABELS ON MAC: Gjemmer den nye iPhonelubelen på skrivebordsversjonen */
+.scl-mobile-only-label {
+  display: none;
+}
 
-  /* 3. ⏹️ BAKGRUNNSFARGER (Farge 3 og 4) = REKTANGLER MED SVAKT AVRUNDEDE HJØRNER */
-  /* Treffer radene hvor vi eksplisitt la til .scl-bg-picker-row i TypeScript */
-  &.is-active ~ .setting-item.scl-bg-picker-row .setting-item-control input[type="color"] {
-    width: 32px;
-    height: 22px;
-    min-width: 32px;
-    max-width: 32px;
-    border-radius: 4px; /* Svakt avrundede hjørner som matcher Obsidian-knapper */
-  }
+/* Låser formene uansett DOM-endringer på Mac/PC */
+.vertical-tab-content-container .setting-item.scl-color-row.scl-text-picker-row .setting-item-control input[type="color"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  max-width: 20px;
+  border-radius: 50%; 
+}
+
+.vertical-tab-content-container .setting-item.scl-color-row.scl-bg-picker-row .setting-item-control input[type="color"] {
+  width: 32px;
+  height: 22px;
+  min-width: 32px;
+  max-width: 32px;
+  border-radius: 4px; 
+}
+
+/* =========================================================================
+   3. 🔑 HIGH-SPECIFICITY IPHONE FIX (Linter-Clean / No !important)
+   ========================================================================= */
+
+/* Aktiverer den nye, uknuselige merkelappen rett foran fargen på iPhone */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .scl-mobile-only-label {
+  display: inline-block;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+  order: 1; /* 🔑 MAGIC FIX: Sier at teksten skal stå først til venstre på mobil */
+}
+
+/* Låser knappeområdet stabilt til høyre uansett Safari-skvis */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between; /* 🔑 Endret fra flex-end slik at order:1 og 2 skyves fra hverandre */
+  margin-top: 0;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Tvinger selve fargeknappene og krysset til høyre-siden på mobil */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control input[type="color"],
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control .clickable-icon {
+  order: 2; /* Garanterer at knappene holder seg på høyre flanke */
+}
+
+
+/* Låser knappeområdet stabilt til høyre uansett Safari-skvis */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+/* Universell swatch-arv for mobil */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: inherit;
+}
+
+/* Garanterer geometrisk perfekte sirkler for tekstfarger på iPhone */
+.is-phone .vertical-tab-content-container .setting-item.scl-text-picker-row .setting-item-control input[type="color"] {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  border-radius: 50%;
+}
+
+/* Garanterer geometrisk perfekte liggende rektangler for bakgrunnsfarger på iPhone */
+.is-phone .vertical-tab-content-container .setting-item.scl-bg-picker-row .setting-item-control input[type="color"] {
+  width: 34px;
+  height: 22px;
+  min-width: 34px;
+  max-width: 34px;
+  border-radius: 4px;
 }
