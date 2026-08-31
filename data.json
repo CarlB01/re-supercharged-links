@@ -49,6 +49,21 @@
       "fontStyle": "line-through",
       "lightBgColor": "#f9c3c3",
       "darkBgColor": "#664d4d"
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "new-tag",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "541c-90da",
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontStyle": "normal",
+      "lightColor": "#1f938f",
+      "darkColor": "#8cf2ef",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
     }
   ],
   "targetAttributes": []

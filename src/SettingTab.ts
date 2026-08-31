@@ -4,13 +4,12 @@ import { updateVisibleLinks } from "./linkAttributes";
 import { buildCSS } from "./cssBuilder";
 import { CSSLink } from "./cssLink";
 
-// 🚀 Union Type som tillater både standardkontroller og våre egne render-rader i samme liste
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
 export default class SCLSettingTab extends PluginSettingTab {
   plugin: ResuperchargedLinks;
   private readonly debouncedGenerate: () => void;
-  public activeEditUid: string | null = null; // Holder styr på hvilken rad som er åpen
+  public activeEditUid: string | null = null;
 
   constructor(app: App, plugin: ResuperchargedLinks) {
     super(app, plugin);
@@ -24,358 +23,287 @@ export default class SCLSettingTab extends PluginSettingTab {
     updateVisibleLinks(this.app, this.plugin);
   }
 
-  /**
-   * 1. HENTER VERDIER: Forteller Obsidian hva som skal vises i ALLÈ input-feltene.
-   */
   override getControlValue(key: string): unknown {
     const settings = this.plugin.settings;
+    const coreKeys = ["targetTags", "getFromInlineField", "activateSnippet", "enableEditor", "enableTabHeader", "enableFileList", "enableBacklinks", "enableQuickSwitcher", "enableSuggestor"];
 
-    // Sjekk for standard kjerne-toggles
-    if (key === "targetTags" || key === "getFromInlineField" || key === "activateSnippet" || key === "enableEditor" || key === "enableTabHeader" || key === "enableFileList" || key === "enableBacklinks" || key === "enableQuickSwitcher" || key === "enableSuggestor") {
+    if (coreKeys.includes(key)) {
       return (settings as unknown as Record<string, unknown>)[key];
     }
 
-    // Håndterer de dynamiske nøklene for stilreglene (f.eks: scl_fontStyle_abcd-1234)
     if (key.startsWith("scl_")) {
       const [, prop, uid] = key.split("_");
       const selector = settings.selectors.find((s) => s.uid === uid);
+      const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
       
-      // Sørg for at "lightBgColor" og "darkBgColor" er lagt til i sjekklisten i BÅDE getControlValue og setControlValue:
-      if (selector && typeof prop === "string" && (
-        prop === "type" || 
-        prop === "name" || 
-        prop === "value" || 
-        prop === "iconBefore" || 
-        prop === "iconAfter" || 
-        prop === "lightColor" || 
-        prop === "darkColor" ||
-        prop === "lightBgColor" || // 🚀 NYTT!
-        prop === "darkBgColor"  || // 🚀 NYTT!
-        prop === "fontWeight" || 
-        prop === "fontStyle"   
-      ))
-      {
+      if (selector && typeof prop === "string" && editableProps.includes(prop)) {
         return (selector as unknown as Record<string, unknown>)[prop];
       }
     }
-
     return undefined;
   }
+
   override getSettingDefinitions(): SettingDefinitionItem[] {
     const existingRuleItems: MyGroupItems[] = []; 
     const selectors = this.plugin.settings.selectors || [];
 
+    // Hovedloopen er nå ekstremt lettlest og ryddig
     selectors.forEach((selector, index) => {
       const isEditing = this.activeEditUid === selector.uid;
-      let previewText = "";
 
-      // Bygg HTML-forhåndsvisningen for raden
-      if (selector.type === 'tag') {
-        previewText = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-tags="${selector.value}">Note</span> has tag <a class="tag">#${selector.value || "empty"}</a>`;
-      } else if (selector.type === 'attribute') {
-        previewText = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-${selector.name}="${selector.value}">Note</span> has attribute <b>${selector.name || "empty"}</b> with value <b>${selector.value || "empty"}</b>`;
-      } else {
-        previewText = `The path of the <span class="data-link-icon data-link-text data-link-icon-after" data-link-path="${selector.value}">note</span> matches <b>${selector.value || "empty"}</b>`;
-      }
-
+      // Seksjon A: Radvisning
       existingRuleItems.push({
-        render: (setting: Setting) => {
-          setting.nameEl.innerHTML = previewText;
-          setting.settingEl.addClass("scl-clickable-row");
-
-          if (isEditing) {
-            setting.settingEl.addClass("is-active");
-          }
-
-          setting.settingEl.addEventListener("click", (e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest(".clickable-icon") || target.closest("button") || target.closest(".scl-color-dot")) {
-              return;
-            }
-            this.activeEditUid = isEditing ? null : selector.uid;
-            this.update(); 
-          });
-
-          if (setting.controlEl) {
-            const lightDot = setting.controlEl.createEl("span", { cls: "scl-color-dot" });
-            lightDot.style.setProperty("--scl-dot-color", selector.lightColor || "var(--text-muted)");
-            lightDot.style.backgroundColor = "var(--scl-dot-color)";
-            lightDot.title = `Light mode farge: ${selector.lightColor || "ikke satt"}`;
-
-            const darkDot = setting.controlEl.createEl("span", { cls: "scl-color-dot is-dark" });
-            darkDot.style.setProperty("--scl-dot-color", selector.darkColor || "var(--text-muted)");
-            darkDot.style.backgroundColor = "var(--scl-dot-color)";
-            darkDot.title = `Dark mode farge: ${selector.darkColor || "ikke satt"}`;
-          }
-
-          setting.addButton(btn => btn
-            .setIcon("arrow-down")
-            .setTooltip("Flytt ned")
-            .setDisabled(index === selectors.length - 1)
-            .onClick(async () => {
-              const next = selectors[index + 1];
-              if (next) { selectors[index + 1] = selector; selectors[index] = next; await this.plugin.saveSettings(); this.update(); }
-            })
-          );
-
-          setting.addButton(btn => btn
-            .setIcon("arrow-up")
-            .setTooltip("Flytt opp")
-            .setDisabled(index === 0)
-            .onClick(async () => {
-              const prev = selectors[index - 1];
-              if (prev) { selectors[index - 1] = selector; selectors[index] = prev; await this.plugin.saveSettings(); this.update(); }
-            })
-          );
-        }
+        render: (setting: Setting) => this.renderRuleRow(setting, selector, index, selectors, isEditing)
       });
 
+      // Seksjon B: Utvidet redigeringsskjema
       if (isEditing) {
-        existingRuleItems.push(
-          {
-            name: "Match Target Type",
-            desc: "Velg om du vil matche på tag, attributt eller filbane.",
-            control: {
-              type: "dropdown",
-              key: `scl_type_${selector.uid}`,
-              options: { tag: "Tag", attribute: "Attribute", path: "Note Path" }
-            }
-          }
-        );
-
-        if (selector.type === "attribute") {
-          existingRuleItems.push({
-            name: "Key name (only for attributes)",
-            desc: "The YAML property key name.",
-            control: { type: "text", key: `scl_name_${selector.uid}`, placeholder: "status" }
-          });
-        }
-
-        existingRuleItems.push(
-          {
-            name: "Value to match",
-            desc: "The tag name or attribute value to trigger styling.",
-            control: { type: "text", key: `scl_value_${selector.uid}`, placeholder: "todo" }
-          },
-          {
-            name: "Prepend Icon",
-            desc: "Emoji/Text BEFORE link.",
-            control: { type: "text", key: `scl_iconBefore_${selector.uid}`, placeholder: "" }
-          },
-          {
-            name: "Append Icon",
-            desc: "Emoji/Text AFTER link.",
-            control: { type: "text", key: `scl_iconAfter_${selector.uid}`, placeholder: "" }
-          },
-          // Dropdown for Font Weight
-          {
-            render: (setting: Setting) => {
-              setting.setName("Font Weight");
-              setting.setDesc("Velg hvor kraftig eller tynn lenketeksten skal være.");
-              setting.addDropdown(dc => dc
-                .addOptions({ 
-                  "normal": "Normal", 
-                  "lighter": "Tynn (Lighter)", 
-                  "bold": "Kraftig (Bold)" 
-                })
-                .setValue(selector.fontWeight || "normal")
-                // 🚀 FIKSET: Rut endringen gjennom den overordnede setControlValue-kanalen!
-                .onChange(async (value) => {
-                  await this.setControlValue(`scl_fontWeight_${selector.uid}`, value);
-                })
-              );
-            }
-          },
-          // Dropdown for Font Style (Inkludert Overstrøket!)
-          {
-            render: (setting: Setting) => {
-              setting.setName("Font Style");
-              setting.setDesc("Velg visuell stil på teksten (Kursiv, Understreket eller Overstrøket).");
-              setting.addDropdown(dc => dc
-                .addOptions({ 
-                  "normal": "Normal", 
-                  "italic": "Kursiv (Italic)", 
-                  "underline": "Understreket",
-                  "line-through": "Overstrøket" 
-                })
-                .setValue(selector.fontStyle || "normal")
-                // 🚀 FIKSET: Rut endringen gjennom setControlValue
-                .onChange(async (value) => {
-                  await this.setControlValue(`scl_fontStyle_${selector.uid}`, value);
-                })
-              );
-            }
-          },
-          {
-            name: "Light Mode Color",
-            desc: "Choose color for white theme.",
-            control: { type: "color", key: `scl_lightColor_${selector.uid}` }
-          },
-          {
-            name: "Dark Mode Color",
-            desc: "Choose color for dark theme.",
-            control: { type: "color", key: `scl_darkColor_${selector.uid}` }
-          },
-                    // 🚀 NYTT: Bakgrunnsfarge for Lyst Tema
-          {
-            render: (setting: Setting) => {
-              setting.setName("Light Mode Background");
-              setting.setDesc("Velg bakgrunnsfarge for lenken i hvitt tema.");
-              setting.addColorPicker(cp => cp
-                .setValue(selector.lightBgColor || "transparent")
-                .onChange(async (value) => {
-                  await this.setControlValue(`scl_lightBgColor_${selector.uid}`, value);
-                })
-              );
-            }
-          },
-          // 🚀 NYTT: Bakgrunnsfarge for Mørkt Tema
-          {
-            render: (setting: Setting) => {
-              setting.setName("Dark Mode Background");
-              setting.setDesc("Velg bakgrunnsfarge for lenken i mørkt tema.");
-              setting.addColorPicker(cp => cp
-                .setValue(selector.darkBgColor || "transparent")
-                .onChange(async (value) => {
-                  await this.setControlValue(`scl_darkBgColor_${selector.uid}`, value);
-                })
-              );
-            }
-          },
-          {
-            name: "Slett regel",
-            desc: "Fjern denne stilregel-malen permanent.",
-            render: (setting: Setting) => {
-              setting.addButton(btn => btn
-                .setButtonText("Slett")
-                .setClass("scl-delete-btn-standard") 
-                .onClick(async () => {
-                  selectors.splice(index, 1);
-                  if (this.activeEditUid === selector.uid) this.activeEditUid = null;
-                  await this.plugin.saveSettings();
-                  await this._generateSnippet();
-                  this.update();
-                })
-              );
-            }
-          }
-        );
+        existingRuleItems.push(...this.buildEditForm(selector, index, selectors));
       }
     });
-    // ---- TRINN 2: SETT SAMMEN DET ENDELIGE SKJEMAET I GRUPPER ----
-    const definitions: SettingDefinitionItem[] = [];
 
-    if (existingRuleItems.length > 0) {
-      definitions.push({
-        type: "group",
-        heading: "Link Styling Rules",
-        items: existingRuleItems as unknown as SettingGroupItem<string>[]
-      });
+    return this.assembleFinalSchema(existingRuleItems);
+  }
+    private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean) {
+    // 1. Bygg HTML-forhåndsvisningstekst
+    if (selector.type === 'tag') {
+      setting.nameEl.innerHTML = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-tags="${selector.value}">Note</span> has tag <a class="tag">#${selector.value || "empty"}</a>`;
+    } else if (selector.type === 'attribute') {
+      setting.nameEl.innerHTML = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-${selector.name}="${selector.value}">Note</span> has attribute <b>${selector.name || "empty"}</b> with value <b>${selector.value || "empty"}</b>`;
+    } else {
+      setting.nameEl.innerHTML = `The path of the <span class="data-link-icon data-link-text data-link-icon-after" data-link-path="${selector.value}">note</span> matches <b>${selector.value || "empty"}</b>`;
     }
 
-    // Knappen for å opprette nye regler
-    definitions.push({
-      type: "group",
-      heading: "NEW rules",
-      items: [
-        {
-          name: "Create a new style rule",
-          desc: "Adds a template selector to your setup.",
-          action: () => {
-            const newSelector = new CSSLink();
-            newSelector.type = "tag";
-            newSelector.value = "new-tag";
-            this.plugin.settings.selectors.push(newSelector);
-            void this.plugin.saveSettings();
-            this.activeEditUid = newSelector.uid; 
-            this.update();
-          }
-        },
-      ]
+    setting.settingEl.addClass("scl-clickable-row");
+    if (isEditing) setting.settingEl.addClass("is-active");
+
+    // 2. Klikk-lytter for Accordion utvidelse
+    setting.settingEl.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest(".clickable-icon") || target.closest("button") || target.closest(".scl-bg-capsule") || target.closest(".scl-color-dot")) return;
+      this.activeEditUid = isEditing ? null : selector.uid;
+      this.update(); 
     });
 
-    // Avansert-side (Skjult på en felles page helt i bunnen)
-    definitions.push({
-      type: "group",
-      heading: "Advanced Settings Overview",
-      items: [
-        {
-          type: "page",
-          name: "Advanced Settings",
-          desc: "Click here to configure parsing triggers, plugin integrations and display panels.",
-          items: [
-            {
-              type: "group",
-              heading: "General",
-              items: [
-                { name: "Parse all tags in the file", desc: "Look for tags both in frontmatter and inline.", control: { type: "toggle", key: "targetTags" } },
-                { name: "Automatically activate CSS snippet", desc: "Enable 'supercharged-links-gen.css' automatically.", control: { type: "toggle", key: "activateSnippet" } }
-              ]
-            },
-            {
-              type: "group",
-              heading: "Where to Supercharge",
-              items: [
-                { name: "Enable in Editor", desc: "Supercharge links inside Live Preview.", control: { type: "toggle", key: "enableEditor" } },
-                { name: "Enable in Tab Headers", desc: "Supercharge file names inside workspace tab headers.", control: { type: "toggle", key: "enableTabHeader" } },
-                { name: "Enable in Plugins & Panels", desc: "Supercharge links inside Backlinks and Outgoing links panels.", control: { type: "toggle", key: "enableBacklinks" } }
-              ]
-            },
-            {
-              type: "group",
-              heading: "Display panels",
-              items: [
-                { name: "Activate in File Browser", desc: "Supercharge elements in file explorer.", control: { type: "toggle", key: "enableFileList" } },
-                { name: "Activate in Quick Switcher", desc: "Supercharge in quick switcher.", control: { type: "toggle", key: "enableQuickSwitcher" } },
-                { name: "Activate in Link Autocompleter", desc: "Supercharge in the [[ dropdown-menu.", control: { type: "toggle", key: "enableSuggestor" } }
-              ]
-            },
-            {
-              type: "group",
-              heading: "Experimental data sources",
-              items: [
-                { name: "Search for attributes in Inline fields", desc: "Turn on support for Dataview-style inline fields (<field::>).", control: { type: "toggle", key: "getFromInlineField" } }
-              ]
-            }
-          ]
+    // 3. Generer de parvise kapsel-fargebrikkene
+    if (setting.controlEl) {
+      const badgeContainer = setting.controlEl.createEl("span", { cls: "scl-badge-container" });
+      this.createColorCapsule(badgeContainer, selector.lightBgColor, selector.lightColor, "Light mode", "var(--text-normal)");
+      this.createColorCapsule(badgeContainer, selector.darkBgColor, selector.darkColor, "Dark mode", "var(--text-muted)");
+    }
+
+    // 4. Pilknapper med integrert FLIP-animasjon
+    setting.addButton(btn => btn.setIcon("arrow-down").setTooltip("Move down").setClass("scl-order-btn").setDisabled(index === selectors.length - 1).onClick(() => this.moveRule(index, 1, selectors, setting.settingEl)));
+    setting.addButton(btn => btn.setIcon("arrow-up").setTooltip("Move up").setClass("scl-order-btn").setDisabled(index === 0).onClick(() => this.moveRule(index, -1, selectors, setting.settingEl)));
+  }
+
+  private createColorCapsule(parent: HTMLElement, bgColor: string | undefined, textColor: string | undefined, modeName: string, fallbackText: string) {
+    const capsule = parent.createEl("span", { cls: modeName.includes("Dark") ? "scl-bg-capsule is-dark" : "scl-bg-capsule" });
+    capsule.title = `${modeName} background: ${bgColor || "transparent"}`;
+    if (bgColor && bgColor !== "transparent") capsule.style.backgroundColor = bgColor;
+    else capsule.addClass("is-transparent");
+
+    const dot = capsule.createEl("span", { cls: "scl-color-dot" });
+    dot.style.setProperty("--scl-dot-color", textColor || fallbackText);
+    dot.style.backgroundColor = "var(--scl-dot-color)";
+    dot.title = `${modeName} text color: ${textColor || "default"}`;
+  }
+
+  private async moveRule(index: number, direction: number, selectors: CSSLink[], rowEl: HTMLElement) {
+    const targetIndex = index + direction;
+    const targetSelector = selectors[targetIndex];
+    if (!targetSelector) return;
+
+    const siblingEl = (direction === 1 ? rowEl.nextElementSibling : rowEl.previousElementSibling) as HTMLElement;
+    const rectCurrent = rowEl.getBoundingClientRect();
+
+    selectors[targetIndex] = selectors[index]!;
+    selectors[index] = targetSelector;
+    await this.plugin.saveSettings(); 
+    this.update();
+
+    if (rowEl && siblingEl) {
+      const rectSibling = siblingEl.getBoundingClientRect();
+      setTimeout(() => {
+        const all = document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row");
+        const nCur = all[targetIndex] as HTMLElement; 
+        const nSib = all[index] as HTMLElement;
+        if (nCur && nSib) {
+          nCur.animate([{ transform: `translateY(${rectCurrent.top - rectSibling.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
+          nSib.animate([{ transform: `translateY(${rectSibling.top - rectCurrent.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
         }
-      ]
+      }, 0);
+    }
+  }
+  private buildEditForm(selector: CSSLink, index: number, selectors: CSSLink[]): MyGroupItems[] {
+    return [
+      { name: "Match Target Type", desc: "Select target metadata type.", control: { type: "dropdown", key: `scl_type_${selector.uid}`, options: { tag: "Tag", attribute: "Attribute", path: "Note Path" } } },
+      ...(selector.type === "attribute" ? [{ name: "Key name (only for attributes)", desc: "The YAML property key name.", control: { type: "text" as const, key: `scl_name_${selector.uid}`, placeholder: "status" } }] : []),
+      { name: "Value to match", desc: "Trigger keyword.", control: { type: "text", key: `scl_value_${selector.uid}`, placeholder: "todo" } },
+      { name: "Prepend Icon", desc: "Icon before link.", control: { type: "text", key: `scl_iconBefore_${selector.uid}`, placeholder: "" } },
+      { name: "Append Icon", desc: "Icon after link.", control: { type: "text", key: `scl_iconAfter_${selector.uid}`, placeholder: "" } },
+      { render: (setting: Setting) => {
+        setting.setName("Font Weight").setDesc("Link thickness.");
+        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "lighter": "Lighter", "bold": "Bold" }).setValue(selector.fontWeight || "normal").onChange(async (v) => await this.setControlValue(`scl_fontWeight_${selector.uid}`, v)));
+      }},
+      { render: (setting: Setting) => {
+        setting.setName("Font Style").setDesc("Text decorations.");
+        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "italic": "Italic", "underline": "Underline", "line-through": "Strikethrough" }).setValue(selector.fontStyle || "normal").onChange(async (v) => await this.setControlValue(`scl_fontStyle_${selector.uid}`, v)));
+      }},
+
+      // ☀️ Farge 1: Light Mode Text Color + Clear Button
+      { render: (setting: Setting) => {
+        setting.setName("Light Mode Color").setDesc("Text color for white themes.");
+        setting.addColorPicker(cp => {
+          cp.setValue(selector.lightColor || "#000000");
+          cp.onChange(async (v) => await this.setControlValue(`scl_lightColor_${selector.uid}`, v));
+        });
+        setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
+          selector.lightColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
+        }));
+      }},
+
+      // 🌙 Farge 2: Dark Mode Text Color + Clear Button
+      { render: (setting: Setting) => {
+        setting.setName("Dark Mode Color").setDesc("Text color for dark themes.");
+        setting.addColorPicker(cp => {
+          cp.setValue(selector.darkColor || "#ffffff");
+          cp.onChange(async (v) => await this.setControlValue(`scl_darkColor_${selector.uid}`, v));
+        });
+        setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
+          selector.darkColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
+        }));
+      }},
+
+      // ☀️ Farge 3: Light Mode Background Picker + Clear Button
+      { render: (setting: Setting) => {
+        setting.setName("Light Mode Background").setDesc("Background for light themes.");
+        setting.settingEl.addClass("scl-bg-picker-row");
+        setting.addColorPicker(cp => {
+          const currentVal = selector.lightBgColor;
+          const fallbackColor = (currentVal && currentVal !== "transparent") ? currentVal : "#ffffff";
+          cp.setValue(fallbackColor);
+          cp.onChange(async (v) => await this.setControlValue(`scl_lightBgColor_${selector.uid}`, v));
+        });
+        setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
+          selector.lightBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
+        }));
+      }},
+
+      // 🌙 Farge 4: Dark Mode Background Picker + Clear Button
+      { render: (setting: Setting) => {
+        setting.setName("Dark Mode Background").setDesc("Background for dark themes.");
+        setting.settingEl.addClass("scl-bg-picker-row");
+        setting.addColorPicker(cp => {
+          const currentVal = selector.darkBgColor;
+          const fallbackColor = (currentVal && currentVal !== "transparent") ? currentVal : "#1e1e1e";
+          cp.setValue(fallbackColor);
+          cp.onChange(async (v) => await this.setControlValue(`scl_darkBgColor_${selector.uid}`, v));
+        });
+        setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
+          selector.darkBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
+        }));
+      }},
+
+      { name: "Delete style", desc: "Remove permanently.", render: (setting: Setting) => {
+        setting.addButton(btn => btn.setButtonText("Delete").setClass("scl-delete-btn-standard").onClick(async () => {
+          selectors.splice(index, 1); if (this.activeEditUid === selector.uid) this.activeEditUid = null;
+          await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
+        }));
+      }}
+    ];
+  }
+
+
+  // 🚀 HELT NY ROUTINE: Genererer tilfeldige, harmoniske og unike tekstfarger
+  // 🚀 UPDATED ROUTINE: Spits out valid HEX codes that HTML Color Pickers understand instantly
+  private generateUniqueColors(): { light: string; dark: string } {
+    const hue = Math.floor(Math.random() * 360);
+    
+    // Hjelpefunksjon for å gjøre HSL om til ekte HEX-koder
+    const hslToHex = (h: number, s: number, l: number): string => {
+      l /= 100; const a = (s * Math.min(l, 1 - l)) / 100;
+      const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, "0");
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    };
+
+    // Genererer delikate, unike pastell-kontraster i HEX-format
+    return {
+      light: hslToHex(hue, 65, 35), // God lesbar mørk tekst for lyst tema
+      dark: hslToHex(hue, 80, 75)   // Lysende pastell for mørkt tema
+    };
+  }
+
+
+  private assembleFinalSchema(existingRuleItems: MyGroupItems[]): SettingDefinitionItem[] {
+    const definitions: SettingDefinitionItem[] = [];
+    const selectors = this.plugin.settings.selectors || [];
+    
+    if (existingRuleItems.length > 0) {
+      definitions.push({ type: "group", heading: "Link Styling Rules", items: existingRuleItems as unknown as SettingGroupItem<string>[] });
+    }
+    
+    definitions.push({
+      type: "group", 
+      heading: "NEW rules", 
+      items: [{ 
+        name: "Create a new style rule", 
+        desc: "Adds a template selector with distinct, pre-configured color accents.", 
+        action: () => {
+          const newSelector = new CSSLink(); 
+          newSelector.type = "tag"; 
+          newSelector.value = "new-tag";
+          
+          // 🚀 AKTIVERT: Generer og tildel de unike fargene umiddelbart!
+          const generatedColors = this.generateUniqueColors();
+          newSelector.lightColor = generatedColors.light;
+          newSelector.darkColor = generatedColors.dark;
+
+          // Bakgrunner skal fortsatt starte som tomme/transparente (slik du ønsket)
+          newSelector.lightBgColor = "transparent";
+          newSelector.darkBgColor = "transparent";
+
+          selectors.push(newSelector); 
+          void this.plugin.saveSettings();
+          
+          // Trigger CSS-kompilering med en gang så de nye fargene tegnes i sirkelen med en gang
+          void this._generateSnippet(); 
+          
+          this.activeEditUid = newSelector.uid; 
+          this.update();
+        }
+      }]
     });
 
+    // ... Resten av Advanced Settings Overview forblir uendret
+    definitions.push({
+      type: "group", heading: "Advanced Settings Overview", items: [{ type: "page", name: "Advanced Settings", desc: "Configure global panels and triggers.", items: [
+        { type: "group", heading: "General", items: [{ name: "Parse all tags in the file", desc: "Look in frontmatter and inline.", control: { type: "toggle", key: "targetTags" } }, { name: "Automatically activate CSS snippet", desc: "Enable general snippet sheet.", control: { type: "toggle", key: "activateSnippet" } }] },
+        { type: "group", heading: "Where to Supercharge", items: [{ name: "Enable in Editor", desc: "Live Preview support.", control: { type: "toggle", key: "enableEditor" } }, { name: "Enable in Tab Headers", desc: "Tab titles names.", control: { type: "toggle", key: "enableTabHeader" } }, { name: "Enable in Plugins & Panels", desc: "Backlinks view panels.", control: { type: "toggle", key: "enableBacklinks" } }] },
+        { type: "group", heading: "Display panels", items: [{ name: "Activate in File Browser", desc: "File explorer tree.", control: { type: "toggle", key: "enableFileList" } }, { name: "Activate in Quick Switcher", desc: "Core search popover.", control: { type: "toggle", key: "enableQuickSwitcher" } }, { name: "Activate in Link Autocompleter", desc: "The [[ auto picker menu.", control: { type: "toggle", key: "enableSuggestor" } }] },
+        { type: "group", heading: "Experimental data sources", items: [{ name: "Search for attributes in Inline fields", desc: "Turn on Dataview inline fields syntax.", control: { type: "toggle", key: "getFromInlineField" } }] }
+      ]}]
+    });
     return definitions;
   }
 
-  // 🚀 TYPESAFE LAGRING OG ØYEBLIKKELIG SKJEMA-OPPDATERING
   override async setControlValue(key: string, value: unknown): Promise<void> {
     const settings = this.plugin.settings;
-
     if (key.startsWith("scl_")) {
       const [, prop, uid] = key.split("_");
       const selector = settings.selectors.find((s) => s.uid === uid);
-      
-      // 🚀 ULTRA-TRYGG FIKSET: Vi vasker sjekken slik at den fanger opp absolutt alle egenskaper feilfritt!
-      if (selector && typeof prop === "string" && (
-        prop === "type" || 
-        prop === "name" || 
-        prop === "value" || 
-        prop === "iconBefore" || 
-        prop === "iconAfter" || 
-        prop === "lightColor" || 
-        prop === "darkColor" ||
-        prop === "lightBgColor" || // 🎨 Nå slipper denne igjennom!
-        prop === "darkBgColor"  || // 🎨 Nå slipper denne igjennom!
-        prop === "fontWeight" || 
-        prop === "fontStyle"   
-      )) {
+      const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
+      if (selector && typeof prop === "string" && editableProps.includes(prop)) {
         (selector as any)[prop] = value; 
       }
     } else {
       (settings as unknown as Record<string, unknown>)[key] = value;
     }
-
-    await this.plugin.saveSettings();
-    this.debouncedGenerate(); // Bygg ny CSS i bakgrunnen
-    this.update(); // Tvinger getSettingDefinitions til å tegne opp på nytt med nye farger!
+    await this.plugin.saveSettings(); this.debouncedGenerate(); this.update(); 
   }
-
 }
+

@@ -1,77 +1,119 @@
-.css-boilerplate-result {
-    width: 30em
-}
 
-div.supercharged-modal {
-    height: 70vh;
-}
+/* Unified Layout Architecture for Mac, PC & iOS */
+.vertical-tab-content-container .setting-item.scl-clickable-row {
+  cursor: pointer; 
+  display: flex; 
+  flex-wrap: nowrap; 
+  flex-direction: row; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 0.6em; 
+  width: 100%;
 
-div.supercharged-modal h4 {
-    margin: 0;
-}
+  &:hover { background-color: var(--background-modifier-hover); }
 
-span.data-link-text > a.cm-underline {
-    color: inherit;
-}
+  /* 🚀 NYTT: Går målrettet etter alle utvidede detaljlinjer som ligger under den aktive raden */
+  &.is-active ~ .setting-item:not(.scl-clickable-row) {
+    padding-top: 0.4em;
+    padding-bottom: 0.4em;
+    border-top: none; /* Valgfritt: fjerner linjer mellom detaljene hvis du vil ha det tettere */
+  }
+  
+  .setting-item-control {
+    display: flex; flex-wrap: nowrap; flex-direction: row;
+    align-items: center; justify-content: flex-end; flex-shrink: 0;
+  }
+  
+  .scl-badge-container {
+    display: flex; flex-direction: row; align-items: center; margin-right: 12px;
+  }
 
-/* =========================================================================
-   iOS SAFARI MOBILE & DESKTOP STABILITY (LINTER-CLEAN / NO !IMPORTANT)
-   ========================================================================= */
+  /* BACKGROUND CAPSULE */
+  .scl-bg-capsule {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 20px; border-radius: 4px; margin-right: 6px;
+    border: 1px solid var(--background-modifier-border); box-sizing: border-box; flex-shrink: 0;
 
-/* Hever spesifisiteten ved å bruke .plugin-settings og .setting-item sammen */
-.plugin-settings .setting-item.scl-clickable-row {
-    cursor: pointer;
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: space-between;
-}
+    /* 🔑 SNAKKE-TITT: Uses Obsidian's current theme variables directly as default fallback */
+    &.is-transparent { 
+      background-color: var(--background-primary); 
+      border: 1px dashed var(--text-muted); 
+      opacity: 0.8; 
+    }
+    
+    /* Mørk modus placeholder bruker sekundær bakgrunnsfarge for nydelig kontrast */
+    &.is-dark.is-transparent {
+      background-color: var(--background-secondary);
+    }
 
-/* Gir en standard, ren hover-effekt på radene uten kollisjoner */
-.plugin-settings .setting-item.scl-clickable-row:hover {
-    background-color: var(--background-modifier-hover);
-}
+    &.is-dark { margin-right: 0; }
+  }
 
-/* Målretter Obsidians høyrejusterte kontrollbeholder og låser den på iOS */
-.plugin-settings .setting-item.scl-clickable-row .setting-item-control {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: flex-end;
-    flex-shrink: 0; /* Totalforbud mot å bli klemt flat av lang tekst på venstre side */
-}
+  
+  /* Centered Foreground Text Dots */
+  .scl-color-dot {
+    display: inline-block; width: 8px; height: 8px; min-width: 8px; min-height: 8px;
+    border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.15); box-sizing: border-box;
+  }
 
-/* Definerer bunnsolide dimensjoner for knappene (piler og slett) */
-.plugin-settings .setting-item.scl-clickable-row button.scl-order-btn,
-.plugin-settings .setting-item.scl-clickable-row button.scl-delete-btn-standard {
-    flex-grow: 0;
+  /* Rectangular Control Actions */
+  button {
+    -webkit-appearance: none; appearance: none;
+    flex: 0 0 28px; width: 28px; min-width: 28px; max-width: 28px; height: 28px;
+    border-radius: 4px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  }
+
+    /* Ensures the extra clear button (cross icon) aligns beautifully in the form row */
+  .setting-item-control .clickable-icon {
+    margin-left: 6px;
     flex-shrink: 0;
-    flex-basis: auto;
+  }
+
+  .scl-order-btn { padding: 4px; }
+  button svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* =========================================================================
+     🚀 DETAIL MATCHER: Circles for Text Colors, Rectangles for Backgrounds
+     ========================================================================= */
+  
+  /* 1. Universal reset for ALLE fargevelgere i detaljskjemaet */
+  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--background-modifier-border);
+    box-sizing: border-box;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  /* Tvinger nettleserens interne fargeflekk til å arve formen fra forelderen feilfritt */
+  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  &.is-active ~ .setting-item:not(.scl-clickable-row) .setting-item-control input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: inherit; /* Meget viktig for iOS Safari */
+  }
+
+  /* 2. 🟢 TEKSTFARGER (Farge 1 og 2) = PERFEKTE SIRKLER */
+  /* Treffer de ordinære fargeradene som IKKE har fått bakgrunnsklassen vår */
+  &.is-active ~ .setting-item:not(.scl-clickable-row):not(.scl-bg-picker-row) .setting-item-control input[type="color"] {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    max-width: 20px;
+    border-radius: 50%; /* 100% Perfekt rund kule */
+  }
+
+  /* 3. ⏹️ BAKGRUNNSFARGER (Farge 3 og 4) = REKTANGLER MED SVAKT AVRUNDEDE HJØRNER */
+  /* Treffer radene hvor vi eksplisitt la til .scl-bg-picker-row i TypeScript */
+  &.is-active ~ .setting-item.scl-bg-picker-row .setting-item-control input[type="color"] {
     width: 32px;
+    height: 22px;
     min-width: 32px;
     max-width: 32px;
-    height: 32px;
-    padding: 0;
-    margin-left: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Rett opp de sirkulære fargeprikkene så de forblir perfekte sirkler på iPhone */
-.plugin-settings .setting-item.scl-clickable-row .scl-color-dot {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    min-width: 14px; /* Tvinger iOS Safari til å respektere sirkelformen */
-    min-height: 14px;
-    border-radius: 50%;
-    flex-shrink: 0;  /* Forhindrer katteøyne-effekten fullstendig */
-    margin-right: 6px;
-    border: 1px solid var(--background-modifier-border);
-}
-
-/* Bevar avstanden på den mørke prikken før pilene starter */
-.plugin-settings .setting-item.scl-clickable-row .scl-color-dot.is-dark {
-    margin-right: 12px;
+    border-radius: 4px; /* Svakt avrundede hjørner som matcher Obsidian-knapper */
+  }
 }
