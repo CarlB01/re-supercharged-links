@@ -14,26 +14,64 @@ span.data-link-text > a.cm-underline {
     color: inherit;
 }
 
-/* Endrer muspekeren til en hånd når brukeren holder over en listerad */
-.scl-clickable-row {
-    cursor: pointer !important;
+/* =========================================================================
+   iOS SAFARI MOBILE & DESKTOP STABILITY (LINTER-CLEAN / NO !IMPORTANT)
+   ========================================================================= */
+
+/* Hever spesifisiteten ved å bruke .plugin-settings og .setting-item sammen */
+.plugin-settings .setting-item.scl-clickable-row {
+    cursor: pointer;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
 }
 
-/* Gir en standard, ren hover-effekt på radene */
-.scl-clickable-row:hover {
-    background-color: var(--background-modifier-hover) !important;
+/* Gir en standard, ren hover-effekt på radene uten kollisjoner */
+.plugin-settings .setting-item.scl-clickable-row:hover {
+    background-color: var(--background-modifier-hover);
 }
 
-/* Felles stil for fargeindikatorene (prikkene) foran pilene */
-.scl-color-dot {
+/* Målretter Obsidians høyrejusterte kontrollbeholder og låser den på iOS */
+.plugin-settings .setting-item.scl-clickable-row .setting-item-control {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0; /* Totalforbud mot å bli klemt flat av lang tekst på venstre side */
+}
+
+/* Definerer bunnsolide dimensjoner for knappene (piler og slett) */
+.plugin-settings .setting-item.scl-clickable-row button.scl-order-btn,
+.plugin-settings .setting-item.scl-clickable-row button.scl-delete-btn-standard {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: auto;
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    height: 32px;
+    padding: 0;
+    margin-left: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Rett opp de sirkulære fargeprikkene så de forblir perfekte sirkler på iPhone */
+.plugin-settings .setting-item.scl-clickable-row .scl-color-dot {
     display: inline-block;
     width: 14px;
     height: 14px;
+    min-width: 14px; /* Tvinger iOS Safari til å respektere sirkelformen */
+    min-height: 14px;
     border-radius: 50%;
+    flex-shrink: 0;  /* Forhindrer katteøyne-effekten fullstendig */
     margin-right: 6px;
     border: 1px solid var(--background-modifier-border);
 }
 
-.scl-color-dot.is-dark {
-    margin-right: 14px;
+/* Bevar avstanden på den mørke prikken før pilene starter */
+.plugin-settings .setting-item.scl-clickable-row .scl-color-dot.is-dark {
+    margin-right: 12px;
 }
