@@ -1,5 +1,7 @@
 # Re-Supercharged-Links: Direction Check and Audit Plan
 
+see also [FULL-AUDIT-REPORT-A-E](./docs/FULL-AUDIT-REPORT-A-E.md)
+
 Yes — and great question. **Short answer:** We can do a meaningful comparison, but to determine whether you're truly “on a good path” in practice, we need to inspect the actual code/architecture in both repositories (not just language composition).
 
 If you want, I can run a concrete audit now and provide a ranked list of improvements.
