@@ -2,7 +2,7 @@
 
 > 💡 **Important Note**: This plugin is a complete architectural modernization and independent continuation developed by a new author. It is built as a modernized successor to the brilliant, original *Supercharged Links* plugin.
 
-This release marks a complete structural and architectural rewrite of the codebase. The core goal of this modernization was to transition from the original plugin's heavyweight, highly coupled design to a decoupled, lean framework that leverages Obsidian’s native UI paradigms and isolates style generation from reactive memory loops.
+This release marks a complete structural and architectural rewrite of the codebase. The core goal of this modernization was to transition from the original plugin's heavyweight, highly coupled design to a decoupled, lean framework that leverages Obsidian’s native UI paradigms and isolates style generation from reactive memory loops. see [development plan](./README-audit-plan.md).
 
 ---
 
