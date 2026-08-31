@@ -47,7 +47,8 @@
       "darkColor": "#dbdc79",
       "fontWeight": "bold",
       "fontStyle": "line-through",
-      "lightBgColor": "#f9c3c3"
+      "lightBgColor": "#f9c3c3",
+      "darkBgColor": "#664d4d"
     }
   ],
   "targetAttributes": []
