@@ -18,6 +18,6 @@
   },
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc --noEmit && node esbuild.config.mjs"
+    "build": "tsc --noEmit && node esbuild.config.mjs production"
   }
 }

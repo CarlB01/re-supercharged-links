@@ -1,4 +1,4 @@
-# Release Notes: Resupercharged Links (1.0.1 Architecture Overhaul)
+# Release Notes: Resupercharged Links (0.0.12 ->) Architecture Overhaul
 
 > 💡 **Important Note**: This plugin is a complete architectural modernization and independent continuation developed by a new author. It is built as a modernized successor to the brilliant, original *Supercharged Links* plugin.
 
@@ -8,7 +8,7 @@ This release marks a complete structural and architectural rewrite of the codeba
 
 ## Core Architectural Differences from the Original Plugin
 
-| Feature / Domain | Original Plugin Approach | Modernized Blueprint (1.0.1) |
+| Feature / Domain | Original Plugin Approach | Modernized Blueprint (0.0.12 ->) |
 | :--- | :--- | :--- |
 | **Settings Engine** | Relied on an imperative, manually injected DOM schema tied to a global, static "Target Attributes" index. | Built entirely on Obsidian’s native declarative framework (`getSettingDefinitions`), using a unified Union Type layout. |
 | **Metadata Scavenging** | Scanned a hardcoded global array on every DOM shift, forcing redundant sweeps for unused metadata attributes. | **Dynamic Event Scavenging**: Collects metadata *only* for attributes actively declared in active styling rules (`settings.selectors`). |
