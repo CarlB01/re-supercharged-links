@@ -46,3 +46,6 @@ The v0.0.15 framework shifts the plugin from heavy DOM scanning to a lightweight
 ## ❤ Acknowledgements & Gratitude
 
 A deep, heartfelt thank you goes out to the original creators and contributors of **Supercharged Links** for opening up a whole new world of visual context within Obsidian.
+
+---
+*Developed with passion by a healthcare worker who just loves colorful links. If you enjoy this work, consider starring the repository!*
