@@ -14,9 +14,6 @@
 [![Stars](https://img.shields.io/github/stars/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/stargazers)
 
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CarlB01/myBrain/blob/master/LICENSE)
-
-
 A modernized, highly optimized, and decoupled fork of the original *Supercharged Links* plugin for Obsidian. This version is independently maintained and rebuilt from scratch to leverage modern Obsidian paradigms, eliminate memory leaks, and guarantee fluid performance on both Desktop and mobile iOS/Android devices.
 
 ---
