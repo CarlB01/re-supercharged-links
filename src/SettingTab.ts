@@ -16,6 +16,33 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.plugin = plugin;
     this.debouncedGenerate = debounce(() => { void this._generateSnippet(); }, 300, true);
     void this._generateSnippet();
+
+    // 🚀 SENTRAL EVENT DELEGATION: Én lytter for hele panelet som ALDRI lekker minne!
+    this.containerEl.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      
+      // Finn ut om brukeren klikket på en av våre klikkbare stil-rader
+      const clickedRow = target.closest(".scl-clickable-row") as HTMLElement;
+      if (!clickedRow) return;
+
+      // Ignorer klikk hvis brukeren traff en knapp, et ikon eller en fargebrikke på linjen
+      if (target.closest(".clickable-icon") || target.closest("button") || target.closest(".scl-bg-capsule") || target.closest(".scl-color-dot")) {
+        return;
+      }
+
+      // Finn den unike regelen som er knyttet til raden ved å "kikke" på dens plassering i DOM-en
+      const allRows = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
+      const index = allRows.indexOf(clickedRow);
+      const selectors = this.plugin.settings.selectors || [];
+      const selector = selectors[index];
+
+      if (selector) {
+        // Hvis raden allerede er åpen, lukk den. Hvis ikke, åpne den!
+        const isCurrentlyEditing = this.activeEditUid === selector.uid;
+        this.activeEditUid = isCurrentlyEditing ? null : selector.uid;
+        this.update(); // Sikker oppdatering av visningen
+      }
+    });
   }
 
   private async _generateSnippet() {
@@ -64,8 +91,13 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     return this.assembleFinalSchema(existingRuleItems);
   }
-    private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean) {
-    // 1. Bygg HTML-forhåndsvisningstekst
+  
+  private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean) {
+    // 🚀 SKUDDSIKKER NULLSTILLING: Vasker bort alle gjenbrukte mobil-klasser før hovedraden tegnes!
+    setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
+    if (isEditing) setting.settingEl.addClass("is-active");
+
+    // 1. Bygg HTML-forhåndsvisningstekst (Uendret kjerne-logikk)
     if (selector.type === 'tag') {
       setting.nameEl.innerHTML = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-tags="${selector.value}">Note</span> has tag <a class="tag">#${selector.value || "empty"}</a>`;
     } else if (selector.type === 'attribute') {
@@ -76,14 +108,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     setting.settingEl.addClass("scl-clickable-row");
     if (isEditing) setting.settingEl.addClass("is-active");
-
-    // 2. Klikk-lytter for Accordion utvidelse
-    setting.settingEl.addEventListener("click", (e) => {
-      const target = e.target as HTMLElement;
-      if (target.closest(".clickable-icon") || target.closest("button") || target.closest(".scl-bg-capsule") || target.closest(".scl-color-dot")) return;
-      this.activeEditUid = isEditing ? null : selector.uid;
-      this.update(); 
-    });
 
     // 3. Generer de parvise kapsel-fargebrikkene
     if (setting.controlEl) {
@@ -135,31 +159,58 @@ export default class SCLSettingTab extends PluginSettingTab {
       }, 0);
     }
   }
+
   private buildEditForm(selector: CSSLink, index: number, selectors: CSSLink[]): MyGroupItems[] {
     return [
       { name: "Match Target Type", desc: "Select target metadata type.", control: { type: "dropdown", key: `scl_type_${selector.uid}`, options: { tag: "Tag", attribute: "Attribute", path: "Note Path" } } },
       ...(selector.type === "attribute" ? [{ name: "Key name (only for attributes)", desc: "The YAML property key name.", control: { type: "text" as const, key: `scl_name_${selector.uid}`, placeholder: "status" } }] : []),
       { name: "Value to match", desc: "Trigger keyword.", control: { type: "text", key: `scl_value_${selector.uid}`, placeholder: "todo" } },
-      { name: "Prepend Icon", desc: "Icon before link.", control: { type: "text", key: `scl_iconBefore_${selector.uid}`, placeholder: "" } },
-      { name: "Append Icon", desc: "Icon after link.", control: { type: "text", key: `scl_iconAfter_${selector.uid}`, placeholder: "" } },
+      
+      // Prepend Icon (Med unikt klasse-anker)
+      { render: (setting: Setting) => {
+        setting.setName("Prepend Icon").setDesc("Icon before link.");
+        setting.settingEl.className = "setting-item scl-detail-row scl-row-iconbefore";
+        // Prepend Icon
+        setting.addText(text => text.setPlaceholder("").setValue(selector.iconBefore || "").onChange(async (v) => {
+          await this.setControlValue(`scl_iconBefore_${selector.uid}`, v, true); // 🚀 silent = true!
+        }));
+      }},
+      
+      // // Append Icon (Med unikt klasse-anker)
+      { render: (setting: Setting) => {
+        setting.setName("Append Icon").setDesc("Icon after link.");
+        setting.settingEl.className = "setting-item scl-detail-row scl-row-iconafter";
+        setting.addText(text => text.setPlaceholder("").setValue(selector.iconAfter || "").onChange(async (v) => {
+          await this.setControlValue(`scl_iconAfter_${selector.uid}`, v, true);
+        }));
+      }},
+      
+      // Font Weight
       { render: (setting: Setting) => {
         setting.setName("Font Weight").setDesc("Link thickness.");
-        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "lighter": "Lighter", "bold": "Bold" }).setValue(selector.fontWeight || "normal").onChange(async (v) => await this.setControlValue(`scl_fontWeight_${selector.uid}`, v)));
+        setting.settingEl.className = "setting-item scl-detail-row scl-row-weight";
+        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "lighter": "Lighter", "bold": "Bold" }).setValue(selector.fontWeight || "normal").onChange(async (v) => {
+          await this.setControlValue(`scl_fontWeight_${selector.uid}`, v, true);
+        }));
       }},
+      
+      // Font Style
       { render: (setting: Setting) => {
         setting.setName("Font Style").setDesc("Text decorations.");
-        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "italic": "Italic", "underline": "Underline", "line-through": "Strikethrough" }).setValue(selector.fontStyle || "normal").onChange(async (v) => await this.setControlValue(`scl_fontStyle_${selector.uid}`, v)));
+        setting.settingEl.className = "setting-item scl-detail-row scl-row-style";
+        setting.addDropdown(dc => dc.addOptions({ "normal": "Normal", "italic": "Italic", "underline": "Underline", "line-through": "Strikethrough" }).setValue(selector.fontStyle || "normal").onChange(async (v) => {
+          await this.setControlValue(`scl_fontStyle_${selector.uid}`, v, true);
+        }));
       }},
 
       // ☀️ Farge 1: Light Mode Text Color
       { render: (setting: Setting) => {
         setting.setName("Light Mode Color").setDesc("Text color for white themes.");
-        // 🚀 SKUDDSIKKER NULLSTILLING: Reseter alle klasser for å hindre arv-feil ved dynamisk skjema
-        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row";
-        
+        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row scl-row-lightcolor";
+        // Light Mode Color
         setting.addColorPicker(cp => {
           cp.setValue(selector.lightColor || "#000000");
-          cp.onChange(async (v) => await this.setControlValue(`scl_lightColor_${selector.uid}`, v));
+          cp.onChange(async (v) => await this.setControlValue(`scl_lightColor_${selector.uid}`, v, true));
         });
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
           selector.lightColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
@@ -169,12 +220,11 @@ export default class SCLSettingTab extends PluginSettingTab {
       // 🌙 Farge 2: Dark Mode Text Color
       { render: (setting: Setting) => {
         setting.setName("Dark Mode Color").setDesc("Text color for dark themes.");
-        // 🚀 SKUDDSIKKER NULLSTILLING
-        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row";
-        
+        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row scl-row-darkcolor";
+        // Dark Mode Color
         setting.addColorPicker(cp => {
           cp.setValue(selector.darkColor || "#ffffff");
-          cp.onChange(async (v) => await this.setControlValue(`scl_darkColor_${selector.uid}`, v));
+          cp.onChange(async (v) => await this.setControlValue(`scl_darkColor_${selector.uid}`, v, true));
         });
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
           selector.darkColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
@@ -184,14 +234,13 @@ export default class SCLSettingTab extends PluginSettingTab {
       // ☀️ Farge 3: Light Mode Background Picker
       { render: (setting: Setting) => {
         setting.setName("Light Mode Background").setDesc("Background for light themes.");
-        // 🚀 SKUDDSIKKER NULLSTILLING
-        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row";
-        
+        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row scl-row-lightbg";
+        // Light Mode Background
         setting.addColorPicker(cp => {
           const currentVal = selector.lightBgColor;
           const fallbackColor = (currentVal && currentVal !== "transparent") ? currentVal : "#ffffff";
           cp.setValue(fallbackColor);
-          cp.onChange(async (v) => await this.setControlValue(`scl_lightBgColor_${selector.uid}`, v));
+          cp.onChange(async (v) => await this.setControlValue(`scl_lightBgColor_${selector.uid}`, v, true));
         });
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
           selector.lightBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
@@ -201,21 +250,18 @@ export default class SCLSettingTab extends PluginSettingTab {
       // 🌙 Farge 4: Dark Mode Background Picker
       { render: (setting: Setting) => {
         setting.setName("Dark Mode Background").setDesc("Background for dark themes.");
-        // 🚀 SKUDDSIKKER NULLSTILLING
-        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row";
-        
+        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row scl-row-darkbg";
+        // Dark Mode Background
         setting.addColorPicker(cp => {
           const currentVal = selector.darkBgColor;
           const fallbackColor = (currentVal && currentVal !== "transparent") ? currentVal : "#1e1e1e";
           cp.setValue(fallbackColor);
-          cp.onChange(async (v) => await this.setControlValue(`scl_darkBgColor_${selector.uid}`, v));
-        });
+          cp.onChange(async (v) => await this.setControlValue(`scl_darkBgColor_${selector.uid}`, v, true));
+        });     
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
           selector.darkBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
       }},
-
-
 
       { name: "Delete style", desc: "Remove permanently.", render: (setting: Setting) => {
         setting.addButton(btn => btn.setButtonText("Delete").setClass("scl-delete-btn-standard").onClick(async () => {
@@ -225,6 +271,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       }}
     ];
   }
+
 
   // 🚀 HELT NY ROUTINE: Genererer tilfeldige, harmoniske og unike tekstfarger
   // 🚀 UPDATED ROUTINE: Spits out valid HEX codes that HTML Color Pickers understand instantly
@@ -302,19 +349,30 @@ export default class SCLSettingTab extends PluginSettingTab {
     return definitions;
   }
 
-  override async setControlValue(key: string, value: unknown): Promise<void> {
+  // 🚀 UPDATED SETTER: Supports silent real-time updates without scrolling/blinking on iOS
+  override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
     const settings = this.plugin.settings;
+
     if (key.startsWith("scl_")) {
       const [, prop, uid] = key.split("_");
       const selector = settings.selectors.find((s) => s.uid === uid);
       const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
+      
       if (selector && typeof prop === "string" && editableProps.includes(prop)) {
         (selector as any)[prop] = value; 
       }
     } else {
       (settings as unknown as Record<string, unknown>)[key] = value;
     }
-    await this.plugin.saveSettings(); this.debouncedGenerate(); this.update(); 
+
+    await this.plugin.saveSettings();
+    this.debouncedGenerate(); // Always compile CSS in the background
+    
+    // 🔑 THE SCROLL FIX: Only refresh the whole DOM tab if NOT running in silent mode
+    if (!silent) {
+      this.update(); 
+    }
   }
+
 }
 

@@ -2,99 +2,33 @@
    1. MAIN RULES LIST LAYOUT (Shared across Mac, PC & iOS)
    ========================================================================= */
 
-.vertical-tab-content-container .setting-item.scl-clickable-row {
-  cursor: pointer; 
-  display: flex; 
-  flex-wrap: nowrap; 
-  flex-direction: row; 
-  align-items: center; 
-  justify-content: space-between; 
-  padding: 0.6em; 
-  width: 100%;
+.vertical-tab-content-container .setting-item.scl-clickable-row.scl-main-rule-row {
+  cursor: pointer; display: flex; flex-wrap: nowrap; flex-direction: row; 
+  align-items: center; justify-content: space-between; padding: 0.6em; width: 100%;
 
-  &:hover { 
-    background-color: var(--background-modifier-hover); 
-  }
-  
-  .setting-item-control {
-    display: flex; 
-    flex-wrap: nowrap; 
-    flex-direction: row;
-    align-items: center; 
-    justify-content: flex-end; 
-    flex-shrink: 0;
-  }
-  
-  .scl-badge-container {
-    display: flex; 
-    flex-direction: row; 
-    align-items: center; 
-    margin-right: 12px;
-  }
+  &:hover { background-color: var(--background-modifier-hover); }
+  .setting-item-control { display: flex; flex-wrap: nowrap; flex-direction: row; align-items: center; justify-content: flex-end; flex-shrink: 0; }
+  .scl-badge-container { display: flex; flex-direction: row; align-items: center; margin-right: 12px; }
 
   .scl-bg-capsule {
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    width: 24px; 
-    height: 20px; 
-    border-radius: 4px; 
-    margin-right: 6px;
-    border: 1px solid var(--background-modifier-border); 
-    box-sizing: border-box; 
-    flex-shrink: 0;
-
-    &.is-transparent { 
-      background-color: var(--background-primary); 
-      border: 1px dashed var(--text-muted); 
-      opacity: 0.8; 
-    }
-    
-    &.is-dark.is-transparent {
-      background-color: var(--background-secondary);
-    }
-    
-    &.is-dark { 
-      margin-right: 0; 
-    }
+    display: flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 4px; margin-right: 6px;
+    border: 1px solid var(--background-modifier-border); box-sizing: border-box; flex-shrink: 0;
+    &.is-transparent { background-color: var(--background-primary); border: 1px dashed var(--text-muted); opacity: 0.8; }
+    &.is-dark.is-transparent { background-color: var(--background-secondary); }
+    &.is-dark { margin-right: 0; }
   }
   
   .scl-color-dot {
-    display: inline-block; 
-    width: 8px; 
-    height: 8px; 
-    min-width: 8px; 
-    min-height: 8px;
-    border-radius: 50%; 
-    flex-shrink: 0; 
-    border: 1px solid rgba(0, 0, 0, 0.15); 
-    box-sizing: border-box;
+    display: inline-block; width: 8px; height: 8px; min-width: 8px; min-height: 8px;
+    border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.15); box-sizing: border-box;
   }
 
   button {
-    -webkit-appearance: none; 
-    appearance: none;
-    flex: 0 0 28px; 
-    width: 28px; 
-    min-width: 28px; 
-    max-width: 28px; 
-    height: 28px;
-    border-radius: 4px; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    box-sizing: border-box;
+    -webkit-appearance: none; appearance: none; flex: 0 0 28px; width: 28px; min-width: 28px; max-width: 28px; height: 28px;
+    border-radius: 4px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
   }
-
-  .scl-order-btn { 
-    padding: 4px; 
-  }
-  
-  button svg { 
-    width: 16px; 
-    height: 16px; 
-    flex-shrink: 0; 
-  }
+  .scl-order-btn { padding: 4px; }
+  button svg { width: 16px; height: 16px; flex-shrink: 0; }
 }
 
 /* =========================================================================
@@ -102,126 +36,70 @@
    ========================================================================= */
 
 .vertical-tab-content-container .setting-item.scl-color-row {
-  padding-top: 0.5em;
-  padding-bottom: 0.5em;
-  border-top: none;
-
-  .setting-item-control {
-    display: flex;
-    flex-wrap: nowrap;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-  }
-
+  padding-top: 0.5em; padding-bottom: 0.5em; border-top: none;
+  .setting-item-control { display: flex; flex-wrap: nowrap; flex-direction: row; align-items: center; justify-content: flex-end; }
   .setting-item-control input[type="color"] {
-    -webkit-appearance: none;
-    appearance: none;
-    padding: 0;
-    margin: 0;
-    border: 1px solid var(--background-modifier-border);
-    box-sizing: border-box;
-    cursor: pointer;
-    background: transparent;
-
-    &::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-    &::-webkit-color-swatch {
-      border: none;
-      border-radius: inherit; 
-    }
+    -webkit-appearance: none; appearance: none; padding: 0; margin: 0; border: 1px solid var(--background-modifier-border);
+    box-sizing: border-box; cursor: pointer; background: transparent;
+    &::-webkit-color-swatch-wrapper { padding: 0; }
+    &::-webkit-color-swatch { border: none; border-radius: inherit; }
   }
-
-  .clickable-icon {
-    margin-left: 6px;
-    flex-shrink: 0;
-  }
+  .clickable-icon { margin-left: 6px; flex-shrink: 0; }
 }
 
-/* Bunnsolide form-ankere for Mac/PC som ALDRI kan forrykkes */
-.vertical-tab-content-container .setting-item.scl-color-row.scl-text-picker-row .setting-item-control input[type="color"] {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  max-width: 20px;
-  border-radius: 50%; 
-}
+/* Låser formene uansett DOM-endringer på Mac/PC */
+.vertical-tab-content-container .setting-item.scl-color-row.scl-text-picker-row .setting-item-control input[type="color"] { width: 20px; height: 20px; min-width: 20px; max-width: 20px; border-radius: 50%; }
+.vertical-tab-content-container .setting-item.scl-color-row.scl-bg-picker-row .setting-item-control input[type="color"] { width: 32px; height: 22px; min-width: 32px; max-width: 32px; border-radius: 4px; }
 
-.vertical-tab-content-container .setting-item.scl-color-row.scl-bg-picker-row .setting-item-control input[type="color"] {
-  width: 32px;
-  height: 22px;
-  min-width: 32px;
-  max-width: 32px;
-  border-radius: 4px; 
-}
 
 /* =========================================================================
-   3. 🔑 THE HOLY GRAIL IPHONE FIX (100% Sterile DOM / No !important)
+   3. 🔑 THE HOLY GRAIL IPHONE FIKS (All details horizontal on one line!)
    ========================================================================= */
 
-/* Tvinger fargeradene til å holde seg på en ryddig, horisontal linje på mobil */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+/* Slukker den defekte native-teksten på iPhone og tvinger alt horisontalt */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row,
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row {
+  display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; width: 100%;
+  padding-top: 0.5em; padding-bottom: 0.5em; border-top: none;
 }
 
-/* Slukker den defekte native-teksten på iPhone */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-info {
-  display: none;
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-info,
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row .setting-item-info {
+  display: none; /* Slukker de usikre standardtekstene */
 }
 
-/* Låser knappeområdet stabilt over full linjebredde på mobil */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0;
-  flex-shrink: 0;
-  width: 100%;
+/* Tvinger alle kontroller (tekstbokser, dropdowns, farger) helt til høyre */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control,
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row .setting-item-control {
+  display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end;
+  margin-top: 0; flex-shrink: 0;
 }
 
-/* 🚀 VIRTUELL LABELEXPRES: Dytter inn oversettelsestekst visuelt til venstre KUN på mobil */
-.is-phone .vertical-tab-content-container .setting-item.scl-text-picker-row .setting-item-control::before {
-  content: "Text Color";
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  font-weight: var(--font-medium);
+/* Sikrer kompakte måler på mobile inputs så de ikke kræsjer */
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row .setting-item-control input[type="text"],
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row .setting-item-control select {
+  height: 28px; padding: 4px 8px; box-sizing: border-box; max-width: 140px;
 }
 
-.is-phone .vertical-tab-content-container .setting-item.scl-bg-picker-row .setting-item-control::before {
-  content: "Background";
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  font-weight: var(--font-medium);
+/* 🚀 VIRTUELL LABELEXPRES FOR ABSOLUTT ALLE RADER PÅ IPHONE */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control::before,
+.is-phone .vertical-tab-content-container .setting-item.scl-detail-row .setting-item-control::before {
+  font-size: var(--font-ui-small); color: var(--text-normal); font-weight: var(--font-medium);
+  position: absolute; left: 0; /* Garanterer at teksten klistres helt til venstre */
 }
 
-/* Universell swatch-arv for mobil */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control input[type="color"]::-webkit-color-swatch {
-  border: none;
-  border-radius: inherit;
-}
+/* Unike, uknuselige streng-injeksjoner koblet til de nye TypeScript-klassene */
+.is-phone .vertical-tab-content-container .setting-item.scl-row-iconbefore .setting-item-control::before { content: "Prepend Icon"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-iconafter .setting-item-control::before { content: "Append Icon"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-weight .setting-item-control::before { content: "Font Weight"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-style .setting-item-control::before { content: "Font Style"; }
 
-/* Garanterer geometrisk perfekte sirkler for tekstfarger på iPhone */
-.is-phone .vertical-tab-content-container .setting-item.scl-text-picker-row .setting-item-control input[type="color"] {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  max-width: 22px;
-  border-radius: 50%;
-}
+.is-phone .vertical-tab-content-container .setting-item.scl-row-lightcolor .setting-item-control::before { content: "Text Color ☀️"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-darkcolor .setting-item-control::before { content: "Text Color 🌙"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-lightbg .setting-item-control::before { content: "Background ☀️"; }
+.is-phone .vertical-tab-content-container .setting-item.scl-row-darkbg .setting-item-control::before { content: "Background 🌙"; }
 
-/* Garanterer geometrisk perfekte liggende rektangler for bakgrunnsfarger på iPhone */
-.is-phone .vertical-tab-content-container .setting-item.scl-bg-picker-row .setting-item-control input[type="color"] {
-  width: 34px;
-  height: 22px;
-  min-width: 34px;
-  max-width: 34px;
-  border-radius: 4px;
-}
+/* Sikrer mobil-geometri på Safari */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control input[type="color"]::-webkit-color-swatch { border: none; border-radius: inherit; }
+.is-phone .vertical-tab-content-container .setting-item.scl-text-picker-row .setting-item-control input[type="color"] { width: 22px; height: 22px; min-width: 22px; max-width: 22px; border-radius: 50%; }
+.is-phone .vertical-tab-content-container .setting-item.scl-bg-picker-row .setting-item-control input[type="color"] { width: 34px; height: 22px; min-width: 34px; max-width: 34px; border-radius: 4px; }
