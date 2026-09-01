@@ -21,6 +21,7 @@
   .scl-color-dot {
     display: inline-block; width: 8px; height: 8px; min-width: 8px; min-height: 8px;
     border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0, 0, 0, 0.15); box-sizing: border-box;
+    background-color: var(--scl-dot-color); 
   }
 
   button {

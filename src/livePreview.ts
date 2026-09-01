@@ -29,13 +29,11 @@ class HeaderWidget extends WidgetType {
     }
 
     toDOM() {
-        const headerEl = document.createElement("span");
+        const headerEl = createSpan({ cls: "data-link-icon" });
         
-        // 🚀 2. FIKSET: Bruk standard classList.add i stedet for .addClass for å slippe typefeil
+        // Hvis 'after' er sann, bytter/legger vi til den spesifikke klassen i stedet
         if (this.after) {
-            headerEl.classList.add('data-link-icon-after');
-        } else {
-            headerEl.classList.add('data-link-icon');
+            headerEl.className = 'data-link-icon-after';
         }
 
         // 🚀 3. FIKSET: Bruk trygg Object.entries i stedet for usikker for...in løkke

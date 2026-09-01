@@ -33,7 +33,9 @@
       "iconAfter": "",
       "lightColor": "#df2020",
       "darkColor": "#ff5555",
-      "fontWeight": "normal"
+      "fontWeight": "normal",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
     },
     {
       "type": "tag",
@@ -54,17 +56,17 @@
     {
       "type": "tag",
       "name": "",
-      "value": "new-tag",
+      "value": "kalender",
       "matchCaseSensitive": false,
       "match": "exact",
       "uid": "541c-90da",
-      "iconBefore": "",
+      "iconBefore": "📅",
       "iconAfter": "",
-      "fontStyle": "normal",
-      "lightColor": "#1f938f",
-      "darkColor": "#8cf2ef",
-      "lightBgColor": "transparent",
-      "darkBgColor": "transparent"
+      "fontStyle": "underline",
+      "lightColor": "#e00f00",
+      "darkColor": "#f46767",
+      "lightBgColor": "#fdeded",
+      "darkBgColor": "#fdcece"
     }
   ],
   "targetAttributes": []

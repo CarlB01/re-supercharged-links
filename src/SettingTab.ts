@@ -93,17 +93,57 @@ export default class SCLSettingTab extends PluginSettingTab {
   }
   
   private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean) {
-    // 🚀 SKUDDSIKKER NULLSTILLING: Vasker bort alle gjenbrukte mobil-klasser før hovedraden tegnes!
     setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
     if (isEditing) setting.settingEl.addClass("is-active");
 
-    // 1. Bygg HTML-forhåndsvisningstekst (Uendret kjerne-logikk)
+    // 🚀 TRYGG OG GODKJENT DOM-BYGGING UTEN INNERHTML
+    setting.nameEl.empty(); // Tømmer beholderen fullstendig før vi bygger
+    const valText = selector.value || "empty";
+
     if (selector.type === 'tag') {
-      setting.nameEl.innerHTML = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-tags="${selector.value}">Note</span> has tag <a class="tag">#${selector.value || "empty"}</a>`;
+      // 1. <span class="..." data-link-tags="...">Note</span>
+      const noteSpan = setting.nameEl.createEl("span", { 
+        cls: "data-link-icon data-link-text data-link-icon-after",
+        text: "Note"
+      });
+      noteSpan.setAttribute("data-link-tags", selector.value || "");
+
+      // 2. Ren tekst: " has tag "
+      setting.nameEl.appendText(" has tag ");
+
+      // 3. <a class="tag">#value</a>
+      setting.nameEl.createEl("a", { cls: "tag", text: `#${valText}` });
+
     } else if (selector.type === 'attribute') {
-      setting.nameEl.innerHTML = `<span class="data-link-icon data-link-text data-link-icon-after" data-link-${selector.name}="${selector.value}">Note</span> has attribute <b>${selector.name || "empty"}</b> with value <b>${selector.value || "empty"}</b>`;
+      const attrName = selector.name || "empty";
+      
+      // 1. <span class="..." data-link-[attr]="...">Note</span>
+      const noteSpan = setting.nameEl.createEl("span", { 
+        cls: "data-link-icon data-link-text data-link-icon-after",
+        text: "Note"
+      });
+      if (selector.name) {
+        noteSpan.setAttribute(`data-link-${selector.name}`, selector.value || "");
+      }
+
+      setting.nameEl.appendText(" has attribute ");
+      setting.nameEl.createEl("b", { text: attrName });
+      setting.nameEl.appendText(" with value ");
+      setting.nameEl.createEl("b", { text: valText });
+
     } else {
-      setting.nameEl.innerHTML = `The path of the <span class="data-link-icon data-link-text data-link-icon-after" data-link-path="${selector.value}">note</span> matches <b>${selector.value || "empty"}</b>`;
+      // 1. Ren tekst: "The path of the "
+      setting.nameEl.appendText("The path of the ");
+
+      // 2. <span class="..." data-link-path="...">note</span>
+      const noteSpan = setting.nameEl.createEl("span", { 
+        cls: "data-link-icon data-link-text data-link-icon-after",
+        text: "note"
+      });
+      noteSpan.setAttribute("data-link-path", selector.value || "");
+
+      setting.nameEl.appendText(" matches ");
+      setting.nameEl.createEl("b", { text: valText });
     }
 
     setting.settingEl.addClass("scl-clickable-row");
@@ -128,9 +168,13 @@ export default class SCLSettingTab extends PluginSettingTab {
     else capsule.addClass("is-transparent");
 
     const dot = capsule.createEl("span", { cls: "scl-color-dot" });
-    dot.style.setProperty("--scl-dot-color", textColor || fallbackText);
-    dot.style.backgroundColor = "var(--scl-dot-color)";
     dot.title = `${modeName} text color: ${textColor || "default"}`;
+    
+    // 🚀 LØSNINGEN: Bruk Obsidians godkjente API i stedet for direkte .style-manipulasjon!
+    const activeColor = textColor || fallbackText;
+    dot.setCssProps({
+      "--scl-dot-color": activeColor
+    });
   }
 
   private async moveRule(index: number, direction: number, selectors: CSSLink[], rowEl: HTMLElement) {

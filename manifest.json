@@ -2,10 +2,10 @@
   "id": "re-supercharged-links",
   "name": "Re-supercharged Links",
   "version": "0.0.15",
-  "minAppVersion": "1.11.0",
-  "description": "continued development & fixes for The original Supercarged Links, by mdelobelle & Emile",
+  "minAppVersion": "1.13.0",
+  "description": "A modernized, highly optimized, and decoupled fork of the original *Supercharged Links* plugin for Obsidian.",
   "author": "CarlB",
-  "authorUrl": "https://github.com/CarlB01/CarlB01",
+  "authorUrl": "https://github.com/CarlB01",
   "helpUrl": "https://github.com/CarlB01/re-supercharged-links#readme",
   "isDesktopOnly": false
 }
