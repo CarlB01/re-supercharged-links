@@ -51,7 +51,7 @@
       "darkBgColor": "#664d4d"
     },
     {
-      "type": "tag",
+      "type": "attribute",
       "name": "",
       "value": "new-tag",
       "matchCaseSensitive": false,

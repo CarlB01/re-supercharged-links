@@ -32,7 +32,6 @@
     margin-right: 12px;
   }
 
-  /* Compact Background Capsules */
   .scl-bg-capsule {
     display: flex; 
     align-items: center; 
@@ -60,7 +59,6 @@
     }
   }
   
-  /* Centered Foreground Text Dots */
   .scl-color-dot {
     display: inline-block; 
     width: 8px; 
@@ -73,7 +71,6 @@
     box-sizing: border-box;
   }
 
-  /* Rectangular Control Actions (Arrows & Delete) */
   button {
     -webkit-appearance: none; 
     appearance: none;
@@ -101,13 +98,21 @@
 }
 
 /* =========================================================================
-   2. EXCLUSIVELY COLOR PICKER FIELDS STYLING (Mac & PC Optimization)
+   2. EXCLUSIVELY COLOR PICKER FIELDS STYLING (Mac & PC Pristine Geometry)
    ========================================================================= */
 
 .vertical-tab-content-container .setting-item.scl-color-row {
   padding-top: 0.5em;
   padding-bottom: 0.5em;
   border-top: none;
+
+  .setting-item-control {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
 
   .setting-item-control input[type="color"] {
     -webkit-appearance: none;
@@ -134,12 +139,7 @@
   }
 }
 
-/* 💻 HIDE MOBILE LABELS ON MAC: Gjemmer den nye iPhonelubelen på skrivebordsversjonen */
-.scl-mobile-only-label {
-  display: none;
-}
-
-/* Låser formene uansett DOM-endringer på Mac/PC */
+/* Bunnsolide form-ankere for Mac/PC som ALDRI kan forrykkes */
 .vertical-tab-content-container .setting-item.scl-color-row.scl-text-picker-row .setting-item-control input[type="color"] {
   width: 20px;
   height: 20px;
@@ -157,46 +157,49 @@
 }
 
 /* =========================================================================
-   3. 🔑 HIGH-SPECIFICITY IPHONE FIX (Linter-Clean / No !important)
+   3. 🔑 THE HOLY GRAIL IPHONE FIX (100% Sterile DOM / No !important)
    ========================================================================= */
 
-/* Aktiverer den nye, uknuselige merkelappen rett foran fargen på iPhone */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .scl-mobile-only-label {
-  display: inline-block;
-  font-size: var(--font-ui-small);
-  color: var(--text-normal);
-  font-weight: var(--font-medium);
-  order: 1; /* 🔑 MAGIC FIX: Sier at teksten skal stå først til venstre på mobil */
+/* Tvinger fargeradene til å holde seg på en ryddig, horisontal linje på mobil */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-/* Låser knappeområdet stabilt til høyre uansett Safari-skvis */
+/* Slukker den defekte native-teksten på iPhone */
+.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-info {
+  display: none;
+}
+
+/* Låser knappeområdet stabilt over full linjebredde på mobil */
 .is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between; /* 🔑 Endret fra flex-end slik at order:1 og 2 skyves fra hverandre */
+  justify-content: space-between;
   margin-top: 0;
   flex-shrink: 0;
   width: 100%;
 }
 
-/* Tvinger selve fargeknappene og krysset til høyre-siden på mobil */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control input[type="color"],
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control .clickable-icon {
-  order: 2; /* Garanterer at knappene holder seg på høyre flanke */
+/* 🚀 VIRTUELL LABELEXPRES: Dytter inn oversettelsestekst visuelt til venstre KUN på mobil */
+.is-phone .vertical-tab-content-container .setting-item.scl-text-picker-row .setting-item-control::before {
+  content: "Text Color";
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
 }
 
-
-/* Låser knappeområdet stabilt til høyre uansett Safari-skvis */
-.is-phone .vertical-tab-content-container .setting-item.scl-color-row .setting-item-control {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-end;
-  margin-top: 0;
-  flex-shrink: 0;
+.is-phone .vertical-tab-content-container .setting-item.scl-bg-picker-row .setting-item-control::before {
+  content: "Background";
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
 }
 
 /* Universell swatch-arv for mobil */

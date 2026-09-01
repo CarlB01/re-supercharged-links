@@ -154,17 +154,13 @@ export default class SCLSettingTab extends PluginSettingTab {
       // ☀️ Farge 1: Light Mode Text Color
       { render: (setting: Setting) => {
         setting.setName("Light Mode Color").setDesc("Text color for white themes.");
-        setting.settingEl.addClass("scl-color-row");
-        setting.settingEl.addClass("scl-text-picker-row");
+        // 🚀 SKUDDSIKKER NULLSTILLING: Reseter alle klasser for å hindre arv-feil ved dynamisk skjema
+        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row";
         
         setting.addColorPicker(cp => {
           cp.setValue(selector.lightColor || "#000000");
           cp.onChange(async (v) => await this.setControlValue(`scl_lightColor_${selector.uid}`, v));
         });
-        // 🚀 BYTTET REKKEFØLGE: Merkelappen legges nå trygt etter fargevelgeren i DOM-en!
-        if (setting.controlEl) {
-          setting.controlEl.createEl("span", { text: "Text Color", cls: "scl-mobile-only-label" });
-        }
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
           selector.lightColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
@@ -173,17 +169,13 @@ export default class SCLSettingTab extends PluginSettingTab {
       // 🌙 Farge 2: Dark Mode Text Color
       { render: (setting: Setting) => {
         setting.setName("Dark Mode Color").setDesc("Text color for dark themes.");
-        setting.settingEl.addClass("scl-color-row");
-        setting.settingEl.addClass("scl-text-picker-row");
+        // 🚀 SKUDDSIKKER NULLSTILLING
+        setting.settingEl.className = "setting-item scl-color-row scl-text-picker-row";
         
         setting.addColorPicker(cp => {
           cp.setValue(selector.darkColor || "#ffffff");
           cp.onChange(async (v) => await this.setControlValue(`scl_darkColor_${selector.uid}`, v));
         });
-        // 🚀 BYTTET REKKEFØLGE
-        if (setting.controlEl) {
-          setting.controlEl.createEl("span", { text: "Text Color", cls: "scl-mobile-only-label" });
-        }
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear text color").onClick(async () => {
           selector.darkColor = ""; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
@@ -192,8 +184,8 @@ export default class SCLSettingTab extends PluginSettingTab {
       // ☀️ Farge 3: Light Mode Background Picker
       { render: (setting: Setting) => {
         setting.setName("Light Mode Background").setDesc("Background for light themes.");
-        setting.settingEl.addClass("scl-color-row");      
-        setting.settingEl.addClass("scl-bg-picker-row"); 
+        // 🚀 SKUDDSIKKER NULLSTILLING
+        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row";
         
         setting.addColorPicker(cp => {
           const currentVal = selector.lightBgColor;
@@ -201,10 +193,6 @@ export default class SCLSettingTab extends PluginSettingTab {
           cp.setValue(fallbackColor);
           cp.onChange(async (v) => await this.setControlValue(`scl_lightBgColor_${selector.uid}`, v));
         });
-        // 🚀 BYTTET REKKEFØLGE
-        if (setting.controlEl) {
-          setting.controlEl.createEl("span", { text: "Background", cls: "scl-mobile-only-label" });
-        }
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
           selector.lightBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
@@ -213,8 +201,8 @@ export default class SCLSettingTab extends PluginSettingTab {
       // 🌙 Farge 4: Dark Mode Background Picker
       { render: (setting: Setting) => {
         setting.setName("Dark Mode Background").setDesc("Background for dark themes.");
-        setting.settingEl.addClass("scl-color-row");      
-        setting.settingEl.addClass("scl-bg-picker-row"); 
+        // 🚀 SKUDDSIKKER NULLSTILLING
+        setting.settingEl.className = "setting-item scl-color-row scl-bg-picker-row";
         
         setting.addColorPicker(cp => {
           const currentVal = selector.darkBgColor;
@@ -222,14 +210,11 @@ export default class SCLSettingTab extends PluginSettingTab {
           cp.setValue(fallbackColor);
           cp.onChange(async (v) => await this.setControlValue(`scl_darkBgColor_${selector.uid}`, v));
         });
-        // 🚀 BYTTET REKKEFØLGE
-        if (setting.controlEl) {
-          setting.controlEl.createEl("span", { text: "Background", cls: "scl-mobile-only-label" });
-        }
         setting.addExtraButton(eb => eb.setIcon("cross").setTooltip("Clear background color").onClick(async () => {
           selector.darkBgColor = "transparent"; await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
       }},
+
 
 
       { name: "Delete style", desc: "Remove permanently.", render: (setting: Setting) => {
@@ -240,9 +225,6 @@ export default class SCLSettingTab extends PluginSettingTab {
       }}
     ];
   }
-
-
-
 
   // 🚀 HELT NY ROUTINE: Genererer tilfeldige, harmoniske og unike tekstfarger
   // 🚀 UPDATED ROUTINE: Spits out valid HEX codes that HTML Color Pickers understand instantly
