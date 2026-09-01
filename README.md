@@ -4,8 +4,9 @@
 
 [![Release](https://img.shields.io/github/v/release/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/releases)
 
-![BRAT Compatible](https://shields.io)
-![myBrain Integration](https://shields.io)
+![BRAT Compatible](https://img.shields.io/badge/BRAT-Compatible-8A2BE2?logo=obsidian&logoColor=white)
+![myBrain Integration](https://img.shields.io/badge/myBrain-Integration-00C853?logo=icloud&logoColor=white)
+
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CarlB01/re-supercharged-links/blob/master/LICENSE)
 
