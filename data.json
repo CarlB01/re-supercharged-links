@@ -54,21 +54,6 @@
       "darkBgColor": "#664d4d"
     },
     {
-      "type": "tag",
-      "name": "",
-      "value": "kalender",
-      "matchCaseSensitive": false,
-      "match": "exact",
-      "uid": "541c-90da",
-      "iconBefore": "📅",
-      "iconAfter": "",
-      "fontStyle": "underline",
-      "lightColor": "#e00f00",
-      "darkColor": "#f46767",
-      "lightBgColor": "#fdeded",
-      "darkBgColor": "#fdcece"
-    },
-    {
       "uid": "c8f0-a23d",
       "type": "tag",
       "name": "",
@@ -83,6 +68,21 @@
       "darkColor": "#fbcd28",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
+    },
+    {
+      "type": "tag",
+      "name": "",
+      "value": "kalender",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "541c-90da",
+      "iconBefore": "📅",
+      "iconAfter": "",
+      "fontStyle": "underline",
+      "lightColor": "#e00f00",
+      "darkColor": "#f46767",
+      "lightBgColor": "#fdeded",
+      "darkBgColor": "#fdcece"
     },
     {
       "uid": "948f-d52f",
