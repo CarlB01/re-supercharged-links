@@ -67,6 +67,38 @@
       "darkColor": "#f46767",
       "lightBgColor": "#fdeded",
       "darkBgColor": "#fdcece"
+    },
+    {
+      "uid": "c8f0-a23d",
+      "type": "tag",
+      "name": "",
+      "value": "psykisk",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#f7b018",
+      "darkColor": "#fbcd28",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
+    },
+    {
+      "uid": "948f-d52f",
+      "type": "tag",
+      "name": "",
+      "value": "fri",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#63931f",
+      "darkColor": "#c8f28c",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
     }
   ],
   "targetAttributes": []

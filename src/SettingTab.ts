@@ -17,33 +17,30 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.debouncedGenerate = debounce(() => { void this._generateSnippet(); }, 300, true);
     void this._generateSnippet();
 
-    // 🚀 SENTRAL EVENT DELEGATION: Én lytter for hele panelet som ALDRI lekker minne!
+    // 🚀 NATIVE NAVIGATION ENGINE: Lytter etter klikk for å navigere til undersiden!
     this.containerEl.addEventListener("click", (e) => {
       const target = e.target as HTMLElement;
       
-      // Finn ut om brukeren klikket på en av våre klikkbare stil-rader
       const clickedRow = target.closest(".scl-clickable-row") as HTMLElement;
       if (!clickedRow) return;
 
-      // Ignorer klikk hvis brukeren traff en knapp, et ikon eller en fargebrikke på linjen
-      if (target.closest(".clickable-icon") || target.closest("button") || target.closest(".scl-bg-capsule") || target.closest(".scl-color-dot")) {
-        return;
-      }
+      // Hvis de trykker på opp/ned-pilene eller slettekrysset, skal vi ikke navigere bort
+      if (target.closest(".scl-order-btn") || target.closest(".clickable-icon")) return;
 
-      // Finn den unike regelen som er knyttet til raden ved å "kikke" på dens plassering i DOM-en
-      const allRows = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
+      const allRows = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-main-rule-row"));
       const index = allRows.indexOf(clickedRow);
       const selectors = this.plugin.settings.selectors || [];
       const selector = selectors[index];
 
       if (selector) {
-        // Hvis raden allerede er åpen, lukk den. Hvis ikke, åpne den!
-        const isCurrentlyEditing = this.activeEditUid === selector.uid;
-        this.activeEditUid = isCurrentlyEditing ? null : selector.uid;
-        this.update(); // Sikker oppdatering av visningen
+        // 🔑 NAVIGERER TIL UNDERSIDEN: Setter denne regelen som aktiv og oppdaterer skjemaet
+        this.activeEditUid = selector.uid;
+        this.update(); // 🚀 Korrekt kjerne-metode for ditt rammeverk!
       }
     });
   }
+
+
 
   private async _generateSnippet() {
     await buildCSS(this.plugin.settings.selectors, this.plugin);
@@ -71,26 +68,108 @@ export default class SCLSettingTab extends PluginSettingTab {
   }
 
   override getSettingDefinitions(): SettingDefinitionItem[] {
-    const existingRuleItems: MyGroupItems[] = []; 
+    const definitions: SettingDefinitionItem[] = [];
     const selectors = this.plugin.settings.selectors || [];
 
-    // Hovedloopen er nå ekstremt lettlest og ryddig
-    selectors.forEach((selector, index) => {
-      const isEditing = this.activeEditUid === selector.uid;
-
-      // Seksjon A: Radvisning
-      existingRuleItems.push({
-        render: (setting: Setting) => this.renderRuleRow(setting, selector, index, selectors, isEditing)
-      });
-
-      // Seksjon B: Utvidet redigeringsskjema
-      if (isEditing) {
-        existingRuleItems.push(...this.buildEditForm(selector, index, selectors));
+    // =========================================================================
+    // 🎛️ CONTEXT A: VIS DETALJERT UNDERSIDE FOR VALGT STIL
+    // =========================================================================
+    if (this.activeEditUid) {
+      const selector = selectors.find(s => s.uid === this.activeEditUid);
+      if (!selector) {
+        this.activeEditUid = null;
+        return this.getSettingDefinitions();
       }
+
+      const index = selectors.indexOf(selector);
+      const editItems: MyGroupItems[] = [
+        // 🔙 STANDARD OBSIDIAN TILBAKE-KNAPP ØVERST
+        { render: (setting: Setting) => {
+          setting.setName("← Back to style list").setDesc(`Editing style configuration for rule #${index + 1}`);
+          setting.addButton(btn => btn.setButtonText("Back").setCta().onClick(() => {
+            this.activeEditUid = null;
+            this.update(); // 🚀 Tegner opp hovedlisten igjen
+          }));
+        }},
+        // Standard innholdsfelter for undersiden (Gjenbruker dine deklarative kontroller)
+        { name: "Match Target Type", desc: "Select target metadata type.", control: { type: "dropdown", key: `scl_type_${selector.uid}`, options: { tag: "Tag", attribute: "Attribute", path: "Note Path" } } },
+        ...(selector.type === "attribute" ? [{ name: "Key name (only for attributes)", desc: "The YAML property key name.", control: { type: "text" as const, key: `scl_name_${selector.uid}`, placeholder: "status" } }] : []),
+        { name: "Value to match", desc: "Trigger keyword.", control: { type: "text", key: `scl_value_${selector.uid}`, placeholder: "todo" } },
+        { name: "Prepend Icon", desc: "Icon to inject before the link text.", control: { type: "text", key: `scl_iconBefore_${selector.uid}`, placeholder: "" } },
+        { name: "Append Icon", desc: "Icon to inject after the link text.", control: { type: "text", key: `scl_iconAfter_${selector.uid}`, placeholder: "" } },
+        { name: "Font Weight", desc: "Choose font weight adjustment.", control: { type: "dropdown", key: `scl_fontWeight_${selector.uid}`, options: { "normal": "Normal", "lighter": "Lighter", "bold": "Bold" } } },
+        { name: "Font Style", desc: "Choose typography emphasis decoration.", control: { type: "dropdown", key: `scl_fontStyle_${selector.uid}`, options: { "normal": "Normal", "italic": "Italic", "underline": "Underline", "line-through": "Strikethrough" } } },
+        { name: "Light Mode Color", desc: "Foreground text color token for white themes.", control: { type: "color", key: `scl_lightColor_${selector.uid}` } },
+        { name: "Dark Mode Color", desc: "Foreground text color token for dark themes.", control: { type: "color", key: `scl_darkColor_${selector.uid}` } },
+        { name: "Light Mode Background", desc: "Background layer token for white themes.", control: { type: "color", key: `scl_lightBgColor_${selector.uid}` } },
+        { name: "Dark Mode Background", desc: "Background layer token for dark themes.", control: { type: "color", key: `scl_darkBgColor_${selector.uid}` } },
+        // Sletteknapp i bunnen av undersiden
+        { name: "Delete style", desc: "Remove this styling rule permanently from hvelvet.", render: (setting: Setting) => {
+          setting.addButton(btn => btn.setButtonText("Delete Rule").setClass("scl-delete-btn-standard").onClick(async () => {
+            selectors.splice(index, 1);
+            this.plugin.compileActiveAttributes();
+            this.activeEditUid = null;
+            await this.plugin.saveSettings();
+            await this._generateSnippet();
+            this.update(); // 🚀 Går tilbake til listen etter sletting
+          }));
+        }}
+      ];
+
+      definitions.push({ type: "group", heading: "Style Configuration", items: editItems as unknown as SettingGroupItem<string>[] });
+      return definitions;
+    }
+
+    // =========================================================================
+    // 📋 CONTEXT B: VIS DEN STANDARD HOVEDLISTEN OVER REGLER
+    // =========================================================================
+    const existingRuleItems: MyGroupItems[] = []; 
+    selectors.forEach((selector, index) => {
+      existingRuleItems.push({
+        render: (setting: Setting) => this.renderRuleRow(setting, selector, index, selectors, false)
+      });
     });
 
-    return this.assembleFinalSchema(existingRuleItems);
+    if (existingRuleItems.length > 0) {
+      definitions.push({ type: "group", heading: "Link Styling Rules", items: existingRuleItems as unknown as SettingGroupItem<string>[] });
+    }
+
+    // Knapp for å opprette ny regel (Uendret kjerne-logikk)
+    definitions.push({
+      type: "group", heading: "NEW rules", items: [{ 
+        name: "Create a new style rule", desc: "Adds a template selector with distinct, pre-configured color accents.", action: () => {
+          const newSelector = new CSSLink(); 
+          newSelector.type = "tag"; 
+          newSelector.value = "new-tag";
+          const generatedColors = (this as any).generateUniqueColors();
+          newSelector.lightColor = generatedColors.light;
+          newSelector.darkColor = generatedColors.dark;
+          newSelector.lightBgColor = "transparent";
+          newSelector.darkBgColor = "transparent";
+
+          selectors.push(newSelector); 
+          this.plugin.compileActiveAttributes();
+          void this.plugin.saveSettings();
+          void this._generateSnippet(); 
+          this.activeEditUid = newSelector.uid; 
+          this.update();
+        }
+      }]
+    });
+
+    // Globale avanserte innstillinger i bunnen (Uendret kjerne-logikk)
+    definitions.push({
+      type: "group", heading: "Advanced Settings Overview", items: [{ type: "page", name: "Advanced Settings", desc: "Configure global panels and triggers.", items: [
+        { type: "group", heading: "General", items: [{ name: "Parse all tags in the file", desc: "Look in frontmatter and inline.", control: { type: "toggle", key: "targetTags" } }, { name: "Automatically activate CSS snippet", desc: "Enable general snippet sheet.", control: { type: "toggle", key: "activateSnippet" } }] },
+        { type: "group", heading: "Where to Supercharge", items: [{ name: "Enable in Editor", desc: "Live Preview support.", control: { type: "toggle", key: "enableEditor" } }, { name: "Enable in Tab Headers", desc: "Tab titles names.", control: { type: "toggle", key: "enableTabHeader" } }, { name: "Enable in Plugins & Panels", desc: "Backlinks view panels.", control: { type: "toggle", key: "enableBacklinks" } }] },
+        { type: "group", heading: "Display panels", items: [{ name: "Activate in File Browser", desc: "File explorer tree.", control: { type: "toggle", key: "enableFileList" } }, { name: "Activate in Quick Switcher", desc: "Core search popover.", control: { type: "toggle", key: "enableQuickSwitcher" } }, { name: "Activate in Link Autocompleter", desc: "The [[ auto picker menu.", control: { type: "toggle", key: "enableSuggestor" } }] },
+        { type: "group", heading: "Experimental data sources", items: [{ name: "Search for attributes in Inline fields", desc: "Turn on Dataview inline fields syntax.", control: { type: "toggle", key: "getFromInlineField" } }] }
+      ]}]
+    });
+
+    return definitions;
   }
+
   
   private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean) {
     setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
@@ -159,6 +238,12 @@ export default class SCLSettingTab extends PluginSettingTab {
     // 4. Pilknapper med integrert FLIP-animasjon
     setting.addButton(btn => btn.setIcon("arrow-down").setTooltip("Move down").setClass("scl-order-btn").setDisabled(index === selectors.length - 1).onClick(() => this.moveRule(index, 1, selectors, setting.settingEl)));
     setting.addButton(btn => btn.setIcon("arrow-up").setTooltip("Move up").setClass("scl-order-btn").setDisabled(index === 0).onClick(() => this.moveRule(index, -1, selectors, setting.settingEl)));
+  
+    // 🚀 CHEVRON-NAVIGASJON: Indikerer at linjen kan klikkes for å åpne detaljene
+    setting.addButton(btn => btn.setIcon("chevron-right").setTooltip("Open style details").setClass("scl-order-btn").onClick(() => {
+      this.activeEditUid = selector.uid;
+      this.update();
+    }));
   }
 
   private createColorCapsule(parent: HTMLElement, bgColor: string | undefined, textColor: string | undefined, modeName: string, fallbackText: string) {
@@ -309,7 +394,9 @@ export default class SCLSettingTab extends PluginSettingTab {
 
       { name: "Delete style", desc: "Remove permanently.", render: (setting: Setting) => {
         setting.addButton(btn => btn.setButtonText("Delete").setClass("scl-delete-btn-standard").onClick(async () => {
-          selectors.splice(index, 1); if (this.activeEditUid === selector.uid) this.activeEditUid = null;
+          selectors.splice(index, 1); 
+          if (this.activeEditUid === selector.uid) this.activeEditUid = null;
+          this.plugin.compileActiveAttributes(); // Oppdaterer listen med en gang regelen slettes
           await this.plugin.saveSettings(); await this._generateSnippet(); this.update();
         }));
       }}
@@ -370,6 +457,8 @@ export default class SCLSettingTab extends PluginSettingTab {
           newSelector.darkBgColor = "transparent";
 
           selectors.push(newSelector); 
+
+          this.plugin.compileActiveAttributes(); // Oppdaterer den unike attributt-listen øverst i minnet
           void this.plugin.saveSettings();
           
           // Trigger CSS-kompilering med en gang så de nye fargene tegnes i sirkelen med en gang
@@ -409,6 +498,8 @@ export default class SCLSettingTab extends PluginSettingTab {
       (settings as unknown as Record<string, unknown>)[key] = value;
     }
 
+    this.plugin.compileActiveAttributes(); // Sørger for at Dataview og Frontmatter-loopen alltid har ferske data
+    
     await this.plugin.saveSettings();
     this.debouncedGenerate(); // Always compile CSS in the background
     
