@@ -13,18 +13,6 @@
     {
       "type": "tag",
       "name": "",
-      "value": "him",
-      "matchCaseSensitive": false,
-      "match": "exact",
-      "uid": "ed89-b784",
-      "iconBefore": "👤",
-      "iconAfter": "",
-      "lightColor": "#5773ff",
-      "darkColor": "#a9b6f9"
-    },
-    {
-      "type": "tag",
-      "name": "",
       "value": "her",
       "matchCaseSensitive": false,
       "match": "exact",
@@ -36,22 +24,6 @@
       "fontWeight": "normal",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
-    },
-    {
-      "type": "tag",
-      "name": "",
-      "value": "tekst",
-      "matchCaseSensitive": false,
-      "match": "exact",
-      "uid": "1327-142d",
-      "iconBefore": "📄",
-      "iconAfter": "",
-      "lightColor": "#c9ae26",
-      "darkColor": "#dbdc79",
-      "fontWeight": "lighter",
-      "fontStyle": "line-through",
-      "lightBgColor": "#f9c3c3",
-      "darkBgColor": "#664d4d"
     },
     {
       "uid": "c8f0-a23d",
@@ -70,6 +42,18 @@
       "darkBgColor": "transparent"
     },
     {
+      "type": "attribute",
+      "name": "",
+      "value": "him",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "ed89-b784",
+      "iconBefore": "👤",
+      "iconAfter": "",
+      "lightColor": "#5773ff",
+      "darkColor": "#a9b6f9"
+    },
+    {
       "type": "tag",
       "name": "",
       "value": "kalender",
@@ -85,6 +69,22 @@
       "darkBgColor": "#fdcece"
     },
     {
+      "type": "tag",
+      "name": "",
+      "value": "tekst",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "1327-142d",
+      "iconBefore": "📄",
+      "iconAfter": "",
+      "lightColor": "#c9ae26",
+      "darkColor": "#dbdc79",
+      "fontWeight": "lighter",
+      "fontStyle": "line-through",
+      "lightBgColor": "#f9c3c3",
+      "darkBgColor": "#664d4d"
+    },
+    {
       "uid": "948f-d52f",
       "type": "tag",
       "name": "",
@@ -97,6 +97,22 @@
       "fontStyle": "normal",
       "lightColor": "#63931f",
       "darkColor": "#c8f28c",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
+    },
+    {
+      "uid": "cea6-38e3",
+      "type": "tag",
+      "name": "",
+      "value": "new-tag",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#93651f",
+      "darkColor": "#f2c98c",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
     }

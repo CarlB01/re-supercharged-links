@@ -4,128 +4,114 @@
    - Keep native Obsidian settings behavior as the baseline
    - Add only minimal local styling for custom rule-row controls
    ========================================================================== */
+.vertical-tab-content-container {
 
-/* Make rule rows feel interactive while preserving native layout behavior. */
-.vertical-tab-content-container .setting-item.scl-clickable-row {
-  cursor: pointer;
-}
+  /* Keep control content vertically aligned without overriding core flex layout. */
+  .setting-item .setting-item-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;  
+  }
 
-/* Keep control content vertically aligned without overriding core flex layout. */
-.vertical-tab-content-container .setting-item .setting-item-control {
-  align-items: center;
-}
+  .setting-item .setting-item-control .scl-reorder-inline {
+    order: 1;
+    display: inline-flex;
+    align-items: center;
+  }
 
-/* Compact spacing for custom rule rows. */
-.vertical-tab-content-container .setting-item.scl-main-rule-row {
-  margin-bottom: 0;
-  padding-top: var(--size-4-2);
-  padding-bottom: var(--size-4-2);
-}
+  .setting-item .setting-item-control .setting-item-chevron {
+    order: 2;
+  }
 
-/* Keep search row visually compact with the rule list. */
-.vertical-tab-content-container .setting-item.scl-search-row {
-  margin-bottom: 0;
-}
+  /* Keep search row visually compact with the rule list. */
+  .setting-item.scl-search-row {
+    margin-bottom: 0;
+  }
+  
+  /* More compact main rule rows */
+  .setting-item.scl-main-rule-row {
+    padding-top: var(--size-4-1);
+    padding-bottom: var(--size-4-1);
+    margin-bottom: 0;
+  }
+    
+  .setting-item.scl-main-rule-row .setting-item-name {
+    font-size: var(--font-ui-smaller);
+  }
+  
+  .setting-item.scl-main-rule-row .setting-item-description {
+    font-size: var(--font-ui-smaller);
+  }
 
-/* Container for light/dark preview capsules. */
-.vertical-tab-content-container .scl-badge-container {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 8px;
-}
+  /* Inline reorder controls shown only when reorder mode is on */
+  .scl-reorder-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  /* Single modern drag-handle button in rule rows */
+  button.scl-grip-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 4px;
+    margin-left: 4px;
+  }
+  
+  button.scl-grip-btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  
+  /* Compact controls on detail rows */
+  .setting-item.scl-detail-row input[type="text"],
+  .setting-item.scl-detail-row select {
+    max-width: 180px;
+  }
+  
+  /* Text color pickers as circles */
+  .setting-item.scl-row-lightcolor input[type="color"],
+  .setting-item.scl-row-darkcolor input[type="color"] {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--background-modifier-border);
+  }
+  
+  /* Background color pickers as rounded rectangles */
+  .setting-item.scl-row-lightbg input[type="color"],
+  .setting-item.scl-row-darkbg input[type="color"] {
+    width: 44px;
+    height: 28px;
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--background-modifier-border);
+  }
 
-/* Small background capsule showing the background swatch. */
-.vertical-tab-content-container .scl-bg-capsule {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 20px;
-  border-radius: var(--radius-s);
-  border: 1px solid var(--background-modifier-border);
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
+  /* Native-looking destructive action */
+  .button.scl-delete-btn-standard {
+    background: transparent;
+    color: var(--text-error);
+    border: 1px solid var(--background-modifier-border);
+  }
 
-.vertical-tab-content-container .scl-bg-capsule.is-transparent {
-  background-color: var(--background-primary);
-  border: 1px dashed var(--text-muted);
-  opacity: 0.8;
-}
-
-.vertical-tab-content-container .scl-bg-capsule.is-dark.is-transparent {
-  background-color: var(--background-secondary);
-}
-
-.vertical-tab-content-container .scl-bg-capsule.is-dark {
-  margin-right: 0;
-}
-
-/* Foreground color dot rendered inside each capsule. */
-.vertical-tab-content-container .scl-color-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  min-width: 8px;
-  min-height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  box-sizing: border-box;
-  background-color: var(--scl-dot-color);
-}
-
-/* Reorder action buttons (up/down). */
-.vertical-tab-content-container button.scl-order-btn {
-  appearance: none;
-  flex: 0 0 28px;
-  width: 28px;
-  min-width: 28px;
-  max-width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 4px;
-  margin-left: 4px;
-}
-
-.vertical-tab-content-container button.scl-order-btn svg {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-/* Navigation indicator button (chevron-right) for detail panel entry. */
-.vertical-tab-content-container button.scl-nav-indicator {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0;
-  margin-left: 6px;
-  color: var(--text-muted);
-}
-
-.vertical-tab-content-container button.scl-nav-indicator:hover {
-  color: var(--text-normal);
-  background: transparent;
-}
-
-.vertical-tab-content-container button.scl-nav-indicator svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Destructive action in detail panel. */
-.vertical-tab-content-container button.scl-delete-btn-standard {
-  background-color: var(--text-error);
-  color: var(--text-on-accent);
+  .setting-item.scl-row-delete button {
+    background: transparent;
+    color: var(--text-error);
+    border: 1px solid var(--background-modifier-border);
+  }
 }
