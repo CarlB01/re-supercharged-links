@@ -26,6 +26,22 @@
       "darkBgColor": "transparent"
     },
     {
+      "type": "tag",
+      "name": "",
+      "value": "tekst",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "1327-142d",
+      "iconBefore": "📄",
+      "iconAfter": "",
+      "lightColor": "#c9ae26",
+      "darkColor": "#dbdc79",
+      "fontWeight": "lighter",
+      "fontStyle": "line-through",
+      "lightBgColor": "#f9c3c3",
+      "darkBgColor": "#664d4d"
+    },
+    {
       "uid": "c8f0-a23d",
       "type": "tag",
       "name": "",
@@ -42,7 +58,7 @@
       "darkBgColor": "transparent"
     },
     {
-      "type": "attribute",
+      "type": "tag",
       "name": "",
       "value": "him",
       "matchCaseSensitive": false,
@@ -52,6 +68,22 @@
       "iconAfter": "",
       "lightColor": "#5773ff",
       "darkColor": "#a9b6f9"
+    },
+    {
+      "uid": "cea6-38e3",
+      "type": "tag",
+      "name": "",
+      "value": "new-tag",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#3eea9f",
+      "darkColor": "#f2c98c",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
     },
     {
       "type": "tag",
@@ -69,22 +101,6 @@
       "darkBgColor": "#fdcece"
     },
     {
-      "type": "tag",
-      "name": "",
-      "value": "tekst",
-      "matchCaseSensitive": false,
-      "match": "exact",
-      "uid": "1327-142d",
-      "iconBefore": "📄",
-      "iconAfter": "",
-      "lightColor": "#c9ae26",
-      "darkColor": "#dbdc79",
-      "fontWeight": "lighter",
-      "fontStyle": "line-through",
-      "lightBgColor": "#f9c3c3",
-      "darkBgColor": "#664d4d"
-    },
-    {
       "uid": "948f-d52f",
       "type": "tag",
       "name": "",
@@ -95,24 +111,8 @@
       "iconAfter": "",
       "fontWeight": "normal",
       "fontStyle": "normal",
-      "lightColor": "#63931f",
+      "lightColor": "#e12323",
       "darkColor": "#c8f28c",
-      "lightBgColor": "transparent",
-      "darkBgColor": "transparent"
-    },
-    {
-      "uid": "cea6-38e3",
-      "type": "tag",
-      "name": "",
-      "value": "new-tag",
-      "match": "exact",
-      "matchCaseSensitive": false,
-      "iconBefore": "",
-      "iconAfter": "",
-      "fontWeight": "normal",
-      "fontStyle": "normal",
-      "lightColor": "#1f9361",
-      "darkColor": "#f2c98c",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
     },
@@ -127,7 +127,7 @@
       "iconAfter": "",
       "fontWeight": "normal",
       "fontStyle": "normal",
-      "lightColor": "#1f2993",
+      "lightColor": "#4e5adf",
       "darkColor": "#8c95f2",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"

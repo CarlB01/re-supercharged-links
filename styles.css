@@ -1,127 +1,326 @@
 /* =========================================================================
-   Re-Supercharged Links – Modern Unified Styles System (v0.0.15)
+   1) MAIN RULE ROWS
+   ========================================================================= */
+
+.vertical-tab-content-container {
+  .setting-item.scl-clickable-row.scl-main-rule-row {
+    cursor: pointer;
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.6em;
+
+    &:hover {
+      background-color: var(--background-modifier-hover);
+    }
+
+    .setting-item-control {
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      flex: 0 0 auto;
+      width: max-content;
+    }
+
+    .scl-badge-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      margin-right: 12px;
+    }
+
+    .scl-bg-capsule {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 20px;
+      margin-right: 6px;
+      border-radius: 4px;
+      border: 1px solid var(--background-modifier-border);
+      box-sizing: border-box;
+      flex-shrink: 0;
+
+      &.is-transparent {
+        background-color: var(--background-primary);
+        border: 1px dashed var(--text-muted);
+        opacity: 0.8;
+      }
+
+      &.is-dark {
+        margin-right: 0;
+
+        &.is-transparent {
+          background-color: var(--background-secondary);
+        }
+      }
+    }
+
+    .scl-color-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      min-width: 8px;
+      min-height: 8px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      box-sizing: border-box;
+      flex-shrink: 0;
+      background-color: var(--scl-dot-color);
+    }
+
+    button {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+
+      svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+    }
+
+    .scl-order-btn {
+      padding: 4px;
+    }
+  }
+}
+
+/* =========================================================================
+   2) DETAILS
    ========================================================================= */
 
 .vertical-tab-content-container {
 
-  /* Tvinger kontroll-beholderen til å fungere som en ren, flate-rett linje */
-  .setting-item .setting-item-control {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 12px !important;  /* Gir perfekt, jevnt pusterom før den native chevron-pilen */
+  /* Detail rows: make control column wrap its content tightly */
+  .setting-item.scl-detail-row {
+
+    .setting-item-control {
+      display: inline-flex;
+      flex: 0 0 auto;
+      width: fit-content;
+      min-width: 0;
+      margin-left: auto;   /* keep it right-aligned */
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      
+      /* Inputs/dropdowns should not stretch */
+      .dropdown,
+      input[type="text"] {
+        width: auto;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      /* Optional: cleaner text input width for option rows */
+      input[type="text"] {
+        width: 180px;
+        max-width: 40vw;      }
+    }
+
+    /* Små felt for ikon-inputs */
+    &.scl-row-iconbefore .setting-item-control input[type="text"],
+    &.scl-row-iconafter .setting-item-control input[type="text"] {
+      width: 6ch;       /* 4–8ch funker fint */
+      min-width: 6ch;
+      max-width: 8ch;
+      text-align: center;
+      padding-inline: 4px;
+    }
+
+    /* Value-felt kan være medium */
+    &.scl-row-value .setting-item-control input[type="text"] {
+      width: 140px;
+      max-width: 32vw;
+    }
+
+    /* Attribute key kan være litt kortere enn value */
+    &.scl-row-attrname .setting-item-control input[type="text"] {
+      width: 110px;
+      max-width: 28vw;
+    }
+
+    /* Hold alt på én linje */
+    .setting-item-control {
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
   }
 
-  /* Inline-samleren for farger og drag-handle */
-  .setting-item .setting-item-control .scl-reorder-inline {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 8px !important;
-  }
+  .setting-item.scl-color-row {
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    border-top: none;
 
-  /* Mer kompakte hovedrader (Følger kjerne-designet) */
-  .setting-item.scl-main-rule-row {
-    padding-top: var(--size-4-2) !important;
-    padding-bottom: var(--size-4-2) !important;
-    margin-bottom: var(--size-4-1) !important;
-    align-items: center !important;
-    cursor: pointer !important;
-  }
+    .setting-item-control {
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
 
-  /* 🚀 HOTKEY KAPSEL-STYLING: Kopierer Obsidians originale hurtigtast-rammer */
-  .setting-command-hotkeys {
-    display: inline-flex;
+    .extra-setting-button,
+    .clickable-icon,
+    input[type="color"] {
+      margin: 0;
+    }
+
+    .clickable-icon {
+      flex-shrink: 0;
+    }
+
+    .setting-item-control input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      padding: 0;
+      border: 1px solid var(--background-modifier-border);
+      box-sizing: border-box;
+      cursor: pointer;
+      background: transparent;
+
+      &::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      &::-webkit-color-swatch {
+        border: none;
+        border-radius: inherit;
+      }
+    }
+
+    /* Text color pickers: CIRCLES */
+    &.scl-text-picker-row .setting-item-control input[type="color"] {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      max-width: 20px;
+      border-radius: 50%;
+    }
+
+    /* Background color pickers: RECTANGLES */
+    &.scl-bg-picker-row .setting-item-control input[type="color"] {
+      width: 32px;
+      height: 22px;
+      min-width: 32px;
+      max-width: 32px;
+      border-radius: 4px;
+    }
+  }
+}
+
+.vertical-tab-content-container {
+  .setting-item.scl-detail-row:not(.scl-color-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 4px;
+    column-gap: 12px;
+    width: 100%;
+
+    .setting-item-info {
+      min-width: 0;
+    }
+
+    .setting-item-control {
+      min-width: 0;
+      width: auto;
+      margin-left: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      gap: 8px;
+    }
   }
 
-  .setting-command-hotkeys .setting-hotkey {
-    display: inline-flex;
-    align-items: center;
-    font-size: var(--font-ui-smaller);
-    padding: 2px 6px;
-    background-color: var(--background-secondary-alt);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: var(--radius-s);
-    color: var(--text-muted);
+  /* hide measuring clone without !important */
+  .setting-item.scl-detail-row .setting-item-control .dropdown.is-measuring {
+    display: none;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 
-  /* Den lille fargede sirkelen inni hotkey-kapselen */
-  .scl-color-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    min-width: 8px;
-    min-height: 8px;
-    border-radius: 50%;
-    margin-left: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    box-sizing: border-box;
-    background-color: var(--scl-dot-color);
+  .setting-item.scl-row-iconbefore .setting-item-control input[type="text"],
+  .setting-item.scl-row-iconafter .setting-item-control input[type="text"] {
+    width: 7ch;
+    min-width: 7ch;
+    max-width: 9ch;
+    text-align: center;
+    padding-inline: 4px;
   }
 
-  /* Nativt, minimalistisk drag-handle (Meny-streker) */
-  .clickable-icon.extra-setting-button.mod-drag-handle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 4px;
-    border-radius: var(--radius-m);
-    color: var(--text-muted);
-    cursor: grab;
+  .setting-item.scl-row-attrname .setting-item-control input[type="text"] {
+    width: 14ch;
+    max-width: 24ch;
   }
 
-  .clickable-icon.extra-setting-button.mod-drag-handle:hover {
-    background-color: var(--background-modifier-hover);
-    color: var(--text-normal);
+  .setting-item.scl-row-value .setting-item-control input[type="text"] {
+    width: 18ch;
+    max-width: 32ch;
   }
 
-  .clickable-icon.extra-setting-button.mod-drag-handle svg {
-    width: 18px;
-    height: 18px;
+  .setting-item.scl-row-weight .setting-item-control .dropdown,
+  .setting-item.scl-row-style .setting-item-control .dropdown,
+  .setting-item.scl-row-type .setting-item-control .dropdown {
+    width: auto;
+    min-width: fit-content;
+  }
+}
+
+.vertical-tab-content-container {
+  /* Same compact vertical rhythm as color rows */
+  .setting-item.scl-detail-row:not(.scl-color-row) {
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    border-top: none;
+    min-height: 0; /* override default tall rows */
   }
 
-  /* Keep search row visually compact with the rule list */
-  .setting-item.scl-search-row {
-    margin-bottom: var(--size-4-2);
-  }
-  
-  /* Compact controls on detail rows */
-  .setting-item.scl-detail-row input[type="text"],
-  .setting-item.scl-detail-row select {
-    max-width: 180px;
-  }
-  
-  /* Text color pickers as circles on detail views */
-  .setting-item.scl-row-lightcolor input[type="color"],
-  .setting-item.scl-row-darkcolor input[type="color"] {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border-radius: 999px;
-    overflow: hidden;
-    border: 1px solid var(--background-modifier-border);
-  }
-  
-  /* Background color pickers as rounded rectangles on detail views */
-  .setting-item.scl-row-lightbg input[type="color"],
-  .setting-item.scl-row-darkbg input[type="color"] {
-    width: 44px;
-    height: 28px;
-    padding: 0;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--background-modifier-border);
+  /* Tighten text stack on left side */
+  .setting-item.scl-detail-row:not(.scl-color-row) .setting-item-info {
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
-  /* Destruktive sletteknapper på undersiden */
-  .setting-item.scl-row-delete button {
-    background: transparent;
-    color: var(--text-error);
-    border: 1px solid var(--background-modifier-border);
+  .setting-item.scl-detail-row:not(.scl-color-row) .setting-item-name {
+    line-height: 1.25;
+    margin-bottom: 0;
+  }
+
+  .setting-item.scl-detail-row:not(.scl-color-row) .setting-item-description {
+    line-height: 1.2;
+    margin-top: 2px;
+  }
+
+  /* Keep controls vertically centered and compact */
+  .setting-item.scl-detail-row:not(.scl-color-row) .setting-item-control {
+    margin-top: 0;
+    align-self: center;
+  }
+}
+.vertical-tab-content-container {
+  .setting-item.scl-row-value {
+    .setting-item-control input[type="text"] {
+      text-align: right;
+    }
   }
 }
