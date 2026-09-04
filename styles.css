@@ -1,77 +1,93 @@
-/* ==========================================================================
-   Re-Supercharged Links – Settings UI
-   Purpose:
-   - Keep native Obsidian settings behavior as the baseline
-   - Add only minimal local styling for custom rule-row controls
-   ========================================================================== */
+/* =========================================================================
+   Re-Supercharged Links – Modern Unified Styles System (v0.0.15)
+   ========================================================================= */
+
 .vertical-tab-content-container {
 
-  /* Keep control content vertically aligned without overriding core flex layout. */
+  /* Tvinger kontroll-beholderen til å fungere som en ren, flate-rett linje */
   .setting-item .setting-item-control {
-    display: flex;
-    align-items: center;
-    gap: 6px;  
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;  /* Gir perfekt, jevnt pusterom før den native chevron-pilen */
   }
 
+  /* Inline-samleren for farger og drag-handle */
   .setting-item .setting-item-control .scl-reorder-inline {
-    order: 1;
-    display: inline-flex;
-    align-items: center;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
   }
 
-  .setting-item .setting-item-control .setting-item-chevron {
-    order: 2;
-  }
-
-  /* Keep search row visually compact with the rule list. */
-  .setting-item.scl-search-row {
-    margin-bottom: 0;
-  }
-  
-  /* More compact main rule rows */
+  /* Mer kompakte hovedrader (Følger kjerne-designet) */
   .setting-item.scl-main-rule-row {
-    padding-top: var(--size-4-1);
-    padding-bottom: var(--size-4-1);
-    margin-bottom: 0;
-  }
-    
-  .setting-item.scl-main-rule-row .setting-item-name {
-    font-size: var(--font-ui-smaller);
-  }
-  
-  .setting-item.scl-main-rule-row .setting-item-description {
-    font-size: var(--font-ui-smaller);
+    padding-top: var(--size-4-2) !important;
+    padding-bottom: var(--size-4-2) !important;
+    margin-bottom: var(--size-4-1) !important;
+    align-items: center !important;
+    cursor: pointer !important;
   }
 
-  /* Inline reorder controls shown only when reorder mode is on */
-  .scl-reorder-inline {
+  /* 🚀 HOTKEY KAPSEL-STYLING: Kopierer Obsidians originale hurtigtast-rammer */
+  .setting-command-hotkeys {
     display: inline-flex;
     align-items: center;
     gap: 4px;
   }
-  
-  /* Single modern drag-handle button in rule rows */
-  button.scl-grip-btn {
-    appearance: none;
-    -webkit-appearance: none;
-    flex: 0 0 28px;
-    width: 28px;
-    min-width: 28px;
-    max-width: 28px;
-    height: 28px;
-    border-radius: 6px;
+
+  .setting-command-hotkeys .setting-hotkey {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-ui-smaller);
+    padding: 2px 6px;
+    background-color: var(--background-secondary-alt);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    color: var(--text-muted);
+  }
+
+  /* Den lille fargede sirkelen inni hotkey-kapselen */
+  .scl-color-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    margin-left: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-sizing: border-box;
+    background-color: var(--scl-dot-color);
+  }
+
+  /* Nativt, minimalistisk drag-handle (Meny-streker) */
+  .clickable-icon.extra-setting-button.mod-drag-handle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
     padding: 4px;
-    margin-left: 4px;
+    border-radius: var(--radius-m);
+    color: var(--text-muted);
+    cursor: grab;
   }
-  
-  button.scl-grip-btn svg {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
+
+  .clickable-icon.extra-setting-button.mod-drag-handle:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  .clickable-icon.extra-setting-button.mod-drag-handle svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Keep search row visually compact with the rule list */
+  .setting-item.scl-search-row {
+    margin-bottom: var(--size-4-2);
   }
   
   /* Compact controls on detail rows */
@@ -80,7 +96,7 @@
     max-width: 180px;
   }
   
-  /* Text color pickers as circles */
+  /* Text color pickers as circles on detail views */
   .setting-item.scl-row-lightcolor input[type="color"],
   .setting-item.scl-row-darkcolor input[type="color"] {
     width: 28px;
@@ -91,7 +107,7 @@
     border: 1px solid var(--background-modifier-border);
   }
   
-  /* Background color pickers as rounded rectangles */
+  /* Background color pickers as rounded rectangles on detail views */
   .setting-item.scl-row-lightbg input[type="color"],
   .setting-item.scl-row-darkbg input[type="color"] {
     width: 44px;
@@ -102,13 +118,7 @@
     border: 1px solid var(--background-modifier-border);
   }
 
-  /* Native-looking destructive action */
-  .button.scl-delete-btn-standard {
-    background: transparent;
-    color: var(--text-error);
-    border: 1px solid var(--background-modifier-border);
-  }
-
+  /* Destruktive sletteknapper på undersiden */
   .setting-item.scl-row-delete button {
     background: transparent;
     color: var(--text-error);

@@ -468,7 +468,6 @@ private getRuleDetailItems(selector: CSSLink, index: number, selectors: CSSLink[
   ];
 }
 
-
   private async moveRule(index: number, direction: number, selectors: CSSLink[]) {
     const targetIndex = index + direction;
     const targetSelector = selectors[targetIndex];

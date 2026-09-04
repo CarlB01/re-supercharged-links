@@ -111,8 +111,24 @@
       "iconAfter": "",
       "fontWeight": "normal",
       "fontStyle": "normal",
-      "lightColor": "#93651f",
+      "lightColor": "#1f9361",
       "darkColor": "#f2c98c",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
+    },
+    {
+      "uid": "f01f-0456",
+      "type": "tag",
+      "name": "",
+      "value": "new-tag",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#1f2993",
+      "darkColor": "#8c95f2",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
     }
