@@ -260,7 +260,7 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
   const finalCSS = [...instructions, ...lightVars, "", ...darkVars, ...rules].join("\n");
 
   const vault = plugin.app.vault;
-  const configDir = vault.configDir ?? ".obsidian";
+  const configDir = vault.configDir;
   const snippetsDir = `${configDir}/snippets`;
   const snippetPath = `${snippetsDir}/re-supercharged-links-gen.css`;
 

@@ -1,4 +1,4 @@
-import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem } from "obsidian";
+import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem, setIcon } from "obsidian";
 import ResuperchargedLinks from "./main";
 import { updateVisibleLinks } from "./linkAttributes";
 import { buildCSS } from "./cssBuilder";
@@ -116,55 +116,79 @@ export default class SCLSettingTab extends PluginSettingTab {
     nameEl.createEl("b", { text: valText });
   }
 
-  private renderRuleBadges(setting: Setting, selector: CSSLink): void {
-    const badgeContainer = setting.controlEl.createEl("span", { cls: "scl-badge-container" });
-    this.createColorCapsule(badgeContainer, selector.lightBgColor, selector.lightColor, "Light mode", "var(--text-normal)");
-    this.createColorCapsule(badgeContainer, selector.darkBgColor, selector.darkColor, "Dark mode", "var(--text-muted)");
-  }
+private renderRuleBadges(setting: Setting, selector: CSSLink): void {
+  const controlEl = setting.controlEl as HTMLElement;
 
-  private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
-    const wrap = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
-    const grip = wrap.createEl("button", {
-      cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
-      attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
-    });
+  const badgeContainer: HTMLSpanElement = controlEl.createEl("span", {
+    cls: "scl-badge-container",
+  });
 
-    grip.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`;
+  this.createColorCapsule(
+    badgeContainer,
+    selector.lightBgColor,
+    selector.lightColor,
+    "Light mode",
+    "var(--text-normal)"
+  );
 
-    let longPressTriggered = false;
+  this.createColorCapsule(
+    badgeContainer,
+    selector.darkBgColor,
+    selector.darkColor,
+    "Dark mode",
+    "var(--text-muted)"
+  );
+}
 
-    const moveBy = (direction: number) => {
-      const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= selectors.length) return;
-      void this.moveRule(index, direction, selectors);
-    };
+private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
+  const wrap = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
+  const grip = wrap.createEl("button", {
+    cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
+    attr: {
+      "aria-label": "Reorder (tap: down, long-press/Shift: up)",
+      type: "button"
+    }
+  });
 
-    const onLongPress = debounce(() => {
-      longPressTriggered = true;
-      moveBy(-1);
-    }, 380, true);
+  setIcon(grip, "grip-vertical");
 
-    const cancelLongPress = () => onLongPress.cancel();
-    this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
-    this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
-    this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
+  let longPressTriggered = false;
 
-    this.plugin.registerDomEvent(grip, "pointerdown", (evt: PointerEvent) => {
-      if (evt.pointerType !== "touch") return;
+  const moveBy = (direction: number) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= selectors.length) return;
+    void this.moveRule(index, direction, selectors);
+  };
+
+  const onLongPress = debounce(() => {
+    longPressTriggered = true;
+    moveBy(-1);
+  }, 380, true);
+
+  const cancelLongPress = () => onLongPress.cancel();
+
+  this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
+  this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
+  this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
+
+  this.plugin.registerDomEvent(grip, "pointerdown", (evt: PointerEvent) => {
+    if (evt.pointerType !== "touch") return;
+    longPressTriggered = false;
+    onLongPress();
+  });
+
+  this.plugin.registerDomEvent(grip, "click", (evt: MouseEvent) => {
+    evt.preventDefault();
+    evt.stopPropagation();
+
+    if (longPressTriggered) {
       longPressTriggered = false;
-      onLongPress();
-    });
+      return;
+    }
 
-    this.plugin.registerDomEvent(grip, "click", (evt: MouseEvent) => {
-      evt.preventDefault();
-      evt.stopPropagation();
-      if (longPressTriggered) {
-        longPressTriggered = false;
-        return;
-      }
-      moveBy(evt.shiftKey ? -1 : 1);
-    });
-  }
+    moveBy(evt.shiftKey ? -1 : 1);
+  });
+}
 
   private row(render: (setting: Setting) => void): MyGroupItems {
     return { render };
@@ -662,19 +686,23 @@ export default class SCLSettingTab extends PluginSettingTab {
     textColor: string | undefined,
     modeName: string,
     fallbackText: string
-  ) {
-    const capsule = parent.createEl("span", {
-      cls: modeName.includes("Dark") ? "scl-bg-capsule is-dark" : "scl-bg-capsule"
+  ): void {
+    const capsule: HTMLSpanElement = parent.createEl("span", {
+      cls: modeName.includes("Dark") ? "scl-bg-capsule is-dark" : "scl-bg-capsule",
     });
-    capsule.title = `${modeName} background: ${bgColor || "transparent"}`;
 
-    if (bgColor && bgColor !== "transparent") capsule.style.backgroundColor = bgColor;
-    else capsule.addClass("is-transparent");
+    capsule.setAttr("title", `${modeName} background: ${bgColor ?? "transparent"}`);
 
-    const dot = capsule.createEl("span", { cls: "scl-color-dot" });
-    dot.title = `${modeName} text color: ${textColor || "default"}`;
+    if (bgColor && bgColor !== "transparent") {
+      capsule.style.backgroundColor = bgColor;
+    } else {
+      capsule.addClass("is-transparent");
+    }
 
-    const activeColor = textColor || fallbackText;
+    const dot: HTMLSpanElement = capsule.createEl("span", { cls: "scl-color-dot" });
+    dot.setAttr("title", `${modeName} text color: ${textColor ?? "default"}`);
+
+    const activeColor = textColor ?? fallbackText;
     dot.style.setProperty("--scl-dot-color", activeColor);
   }
 
@@ -685,7 +713,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     const allRowsBefore = Array.from(
       document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row")
-    ) as HTMLElement[];
+    );
 
     const currentRowBefore = allRowsBefore[index];
     const targetRowBefore = allRowsBefore[targetIndex];
@@ -701,7 +729,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.refreshUI();
 
     if (currentRect && targetRect) {
-      setTimeout(() => {
+      window.setTimeout(() => {
         const allRowsAfter = document.querySelectorAll(
           ".vertical-tab-content-container .scl-clickable-row"
         );

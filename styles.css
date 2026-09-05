@@ -230,7 +230,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    column-gap: 12px;
     width: 100%;
 
     .setting-item-info {

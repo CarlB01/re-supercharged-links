@@ -48,161 +48,167 @@ class HeaderWidget extends WidgetType {
  * This class stands independently on the top level for clean testing and stability.
  */
 class LivePreviewPlugin {
-    decorations: DecorationSet;
-    private app: App;
-    private plugin: ResuperchargedLinks;
+	decorations: DecorationSet;
+	private app: App;
+	private plugin: ResuperchargedLinks;
 
-    constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
-        this.app = app;
-        this.plugin = plugin;
-        this.decorations = this.buildDecorations(view);
-    }
+	constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
+			this.app = app;
+			this.plugin = plugin;
+			this.decorations = this.buildDecorations(view);
+	}
 
-    /**
-     * Called by CodeMirror whenever the editor document viewport updates
-     */
-    update(update: ViewUpdate): void {
-        if (update.docChanged) {
-            this.decorations = this.decorations.map(update.changes);
+	/**
+	 * Called by CodeMirror whenever the editor document viewport updates
+	 */
+	update(update: ViewUpdate): void {
+			if (update.docChanged) {
+					this.decorations = this.decorations.map(update.changes);
 
-            update.changes.iterChanges((fromA, toA, fromB, toB) => {
-                const minFrom = update.view.lineBlockAt(fromB).from;
-                const maxTo = update.view.lineBlockAt(toB).to;
-                
-                this.decorations = this.decorations.update({
-                    filter: (from, to) => to < minFrom || from > maxTo
-                });
+					update.changes.iterChanges((fromA, toA, fromB, toB) => {
+							const minFrom = update.view.lineBlockAt(fromB).from;
+							const maxTo = update.view.lineBlockAt(toB).to;
+							
+							this.decorations = this.decorations.update({
+									filter: (from, to) => to < minFrom || from > maxTo
+							});
 
-                this.decorations = RangeSet.join([
-                    this.decorations,
-                    this.buildDecorations(update.view, minFrom, maxTo)
-                ]);
-            });
-        } else if (update.viewportChanged) {
-            this.decorations = this.buildDecorations(update.view);
-        }
-    }
+							this.decorations = RangeSet.join([
+									this.decorations,
+									this.buildDecorations(update.view, minFrom, maxTo)
+							]);
+					});
+			} else if (update.viewportChanged) {
+					this.decorations = this.buildDecorations(update.view);
+			}
+	}
 
-    destroy(): void {}
-    /**
-     * SYNTAX SCANNER: Iterates viewport tokens to safely mount attribute markers
-     */
-    buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
-        const builder = new RangeSetBuilder<Decoration>();
-        if (!this.plugin.settings.enableEditor) return builder.finish();
+	destroy(): void {}
+	/**
+	 * SYNTAX SCANNER: Iterates viewport tokens to safely mount attribute markers
+	 */
+	buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
+			const builder = new RangeSetBuilder<Decoration>();
+			if (!this.plugin.settings.enableEditor) return builder.finish();
 
-        const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!mdView || !mdView.file) return builder.finish();
+			const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (!mdView || !mdView.file) return builder.finish();
 
-        const activeFileBasename = mdView.file.basename; 
+			const activeFileBasename = mdView.file.basename; 
 
-        let lastAttributes: Record<string, string> = {};
-        let iconDecoAfter: Decoration | null = null;
-        let iconDecoAfterWhere: number | null = null;
-        let mdAliasFrom: number | null = null;
-        let mdAliasTo: number | null = null;
+			let lastAttributes: Record<string, string> = {};
+			let iconDecoAfter: Decoration | null = null;
+			let iconDecoAfterWhere: number | null = null;
+			let mdAliasFrom: number | null = null;
+			let mdAliasTo: number | null = null;
 
-        for (const { from, to } of view.visibleRanges) {
-            if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
+			for (const { from, to } of view.visibleRanges) {
+					if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
 
-            syntaxTree(view.state).iterate({
-                from,
-                to,
-                enter: (node) => {
-                    if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
-                    
-                    // @ts-ignore - Lezer type alignment bypass
-                    const tokenProps = node.type.prop(tokenClassNodeProp);
-                    if (!tokenProps) return;
+					syntaxTree(view.state).iterate({
+							from,
+							to,
+							enter: (node) => {
+									if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
+									
+									// @ts-ignore - Lezer type alignment bypass
+									const tokenProps = node.type.prop(tokenClassNodeProp);
+									if (!tokenProps) return;
 
-                    const props = new Set(tokenProps.split(" "));
-                    if (props.has('formatting-link') || props.has('formatting-link-string')) return;
+									const props = new Set(tokenProps.split(" "));
+									if (props.has('formatting-link') || props.has('formatting-link-string')) return;
 
-                    const isLink = props.has("hmd-internal-link"); 
-                    const isAlias = props.has("link-alias"); 
-                    const isPipe = props.has("link-alias-pipe"); 
-                    const isMDLink = props.has('link'); 
-                    const isMDUrl = props.has('url'); 
+									const isLink = props.has("hmd-internal-link"); 
+									const isAlias = props.has("link-alias"); 
+									const isPipe = props.has("link-alias-pipe"); 
+									const isMDLink = props.has('link'); 
+									const isMDUrl = props.has('url'); 
 
-                    if (isMDLink) {
-                        mdAliasFrom = node.from;
-                        mdAliasTo = node.to;
-                    }
+									if (isMDLink) {
+											mdAliasFrom = node.from;
+											mdAliasTo = node.to;
+									}
 
-                    if (!isPipe && !isAlias && iconDecoAfter && iconDecoAfterWhere !== null) {
-                        builder.add(iconDecoAfterWhere, iconDecoAfterWhere, iconDecoAfter);
-                        iconDecoAfter = null;
-                        iconDecoAfterWhere = null;
-                    }
+									if (!isPipe && !isAlias && iconDecoAfter && iconDecoAfterWhere !== null) {
+											builder.add(iconDecoAfterWhere, iconDecoAfterWhere, iconDecoAfter);
+											iconDecoAfter = null;
+											iconDecoAfterWhere = null;
+									}
 
-                    if ((isLink && !isAlias && !isPipe) || isMDUrl) {
-                        let linkText = view.state.doc.sliceString(node.from, node.to);
-                        linkText = linkText.split("#")[0] || "";                                
-                        
-                        let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-                        if (isMDUrl && !file) {
-                            try {
-                                file = this.app.vault.getAbstractFileByPath(decodeURIComponent(linkText)) as TFile;
-                            } catch (e) {}
-                        }
+									if ((isLink && !isAlias && !isPipe) || isMDUrl) {
+											let linkText = view.state.doc.sliceString(node.from, node.to);
+											linkText = linkText.split("#")[0] || "";                                
+											
+											let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
+											if (isMDUrl && !file) {
+													try {
+														const af = this.app.vault.getAbstractFileByPath(decodeURIComponent(linkText));
 
-                        if (file) {
-                            const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-                            const attributes: Record<string, string> = {};
-                            
-                            for (const [key, val] of Object.entries(rawAttrs)) {
-                                attributes["data-link-" + key] = val;
-                            }
+														if (af instanceof TFile) {
+															file = af;
+														} else {
+															file = null; // eller return, avhengig av flow
+														}
+													} catch {}
+											}
 
-                            const deco = Decoration.mark({ attributes, class: "data-link-text" });
-                            const iconDecoBefore = Decoration.widget({ widget: new HeaderWidget(attributes, false) });
-                            iconDecoAfter = Decoration.widget({ widget: new HeaderWidget(attributes, true) });
+											if (file) {
+													const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+													const attributes: Record<string, string> = {};
+													
+													for (const [key, val] of Object.entries(rawAttrs)) {
+															attributes["data-link-" + key] = val;
+													}
 
-                            if (isMDUrl && mdAliasFrom !== null && mdAliasTo !== null) {
-                                const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
+													const deco = Decoration.mark({ attributes, class: "data-link-text" });
+													const iconDecoBefore = Decoration.widget({ widget: new HeaderWidget(attributes, false) });
+													iconDecoAfter = Decoration.widget({ widget: new HeaderWidget(attributes, true) });
 
-                                if (mdAliasFrom >= from) {
-                                    builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
-                                    builder.add(mdAliasFrom, mdAliasTo, mdDeco);
-                                }
-                                if (iconDecoAfter && mdAliasTo >= from) {
-                                    builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
-                                    iconDecoAfter = null;
-                                    iconDecoAfterWhere = null;
-                                    mdAliasFrom = null;
-                                    mdAliasTo = null;
-                                }
-                            } else {
-                                if (node.from >= from) {
-                                    builder.add(node.from, node.from, iconDecoBefore);
-                                }
-                            }
+													if (isMDUrl && mdAliasFrom !== null && mdAliasTo !== null) {
+															const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
 
-                            if (node.from >= from && node.to <= to) {
-                                builder.add(node.from, node.to, deco);
-                            }
-                            
-                            lastAttributes = attributes;
-                            iconDecoAfterWhere = node.to;
-                        }
-                    } else if (isLink && isAlias) {
-                        const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
-                        
-                        if (node.from >= from && node.to <= to) {
-                            builder.add(node.from, node.to, deco);
-                        }
-                        
-                        if (iconDecoAfter && node.to >= from) {
-                            builder.add(node.to, node.to, iconDecoAfter);
-                            iconDecoAfter = null;
-                            iconDecoAfterWhere = null;
-                        }
-                    }
-                }
-            });
-        }
-        return builder.finish();
-    }
+															if (mdAliasFrom >= from) {
+																	builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
+																	builder.add(mdAliasFrom, mdAliasTo, mdDeco);
+															}
+															if (iconDecoAfter && mdAliasTo >= from) {
+																	builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
+																	iconDecoAfter = null;
+																	iconDecoAfterWhere = null;
+																	mdAliasFrom = null;
+																	mdAliasTo = null;
+															}
+													} else {
+															if (node.from >= from) {
+																	builder.add(node.from, node.from, iconDecoBefore);
+															}
+													}
+
+													if (node.from >= from && node.to <= to) {
+															builder.add(node.from, node.to, deco);
+													}
+													
+													lastAttributes = attributes;
+													iconDecoAfterWhere = node.to;
+											}
+									} else if (isLink && isAlias) {
+											const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
+											
+											if (node.from >= from && node.to <= to) {
+													builder.add(node.from, node.to, deco);
+											}
+											
+											if (iconDecoAfter && node.to >= from) {
+													builder.add(node.to, node.to, iconDecoAfter);
+													iconDecoAfter = null;
+													iconDecoAfterWhere = null;
+											}
+									}
+							}
+					});
+			}
+			return builder.finish();
+	}
 }
 
 /**
@@ -210,8 +216,8 @@ class LivePreviewPlugin {
  * It simply passes instances down to the clean top-level LivePreviewPlugin class.
  */
 export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): ViewPlugin<LivePreviewPlugin> {
-    return ViewPlugin.define(
-        (view) => new LivePreviewPlugin(view, app, plugin),
-        { decorations: (v) => v.decorations }
-    );
+	return ViewPlugin.define(
+		(view) => new LivePreviewPlugin(view, app, plugin),
+		{ decorations: (v) => v.decorations }
+	);
 }

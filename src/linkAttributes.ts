@@ -30,72 +30,77 @@ export function processValue(key: string, value: string): string {
  * 🟢 PURE LOGIC SCAVENGER: Collects properties without touching the DOM.
  */
 export function fetchTargetAttributesSync(
-    app: App, 
-    plugin: ResuperchargedLinks, 
-    dest: TFile, 
-    addDataHref: boolean
+	app: App, 
+	plugin: ResuperchargedLinks, 
+	dest: TFile, 
+	addDataHref: boolean
 ): Record<string, string> {
-    let newProps: Record<string, string> = { tags: "" };
-    if (!dest || !plugin?.settings) return newProps;
+	let newProps: Record<string, string> = { tags: "" };
+	if (!dest || !plugin?.settings) return newProps;
 
-    const settings = plugin.settings;
-    const cache = app.metadataCache.getFileCache(dest);
-    if (!cache) return newProps;
+	const settings = plugin.settings;
+	const cache = app.metadataCache.getFileCache(dest);
+	if (!cache) return newProps;
 
-    const frontmatter = cache.frontmatter as Record<string, unknown> | undefined;
-    
-		// 🚀 READ DIRECTLY FROM IMMUTABLE CACHE (No more loops here!)
-		const activeAttributes = plugin.activeAttributesSet;
+	const frontmatter = cache.frontmatter;
+	
+	// 🚀 READ DIRECTLY FROM IMMUTABLE CACHE (No more loops here!)
+	const activeAttributes = plugin.activeAttributesSet;
 
-    // Scavenge core frontmatter values matching our active selector filters
-    if (frontmatter && activeAttributes.size > 0) {
-        activeAttributes.forEach(attribute => {
-            if (Object.prototype.hasOwnProperty.call(frontmatter, attribute)) {
-                const value = frontmatter[attribute];
-                if (value !== null && value !== undefined) {
-                    if (attribute === 'tag' || attribute === 'tags') {
-                        newProps['tags'] += String(value);
-                    } else {
-                        newProps[attribute] = String(value);
-                    }
-                }
-            }
-        });
-    }
+	// Scavenge core frontmatter values matching our active selector filters
+	if (frontmatter && activeAttributes.size > 0) {
+		activeAttributes.forEach(attribute => {
+			if (Object.prototype.hasOwnProperty.call(frontmatter, attribute)) {
+				const value = frontmatter[attribute];
+				if (value !== null && value !== undefined) {
+					if (attribute === 'tag' || attribute === 'tags') {
+						newProps['tags'] += String(value);
+					} else {
+						newProps[attribute] = String(value);
+					}
+				}
+			}
+		});
+	}
 
-		// Append native Obsidian tags if global parsing option is active
-    if (settings.targetTags) {
-        const allTags = getAllTags(cache);
-        if (allTags) newProps["tags"] += allTags.join(' ');
-    }
+	// Append native Obsidian tags if global parsing option is active
+	if (settings.targetTags) {
+			const allTags = getAllTags(cache);
+			if (allTags) newProps["tags"] += allTags.join(' ');
+	}
 
-    if (addDataHref) newProps['data-href'] = dest.basename;
-    newProps['path'] = dest.path;
+	if (addDataHref) newProps['data-href'] = dest.basename;
+	newProps['path'] = dest.path;
 
-    // 🌟 SAFE DATAVIEW BRIDGE: Fast memory lookup, ultra-low overhead
-    const appWithPlugins = app as Record<string, any>;
-    if (settings.getFromInlineField && appWithPlugins.plugins?.enabledPlugins?.has("dataview")) {
-        const api = appWithPlugins.plugins?.plugins?.dataview?.api as DataviewAPI | undefined;
-        if (api?.page) {
-            const page = api.page(dest.path);
-            if (page) {
-                // 🚀 OPTIMALISERT: Bruker nå den lynraske, ferdigkompilerte globale cachen!
-                plugin.activeAttributesSet.forEach((field: string) => {
-                    const value = page[field];
-                    if (value !== null && value !== undefined) {
-                        newProps[field] = String(value);
-                    }
-                });
-            }
-        }
-    }
+	// 🌟 SAFE DATAVIEW BRIDGE: Fast memory lookup, ultra-low overhead
+	const appWithPlugins = app as Record<string, any>;
+	const enabled = appWithPlugins.plugins?.enabledPlugins;
 
-    const hyphenatedProps: Record<string, string> = {};
-    for (const [key, value] of Object.entries(newProps)) {
-        hyphenatedProps[processKey(key)] = value;
-    }
-    
-    return hyphenatedProps;
+	const hasDataview =
+		enabled instanceof Set && enabled.has("dataview");
+
+		if (settings.getFromInlineField && hasDataview) {
+			const api = appWithPlugins.plugins?.plugins?.dataview?.api as DataviewAPI | undefined;
+			if (api?.page) {
+					const page = api.page(dest.path);
+					if (page) {
+							// 🚀 OPTIMALISERT: Bruker nå den lynraske, ferdigkompilerte globale cachen!
+							plugin.activeAttributesSet.forEach((field: string) => {
+									const value = page[field];
+									if (value !== null && value !== undefined) {
+											newProps[field] = String(value);
+									}
+							});
+					}
+			}
+	}
+
+	const hyphenatedProps: Record<string, string> = {};
+	for (const [key, value] of Object.entries(newProps)) {
+			hyphenatedProps[processKey(key)] = value;
+	}
+	
+	return hyphenatedProps;
 }
 
 /**
@@ -143,7 +148,7 @@ export function updateDivExtraAttributes(
     plugin: ResuperchargedLinks, 
     link: HTMLElement, 
     destName: string, 
-    linkName?: string, 
+    linkName: string | null, 
     filterCollapsible = false
 ): void {
     const parent = link.parentElement;
@@ -179,7 +184,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
     const destName = ctx.sourcePath.replace(/(.*).md/, "$1");
     
     links.forEach((node) => {
-        if (node instanceof HTMLElement) {
+        if (node.instanceOf(HTMLElement)) {
             const hrefAttr = node.getAttribute('href');
             const linkHref = hrefAttr ? hrefAttr.split('#')[0] : undefined;
             if (linkHref) {
@@ -221,7 +226,7 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 }
 
 export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app: App, plugin: ResuperchargedLinks): void {
-    const frontmatter = app.metadataCache.getCache(file.path)?.frontmatter as Record<string, unknown> | undefined;
+    const frontmatter = app.metadataCache.getCache(file.path)?.frontmatter;
     if (!frontmatter) return;
 
     const pills = propertiesEl.querySelectorAll("div.multi-select-pill-content");
@@ -250,44 +255,58 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 }
 
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
-    const settings = plugin.settings;
-    
-    app.workspace.iterateRootLeaves((leaf) => {
-        if (!(leaf.view instanceof MarkdownView) || !leaf.view.file) return;
+  const settings = plugin.settings;
 
-        const file: TFile = leaf.view.file;
-        const cachedFile = app.metadataCache.getFileCache(file);
-        const viewWithMeta = leaf.view as Record<string, any>;
-        const metadataPane = viewWithMeta.metadataEditor?.contentEl as HTMLElement | undefined;
-        
-        if (metadataPane) updatePropertiesPane(metadataPane, file, app, plugin);
+  app.workspace.iterateRootLeaves((leaf) => {
+    if (!(leaf.view instanceof MarkdownView) || !leaf.view.file) return;
 
-        const leafWithHeaders = leaf as Record<string, any>;
-        const tabHeader = leafWithHeaders.tabHeaderInnerTitleEl as HTMLElement | undefined;
-        
-        if (tabHeader) {
-            if (settings.enableTabHeader) {
-                updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
-            } else {
-                clearExtraAttributes(tabHeader);
-            }
-        }
+    const file: TFile = leaf.view.file;
+    const cachedFile = app.metadataCache.getFileCache(file);
 
-        if (cachedFile?.links) {
-            cachedFile.links.forEach((link: LinkCache) => {
-                const fileName = file.path.replace(/(.*).md/, "$1");
-                const dest = app.metadataCache.getFirstLinkpathDest(link.link, fileName);
-                
-                if (dest) {
-                    const newProps = fetchTargetAttributesSync(app, plugin, dest, false);
-                    const escapedHref = CSS.escape(link.link);
-                    const internalLinks = leaf.view.containerEl.querySelectorAll(`a.internal-link[href=${escapedHref}]`);
-                    
-                    internalLinks.forEach((node) => {
-                        if (node instanceof HTMLElement) setLinkNewProps(node, newProps);
-                    });
-                }
-            });
-        }
-    });
+		const viewRec = leaf.view as unknown as Record<string, unknown>;
+    const metadataEditor =
+      typeof viewRec.metadataEditor === "object" && viewRec.metadataEditor !== null
+        ? (viewRec.metadataEditor as Record<string, unknown>)
+        : null;
+
+    const contentEl = metadataEditor?.contentEl;
+    const metadataPane: HTMLElement | null =
+      contentEl instanceof HTMLElement ? contentEl : null;
+
+    if (metadataPane) {
+      updatePropertiesPane(metadataPane, file, app, plugin);
+    }
+
+		const leafRec = leaf as unknown as Record<string, unknown>;
+    const tabHeaderCandidate = leafRec.tabHeaderInnerTitleEl;
+    const tabHeader: HTMLElement | null =
+      tabHeaderCandidate instanceof HTMLElement ? tabHeaderCandidate : null;
+
+    if (tabHeader) {
+      if (settings.enableTabHeader) {
+        updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
+      } else {
+        clearExtraAttributes(tabHeader);
+      }
+    }
+
+    if (cachedFile?.links) {
+      cachedFile.links.forEach((link: LinkCache) => {
+        const fileName = file.path.replace(/(.*)\.md$/, "$1");
+        const dest = app.metadataCache.getFirstLinkpathDest(link.link, fileName);
+
+        if (!dest) return;
+
+        const newProps = fetchTargetAttributesSync(app, plugin, dest, false);
+        const escapedHref = CSS.escape(link.link);
+        const internalLinks = leaf.view.containerEl.querySelectorAll(
+          `a.internal-link[href="${escapedHref}"]`
+        );
+
+        internalLinks.forEach((node) => {
+          if (node instanceof HTMLElement) setLinkNewProps(node, newProps);
+        });
+      });
+    }
+  });
 }

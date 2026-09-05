@@ -1,5 +1,5 @@
 import ResuperchargedLinks from "./main";
-import { updatePropertiesPane, clearExtraAttributes } from "./linkAttributes";
+import { updatePropertiesPane, clearExtraAttributes, updateDivExtraAttributes } from "./linkAttributes";
 
 /**
  * RE-ARCHITECTED OBSERVATION CONTROLLER: Safely provisions isolated trackers across active panes.
@@ -87,7 +87,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
             if (mutation.type !== 'childList') return;
             
             mutation.addedNodes.forEach(node => {
-                if (node instanceof HTMLElement && node.className && typeof node.className.includes === 'function') {
+                if (node.instanceOf(HTMLElement) && node.className && typeof node.className.includes === 'function') {
                     const isModal = node.className.includes('modal-container') && plugin.settings.enableQuickSwitcher;
                     const isSuggest = node.className.includes('suggestion-container') && plugin.settings.enableSuggestor;
                     
@@ -133,24 +133,23 @@ function watchContainerDynamic(
     if (!plugin.settings.enableBacklinks) return;
     
     const observer = new window.MutationObserver((records) => {
-        records.forEach((mutation) => {
-            if (mutation.type !== 'childList') return;
-            
-            mutation.addedNodes.forEach((node) => {
-                if (node instanceof HTMLElement && node.className && typeof node.className.includes === 'function') {
-                    if (node.className.includes(parentClass)) {
-                        const fileDivs = node.findAll(selector);
-                        const { updateDivExtraAttributes } = require('./linkAttributes');
-                        
-                        fileDivs.forEach(div => {
-                            if (div instanceof HTMLElement) {
-                                updateDivExtraAttributes(plugin.app, plugin, div, "");
-                            }
-                        });
-                    }
-                }
-            });
-        });
+			records.forEach((mutation) => {
+				if (mutation.type !== 'childList') return;
+				
+				mutation.addedNodes.forEach((node) => {
+					if (node.instanceOf(HTMLElement) && node.className && typeof node.className.includes === 'function') {
+						if (node.className.includes(parentClass)) {
+							const fileDivs = node.findAll(selector);
+							
+							fileDivs.forEach(div => {
+								if (div.instanceOf(HTMLElement) ) {
+									updateDivExtraAttributes(plugin.app, plugin, div, "", null);
+								}
+							});
+						}
+					}
+				});
+			});
     });
     
     observer.observe(container, { subtree: true, childList: true, attributes: false });
@@ -175,7 +174,7 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
             if (leaf?.view?.containerEl && ownClass) {
                 const nodes = leaf.view.containerEl.findAll(ownClass);
                 nodes.forEach(node => {
-                    if (node instanceof HTMLElement) clearExtraAttributes(node);
+						  		if (node.instanceOf(HTMLElement)) clearExtraAttributes(node);
                 });
             }
         });
