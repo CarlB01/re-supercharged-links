@@ -11,7 +11,7 @@
 
 A modernized, highly optimized, and decoupled fork of the original *Supercharged Links* plugin for Obsidian. This version is independently maintained and rebuilt from scratch to leverage modern Obsidian paradigms, eliminate memory leaks, and guarantee fluid performance on both Desktop and mobile iOS/Android devices.
 
-**Styles are built end fully edited in settings panel**
+**Styles are built and fully edited in settings panel**
 
 <img src="media/details.png" alt="Phone Settings panel" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;"> <img src="media/details2.png" alt="Phone Settings details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
 
