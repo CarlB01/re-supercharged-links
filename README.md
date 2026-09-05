@@ -144,8 +144,7 @@ This project stands on that foundation, with a modernized architecture and indep
 If this plugin improves your workflow:
 
 - ⭐ Star the repo
-- 🐞 Report issues / suggest improvements
-- 🧪 Test new builds via BRAT and share feedback
+- 🐞 Report issues / suggest improvements 
 
 ---
 
