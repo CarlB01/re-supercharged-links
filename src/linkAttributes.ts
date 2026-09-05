@@ -133,14 +133,21 @@ export function fetchTargetAttributesSync(
 	if (frontmatter && activeAttributes.size > 0) {
 		activeAttributes.forEach((attribute) => {
 			if (!Object.prototype.hasOwnProperty.call(frontmatter, attribute)) return;
-			const value = frontmatter[attribute];
-			if (value === null || value === undefined) return;
+			
+			const fm = frontmatter as Record<string, unknown>;
 
-			if (attribute === "tag" || attribute === "tags") {
-				newProps.tags += String(value);
-			} else {
-				newProps[attribute] = String(value);
-			}
+			activeAttributes.forEach((attribute) => {
+				if (!Object.prototype.hasOwnProperty.call(fm, attribute)) return;
+
+				const value: unknown = fm[attribute];
+				if (value === null || value === undefined) return;
+
+				if (attribute === "tag" || attribute === "tags") {
+					newProps.tags += String(value);
+				} else {
+					newProps[attribute] = String(value);
+				}
+			});
 		});
 	}
 
