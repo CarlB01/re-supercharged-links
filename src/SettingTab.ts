@@ -73,69 +73,24 @@ export default class SCLSettingTab extends PluginSettingTab {
     return (name || "").trim().replace(/ /g, "-").toLowerCase();
   }
 
-  private applyPreviewStyleAndIcons(el: HTMLElement, selector: CSSLink): void {
-    el.addClass(`scl-preview-${selector.uid}`);
-
-    const fg = selector.lightColor || "var(--text-normal)";
-    const bg = selector.lightBgColor || "transparent";
-    el.style.color = fg;
-
-    if (bg && bg !== "transparent") {
-      el.style.backgroundColor = bg;
-      el.style.padding = "1px 4px";
-      el.style.borderRadius = "3px";
-      el.style.display = "inline-block";
-    } else {
-      el.style.removeProperty("background-color");
-      el.style.removeProperty("padding");
-      el.style.removeProperty("border-radius");
-      el.style.removeProperty("display");
-    }
-
-    if (selector.fontWeight && selector.fontWeight !== "normal") el.style.fontWeight = selector.fontWeight;
-    else el.style.removeProperty("font-weight");
-
-    if (selector.fontStyle === "italic") {
-      el.style.fontStyle = "italic";
-      el.style.textDecoration = "";
-    } else if (selector.fontStyle === "underline") {
-      el.style.fontStyle = "";
-      el.style.textDecoration = "underline";
-    } else if (selector.fontStyle === "line-through") {
-      el.style.fontStyle = "";
-      el.style.textDecoration = "line-through";
-    } else {
-      el.style.removeProperty("font-style");
-      el.style.removeProperty("text-decoration");
-    }
-
-    const before = selector.iconBefore?.trim() ? `${selector.iconBefore} ` : "";
-    const after = selector.iconAfter?.trim() ? ` ${selector.iconAfter}` : "";
-    el.textContent = `${before}Note${after}`;
-  }
-
-  private renderPreviewNote(parent: HTMLElement, selector: CSSLink): HTMLElement {
+  private renderPreviewNote(parent: HTMLElement, selector: CSSLink): void {
     const noteSpan = parent.createEl("span", {
-      cls: "data-link-icon data-link-text data-link-icon-after",
-      text: "Note"
+      cls: "data-link-text"
     });
 
-    noteSpan.setAttribute("data-link-path", "Preview/Note.md");
-    noteSpan.setAttribute("data-link-tags", "__preview__");
-
+    // Provide the same metadata attributes used by generated CSS selectors.
     if (selector.type === "tag") {
-      noteSpan.setAttribute("data-link-tags", selector.value || "");
+      noteSpan.setAttr("data-link-tags", selector.value || "");
     } else if (selector.type === "attribute") {
-      const attrKey = this.normalizeAttrKey(selector.name);
-      if (attrKey) noteSpan.setAttribute(`data-link-${attrKey}`, selector.value || "");
+      const key = this.normalizeAttrKey(selector.name);
+      if (key) noteSpan.setAttr(`data-link-${key}`, selector.value || "");
     } else {
-      noteSpan.setAttribute("data-link-path", selector.value || "Preview/Note.md");
+      noteSpan.setAttr("data-link-path", selector.value || "");
     }
 
-    this.applyPreviewStyleAndIcons(noteSpan, selector);
-    return noteSpan;
+    noteSpan.setText("Note");
   }
-
+  
   private renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void {
     const valText = selector.value || "empty";
 

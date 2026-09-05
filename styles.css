@@ -324,3 +324,28 @@
     }
   }
 }
+
+/* iOS/WebKit: force circular color picker swatch in SCL settings rows */
+.scl-color-row input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  inline-size: 32px;
+  block-size: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* WebKit internal swatch parts */
+.scl-color-row input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.scl-color-row input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}

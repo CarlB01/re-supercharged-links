@@ -1,9 +1,23 @@
 import { CSSLink } from "./cssLink";
 import ResuperchargedLinks from "./main";
 
+/**
+ * Logical match modes used by plugin settings/UI.
+ * These are later translated to CSS attribute operators.
+ */
 type MatchTypes = "exact" | "contains" | "startswith" | "endswith" | "whiteSpace";
+
+/**
+ * CSS attribute operators used in generated selectors.
+ */
 type OpKey = "=" | "*=" | "^=" | "$=" | "~=";
 
+// #region HELPERS
+
+/**
+ * Maps raw CSS operators to internal match modes.
+ * Used when sanitizing malformed user input such as "=foo" or "*=foo".
+ */
 const opToMatch: Record<OpKey, MatchTypes> = {
   "=": "exact",
   "*=": "contains",
@@ -12,10 +26,25 @@ const opToMatch: Record<OpKey, MatchTypes> = {
   "~=": "whiteSpace",
 };
 
+/**
+ * Type guard for valid CSS attribute operators.
+ */
 function isOp(x: string): x is OpKey {
   return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
 }
 
+/**
+ * Normalizes and sanitizes a rule before CSS generation.
+ *
+ * Why:
+ * - Users may accidentally type operators into value fields (e.g. "*=tag").
+ * - Path exact matches should consistently target Obsidian paths (".md").
+ *
+ * Behavior:
+ * - If value is only an operator, it updates match mode and clears value.
+ * - If value starts with one or more operators, it derives the final operator
+ *   from the trailing operator and strips operators from value.
+ */
 function sanitizeRule(r: CSSLink): CSSLink {
   const out = { ...r };
   let v = (out.value || "").trim();
@@ -42,13 +71,12 @@ function sanitizeRule(r: CSSLink): CSSLink {
     v = rest;
   }
 
-  if (out.type === "path" && out.match === "exact" && v && !v.toLowerCase().endsWith(".md")) {
-    out.value = `${v}.md`;
-  }
-
   return out;
 }
 
+/**
+ * Converts internal match mode to CSS attribute operator.
+ */
 function getMatchOp(match: MatchTypes): OpKey {
   switch (match) {
     case "exact": return "=";
@@ -60,14 +88,38 @@ function getMatchOp(match: MatchTypes): OpKey {
   }
 }
 
+/**
+ * Normalizes custom data-link attribute keys:
+ * - trims whitespace
+ * - converts spaces to hyphens
+ * - lowercases
+ *
+ * Example: "Project Name" -> "project-name"
+ */
 function normalizeAttrKey(name: string | undefined): string {
   return (name || "").trim().replace(/ /g, "-").toLowerCase();
 }
 
+/**
+ * Escapes values for safe inclusion in CSS string literals.
+ * Escapes backslashes and double quotes.
+ */
 function escCssString(v: string): string {
   return (v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+/**
+ * Compiles a rule into a concrete CSS attribute selector fragment.
+ *
+ * Output examples:
+ * - [data-link-tags*="foo" i]
+ * - [data-link-path="Note.md"]
+ * - [data-link-project-name^="abc" i]
+ *
+ * Notes:
+ * - Uses case-insensitive matching unless explicitly case-sensitive.
+ * - Returns a guaranteed non-match selector for invalid/empty input.
+ */
 function compileCssSelector(selector: CSSLink): string {
   const isSensitive = selector.matchCaseSensitive ? "" : " i";
   const op = getMatchOp(selector.match);
@@ -84,37 +136,59 @@ function compileCssSelector(selector: CSSLink): string {
     return `[data-link-tags*="${value}" i]`;
   }
 
+  // PATH: always treat as internal substring match
   const raw = (selector.value || "").trim();
   if (!raw) return `[data-link-path*="__never__"]`;
 
-  const pathVal = op === "=" && !raw.toLowerCase().endsWith(".md") ? `${raw}.md` : raw;
-  return `[data-link-path${op}"${escCssString(pathVal)}"${isSensitive}]`;
+  return `[data-link-path*="${escCssString(raw)}"${isSensitive}]`;
 }
 
 function buildStyleBlock(selector: CSSLink, cssSelector: string): string[] {
-  const runtimeTargets = [
+  // Text-only target strategy:
+  // - Style only the text carrier
+  // - Do not style custom icon carrier classes at all
+  const textTargets = [
     `.data-link-text${cssSelector}`,
     `.data-link-text${cssSelector} .cm-underline`,
-    `.data-link-icon${cssSelector}`,
-    `.data-link-icon-after${cssSelector}`,
   ].join(",\n");
 
-  const lines: string[] = [
-    `${runtimeTargets} {`,
-    `    color: var(--scl-color-${selector.uid}) !important;`,
-  ];
+  const lines: string[] = [`${textTargets} {`];
 
-  if (selector.lightBgColor || selector.darkBgColor) {
+  const lightColor = (selector.lightColor || "").trim();
+  const darkColor = (selector.darkColor || "").trim();
+  const hasAnyColor = !!lightColor || !!darkColor;
+
+  if (hasAnyColor) {
+    lines.push(`    color: var(--scl-color-${selector.uid}) !important;`);
+  }
+
+  const lightBg = (selector.lightBgColor || "").trim().toLowerCase();
+  const darkBg  = (selector.darkBgColor || "").trim().toLowerCase();
+
+  const hasLightBg = lightBg !== "" && lightBg !== "transparent";
+  const hasDarkBg  = darkBg !== "" && darkBg !== "transparent";
+  const hasAnyBg = hasLightBg || hasDarkBg;
+
+  if (hasAnyBg) {
     lines.push(`    background-color: var(--scl-bg-${selector.uid}) !important;`);
   }
+
   if (selector.fontWeight && selector.fontWeight !== "normal") {
     lines.push(`    font-weight: ${selector.fontWeight} !important;`);
   }
-  if (selector.fontStyle === "italic") lines.push(`    font-style: italic !important;`);
-  if (selector.fontStyle === "underline") lines.push(`    text-decoration: underline !important;`);
-  if (selector.fontStyle === "line-through") lines.push(`    text-decoration: line-through !important;`);
+  if (selector.fontStyle === "italic") {
+    lines.push(`    font-style: italic !important;`);
+  }
+  if (selector.fontStyle === "underline") {
+    lines.push(`    text-decoration: underline !important;`);
+  }
+  if (selector.fontStyle === "line-through") {
+    lines.push(`    text-decoration: line-through !important;`);
+  }
 
   lines.push(`}`);
+  // only selector + "}" means empty rule, skip it
+  if (lines.length === 2) return [];
   return lines;
 }
 
@@ -123,26 +197,35 @@ function buildIconBlocks(selector: CSSLink, cssSelector: string): string[] {
   const before = escCssString(selector.iconBefore || "");
   const after = escCssString(selector.iconAfter || "");
 
+  // BEFORE icon on text element
   if (before) {
     lines.push(
-      `.data-link-icon${cssSelector}:not([class*="scl-preview-"])::before {`,
-      `    content: "${before}" !important;`,
-      `}`
+      `.data-link-text${cssSelector}::before { content: "${before}"; }`
     );
   }
 
-	if (after) {
-		lines.push(
-			`.data-link-icon-after${cssSelector}:not([class*="scl-preview-"])::after,`,
-			`.cm-content .data-link-text${cssSelector}:not([class*="scl-preview-"])::after {`,
-			`    content: "${after}" !important;`,
-			`}`
-		);
-	}
+  // AFTER icon on text element
+  if (after) {
+    lines.push(
+      `.data-link-text${cssSelector}::after { content: "${after}"; }`
+    );
+  }
 
   return lines;
 }
 
+/**
+ * Main CSS generation routine.
+ *
+ * Pipeline:
+ * 1) Start with a generated-file warning header.
+ * 2) Build theme-scoped CSS custom properties (light/dark) per rule UID.
+ * 3) Build runtime CSS rules (style + icon blocks) for each sanitized rule.
+ * 4) Write snippet to .obsidian/snippets/re-supercharged-links-gen.css.
+ * 5) Optionally enable/reload snippet through Obsidian customCss manager.
+ *
+ * This function is intentionally deterministic for stable output and easier diffing.
+ */
 export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks): Promise<void> {
   const instructions: string[] = [
     "/* WARNING: Dynamically generated by re-supercharged-links. Do not edit directly. */",
