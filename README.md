@@ -1,8 +1,8 @@
 # Re-Supercharged Links
 
 [![Obsidian Plugin](https://img.shields.io/badge/Obsidian-Plugin-%23483699.svg?logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Obsidian Community Plugin](https://img.shields.io/badge/Obsidian-Community%20Plugin-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/plugins)
 [![Release](https://img.shields.io/github/v/release/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/releases)
-![BRAT Compatible](https://img.shields.io/badge/BRAT-Compatible-8A2BE2?logo=obsidian&logoColor=white)
 [![myBrain Integration](https://img.shields.io/badge/myBrain-Integration-00C853?logo=icloud&logoColor=white)](https://github.com/CarlB01/myBrain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CarlB01/re-supercharged-links/blob/master/LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/CarlB01/re-supercharged-links/total)](https://github.com/CarlB01/re-supercharged-links/releases)
@@ -63,23 +63,34 @@ The plugin is designed around a lightweight reactive model:
 
 ## 📦 Installation
 
-## Method 1 — BRAT (recommended while in beta/rapid updates)
+### Method 1: Obsidian Community Plugins (Recommended)
+
+Re-Supercharged Links is now officially available in the Obsidian Community Plugins directory.
 
 1. Open **Settings → Community plugins** in Obsidian.
-2. Install and enable **BRAT**.
-3. Open BRAT settings and choose **Add Beta plugin**.
-4. Paste this repository URL:  
-   `https://github.com/CarlB01/re-supercharged-links`
-5. Confirm. BRAT installs and keeps the plugin updated.
+2. Make sure **Restricted mode** is turned off.
+3. Click **Browse**.
+4. Search for **Re-Supercharged Links**.
+5. Click **Install**, then **Enable**.
 
-## Method 2 — Manual install
+### Method 2: BRAT (Optional for beta testing)
 
-1. Go to the repository **Releases** page:  
-   `https://github.com/CarlB01/re-supercharged-links/releases`
-2. Download release assets: `main.js`, `manifest.json`, `styles.css`
-3. Put them in your vault at:  
-   `<your-vault>/.obsidian/plugins/re-supercharged-links/`
-4. Reload Obsidian and enable **Re-Supercharged Links** in Community plugins.
+If you want pre-release or beta updates:
+
+1. Install and enable **BRAT** from Community Plugins.
+2. Open BRAT settings and click **Add Beta plugin**.
+3. Paste: `https://github.com/CarlB01/re-supercharged-links`
+4. Confirm to install.
+
+### Method 3: Manual Installation
+
+1. Go to the [Releases](https://github.com/CarlB01/re-supercharged-links/releases) page.
+2. Download `main.js`, `manifest.json`, and `styles.css`.
+3. Place them in:
+
+   `.obsidian/plugins/re-supercharged-links/`
+
+4. Reload Obsidian and enable the plugin in **Community plugins**.
 
 ---
 
