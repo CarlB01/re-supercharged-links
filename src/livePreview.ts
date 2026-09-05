@@ -136,61 +136,63 @@ class LivePreviewPlugin {
 									}
 
 									if ((isLink && !isAlias && !isPipe) || isMDUrl) {
-											let linkText = view.state.doc.sliceString(node.from, node.to);
-											linkText = linkText.split("#")[0] || "";                                
-											
-											let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-											if (isMDUrl && !file) {
-													try {
-														const af = this.app.vault.getAbstractFileByPath(decodeURIComponent(linkText));
+										let linkText = view.state.doc.sliceString(node.from, node.to);
+										linkText = linkText.split("#")[0] || "";                                
+										
+										let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
+										if (isMDUrl && !file) {
+											try {
+												const af = this.app.vault.getAbstractFileByPath(decodeURIComponent(linkText));
 
-														if (af instanceof TFile) {
-															file = af;
-														} else {
-															file = null; // eller return, avhengig av flow
+												if (af instanceof TFile) {
+													file = af;
+												} else {
+													file = null; // eller return, avhengig av flow
+												}
+											}  catch (_e: unknown) {
+												// ignore intentionally
+											}
+										}
+
+										if (file) {
+												const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+												const attributes: Record<string, string> = {};
+												
+												for (const [key, val] of Object.entries(rawAttrs)) {
+														attributes["data-link-" + key] = val;
+												}
+
+												const deco = Decoration.mark({ attributes, class: "data-link-text" });
+												const iconDecoBefore = Decoration.widget({ widget: new HeaderWidget(attributes, false) });
+												iconDecoAfter = Decoration.widget({ widget: new HeaderWidget(attributes, true) });
+
+												if (isMDUrl && mdAliasFrom !== null && mdAliasTo !== null) {
+														const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
+
+														if (mdAliasFrom >= from) {
+																builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
+																builder.add(mdAliasFrom, mdAliasTo, mdDeco);
 														}
-													} catch {}
-											}
+														if (iconDecoAfter && mdAliasTo >= from) {
+																builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
+																iconDecoAfter = null;
+																iconDecoAfterWhere = null;
+																mdAliasFrom = null;
+																mdAliasTo = null;
+														}
+												} else {
+														if (node.from >= from) {
+																builder.add(node.from, node.from, iconDecoBefore);
+														}
+												}
 
-											if (file) {
-													const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-													const attributes: Record<string, string> = {};
-													
-													for (const [key, val] of Object.entries(rawAttrs)) {
-															attributes["data-link-" + key] = val;
-													}
-
-													const deco = Decoration.mark({ attributes, class: "data-link-text" });
-													const iconDecoBefore = Decoration.widget({ widget: new HeaderWidget(attributes, false) });
-													iconDecoAfter = Decoration.widget({ widget: new HeaderWidget(attributes, true) });
-
-													if (isMDUrl && mdAliasFrom !== null && mdAliasTo !== null) {
-															const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
-
-															if (mdAliasFrom >= from) {
-																	builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
-																	builder.add(mdAliasFrom, mdAliasTo, mdDeco);
-															}
-															if (iconDecoAfter && mdAliasTo >= from) {
-																	builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
-																	iconDecoAfter = null;
-																	iconDecoAfterWhere = null;
-																	mdAliasFrom = null;
-																	mdAliasTo = null;
-															}
-													} else {
-															if (node.from >= from) {
-																	builder.add(node.from, node.from, iconDecoBefore);
-															}
-													}
-
-													if (node.from >= from && node.to <= to) {
-															builder.add(node.from, node.to, deco);
-													}
-													
-													lastAttributes = attributes;
-													iconDecoAfterWhere = node.to;
-											}
+												if (node.from >= from && node.to <= to) {
+														builder.add(node.from, node.to, deco);
+												}
+												
+												lastAttributes = attributes;
+												iconDecoAfterWhere = node.to;
+										}
 									} else if (isLink && isAlias) {
 											const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
 											
@@ -203,7 +205,7 @@ class LivePreviewPlugin {
 													iconDecoAfter = null;
 													iconDecoAfterWhere = null;
 											}
-									}
+								}
 							}
 					});
 			}

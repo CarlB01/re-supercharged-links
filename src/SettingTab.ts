@@ -74,16 +74,17 @@ export default class SCLSettingTab extends PluginSettingTab {
   }
 
   private renderPreviewNote(parent: HTMLElement, selector: CSSLink): void {
-    const noteSpan = parent.createEl("span", {
-      cls: "data-link-text"
-    });
+    
+    const noteSpan = parent.createSpan( { cls: "data-link-text" });
 
     // Provide the same metadata attributes used by generated CSS selectors.
     if (selector.type === "tag") {
       noteSpan.setAttr("data-link-tags", selector.value || "");
+   
     } else if (selector.type === "attribute") {
       const key = this.normalizeAttrKey(selector.name);
       if (key) noteSpan.setAttr(`data-link-${key}`, selector.value || "");
+   
     } else {
       noteSpan.setAttr("data-link-path", selector.value || "");
     }
@@ -117,11 +118,9 @@ export default class SCLSettingTab extends PluginSettingTab {
   }
 
 private renderRuleBadges(setting: Setting, selector: CSSLink): void {
-  const controlEl = setting.controlEl as HTMLElement;
+  const controlEl = setting.controlEl;
 
-  const badgeContainer: HTMLSpanElement = controlEl.createEl("span", {
-    cls: "scl-badge-container",
-  });
+  const badgeContainer: HTMLSpanElement = controlEl.createSpan( { cls: "scl-badge-container" } );
 
   this.createColorCapsule(
     badgeContainer,
@@ -687,9 +686,11 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
     modeName: string,
     fallbackText: string
   ): void {
-    const capsule: HTMLSpanElement = parent.createEl("span", {
-      cls: modeName.includes("Dark") ? "scl-bg-capsule is-dark" : "scl-bg-capsule",
-    });
+    const capsule: HTMLSpanElement = parent.createSpan({
+      cls: modeName.includes("Dark") 
+        ? "scl-bg-capsule is-dark" 
+        : "scl-bg-capsule",
+      });
 
     capsule.setAttr("title", `${modeName} background: ${bgColor ?? "transparent"}`);
 
@@ -699,7 +700,7 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
       capsule.addClass("is-transparent");
     }
 
-    const dot: HTMLSpanElement = capsule.createEl("span", { cls: "scl-color-dot" });
+    const dot: HTMLSpanElement = capsule.createSpan({ cls: "scl-color-dot" });
     dot.setAttr("title", `${modeName} text color: ${textColor ?? "default"}`);
 
     const activeColor = textColor ?? fallbackText;
