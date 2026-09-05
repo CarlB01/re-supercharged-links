@@ -13,11 +13,7 @@ A modernized, highly optimized, and decoupled fork of the original *Supercharged
 
 **Styles are built end fully edited in settings panel**
 
-<img src="media/details.png" alt="Settings panel" style="max-width: 100%; width: 500px; height: auto; border-radius: 8px;">
-
-**typical phone display**
-
-<img src="media/phone1.png" alt="Phone Settings panel" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;"> <img src="media/phone2.png" alt="Phone Settings details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
+<img src="media/details.png" alt="Phone Settings panel" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;"> <img src="media/details2.png" alt="Phone Settings details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
 
 ---
 
