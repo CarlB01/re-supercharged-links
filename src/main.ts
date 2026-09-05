@@ -5,6 +5,7 @@ import SCLSettingTab from './SettingTab';
 import { updateElLinks, updateVisibleLinks } from './linkAttributes';
 import { buildCMViewPlugin } from './livePreview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observerEngine';
+import { sanitizeRule, sanitizeRules } from './selectorSanitizer';
 
 export default class ResuperchargedLinks extends Plugin {
     declare settings: SCLSettings;
@@ -106,17 +107,41 @@ export default class ResuperchargedLinks extends Plugin {
         });
     }
 
-    async onunload(): Promise<void> {
-        disconnectAllObservers(this);
-        removeStylingFromViews(this);
-        console.log('Re-Supercharged Links: Engine cleared down cleanly.');
-    }
+	async onunload(): Promise<void> {
+		disconnectAllObservers(this);
+		removeStylingFromViews(this);
+		console.log('Re-Supercharged Links: Engine cleared down cleanly.');
+	}
 
-    async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    }
+	async loadSettings(): Promise<void> {
+		const loaded = await this.loadData();
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 
-    async saveSettings(): Promise<void> {
-        await this.saveData(this.settings);
-    }
+		const original = this.settings.selectors ?? [];
+		let changed = false;
+
+		const sanitized = original.map((r) => {
+			const s = sanitizeRule(r);
+			// cheap shallow compare on fields that sanitizer may change
+			if (
+				s.match !== r.match ||
+				s.value !== r.value ||
+				s.type !== r.type ||
+				s.name !== r.name
+			) {
+				changed = true;
+			}
+			return s;
+		});
+
+		if (changed) {
+			this.settings.selectors = sanitized;
+			await this.saveSettings();
+			console.log(`[SCL] Migrated ${original.length} selectors to sanitized format`);
+		}
+	}
+
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.settings);
+	}
 }

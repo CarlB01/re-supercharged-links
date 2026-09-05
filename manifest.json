@@ -1,7 +1,7 @@
 {
   "id": "re-supercharged-links",
   "name": "Re-supercharged Links",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "minAppVersion": "1.13.0",
   "description": "A modernized, highly optimized, and decoupled fork of the original *Supercharged Links* plugin.",
   "author": "CarlB",

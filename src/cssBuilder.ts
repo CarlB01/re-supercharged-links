@@ -1,145 +1,195 @@
-import { CSSLink, matchSign } from "./cssLink";
+import { CSSLink } from "./cssLink";
 import ResuperchargedLinks from "./main";
 
-/**
- * Compiles a specific targeting rule into a valid CSS attribute selector string.
- * High-specificity strings prevent core themes from rendering over user tokens.
- */
+type MatchTypes = "exact" | "contains" | "startswith" | "endswith" | "whiteSpace";
+type OpKey = "=" | "*=" | "^=" | "$=" | "~=";
+
+const opToMatch: Record<OpKey, MatchTypes> = {
+  "=": "exact",
+  "*=": "contains",
+  "^=": "startswith",
+  "$=": "endswith",
+  "~=": "whiteSpace",
+};
+
+function isOp(x: string): x is OpKey {
+  return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
+}
+
+function sanitizeRule(r: CSSLink): CSSLink {
+  const out = { ...r };
+  let v = (out.value || "").trim();
+
+  if (isOp(v)) {
+    out.match = opToMatch[v];
+    out.value = "";
+    return out;
+  }
+
+  const m = v.match(/^((?:=|\*=|\^=|\$=|~=)+)\s*(.*)$/);
+  if (m) {
+    const [, rawOps = "", restRaw = ""] = m;
+    const rest = restRaw.trim();
+
+    const lastOp: OpKey =
+      rawOps.endsWith("*=") ? "*=" :
+      rawOps.endsWith("^=") ? "^=" :
+      rawOps.endsWith("$=") ? "$=" :
+      rawOps.endsWith("~=") ? "~=" : "=";
+
+    out.match = opToMatch[lastOp];
+    out.value = rest;
+    v = rest;
+  }
+
+  if (out.type === "path" && out.match === "exact" && v && !v.toLowerCase().endsWith(".md")) {
+    out.value = `${v}.md`;
+  }
+
+  return out;
+}
+
+function getMatchOp(match: MatchTypes): OpKey {
+  switch (match) {
+    case "exact": return "=";
+    case "contains": return "*=";
+    case "startswith": return "^=";
+    case "endswith": return "$=";
+    case "whiteSpace": return "~=";
+    default: return "*=";
+  }
+}
+
+function normalizeAttrKey(name: string | undefined): string {
+  return (name || "").trim().replace(/ /g, "-").toLowerCase();
+}
+
+function escCssString(v: string): string {
+  return (v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function compileCssSelector(selector: CSSLink): string {
-    const isSensitive = selector.matchCaseSensitive ? "" : " i";
-    
-    if (selector.type === 'attribute') {
-        return `[data-link-${selector.name}${matchSign[selector.match]}="${selector.value}"${isSensitive}]`;
-    } else if (selector.type === 'tag') {
-        return `[data-link-tags*="${selector.value}" i]`;
-    } else {
-        return `[data-link-path${matchSign[selector.match]}="${selector.value}"${isSensitive}]`;
-    }
+  const isSensitive = selector.matchCaseSensitive ? "" : " i";
+  const op = getMatchOp(selector.match);
+
+  if (selector.type === "attribute") {
+    const normalizedName = normalizeAttrKey(selector.name);
+    if (!normalizedName) return `[data-link-path*="__never__"]`;
+    const value = escCssString((selector.value || "").trim());
+    return `[data-link-${normalizedName}${op}"${value}"${isSensitive}]`;
+  }
+
+  if (selector.type === "tag") {
+    const value = escCssString((selector.value || "").trim());
+    return `[data-link-tags*="${value}" i]`;
+  }
+
+  const raw = (selector.value || "").trim();
+  if (!raw) return `[data-link-path*="__never__"]`;
+
+  const pathVal = op === "=" && !raw.toLowerCase().endsWith(".md") ? `${raw}.md` : raw;
+  return `[data-link-path${op}"${escCssString(pathVal)}"${isSensitive}]`;
 }
 
-/**
- * 🧠 MYBRAIN INTEGRATION BRIDGE: Generates clean class targets for the node graph.
- * This maps tags and attributes directly to HTML Canvas/SVG node class matrices.
- */
-function compileMyBrainSelector(selector: CSSLink): string {
-    const safeValue = (selector.value || "empty").replace(/[^a-zA-Z0-9-_]/g, '-');
-    
-    if (selector.type === 'tag') {
-        return `.mybrain-node.scl-tag-${safeValue}`;
-    } else if (selector.type === 'attribute' && selector.name) {
-        const safeName = selector.name.replace(/[^a-zA-Z0-9-_]/g, '-');
-        return `.mybrain-node.scl-attr-${safeName}-${safeValue}`;
-    } else {
-        return `.mybrain-node.scl-path-${safeValue}`;
-    }
+function buildStyleBlock(selector: CSSLink, cssSelector: string): string[] {
+  const runtimeTargets = [
+    `.data-link-text${cssSelector}`,
+    `.data-link-text${cssSelector} .cm-underline`,
+    `.data-link-icon${cssSelector}`,
+    `.data-link-icon-after${cssSelector}`,
+  ].join(",\n");
+
+  const lines: string[] = [
+    `${runtimeTargets} {`,
+    `    color: var(--scl-color-${selector.uid}) !important;`,
+  ];
+
+  if (selector.lightBgColor || selector.darkBgColor) {
+    lines.push(`    background-color: var(--scl-bg-${selector.uid}) !important;`);
+  }
+  if (selector.fontWeight && selector.fontWeight !== "normal") {
+    lines.push(`    font-weight: ${selector.fontWeight} !important;`);
+  }
+  if (selector.fontStyle === "italic") lines.push(`    font-style: italic !important;`);
+  if (selector.fontStyle === "underline") lines.push(`    text-decoration: underline !important;`);
+  if (selector.fontStyle === "line-through") lines.push(`    text-decoration: line-through !important;`);
+
+  lines.push(`}`);
+  return lines;
 }
 
-/**
- * Factory that generates robust text formatting blocks for links and myBrain graph nodes.
- */
-function buildStyleBlock(selector: CSSLink, cssSelector: string, brainSelector: string): string[] {
-    const textStyles: string[] = [
-        `div[data-id="${selector.uid}"] div.setting-item-description,`,
-        `${brainSelector},`, // 🚀 Injects the node graph targets directly into the compiled engine!
-        `${cssSelector} {`,
-        `    color: var(--scl-color-${selector.uid}) !important;` // Kept !important to secure specificity victory
-    ];
+function buildIconBlocks(selector: CSSLink, cssSelector: string): string[] {
+  const lines: string[] = [];
+  const before = escCssString(selector.iconBefore || "");
+  const after = escCssString(selector.iconAfter || "");
 
-    if (selector.lightBgColor || selector.darkBgColor) {
-        textStyles.push(
-            `    background-color: var(--scl-bg-${selector.uid}) !important;`,
-            `    padding: 1px 4px;`,
-            `    border-radius: 3px;`,
-            `    display: inline-block;`
-        );
-    }
+  if (before) {
+    lines.push(
+      `.data-link-icon${cssSelector}:not([class*="scl-preview-"])::before {`,
+      `    content: "${before}" !important;`,
+      `}`
+    );
+  }
 
-    if (selector.fontWeight && selector.fontWeight !== "normal") {
-        textStyles.push(`    font-weight: ${selector.fontWeight} !important;`);
-    }
+	if (after) {
+		lines.push(
+			`.data-link-icon-after${cssSelector}:not([class*="scl-preview-"])::after,`,
+			`.cm-content .data-link-text${cssSelector}:not([class*="scl-preview-"])::after {`,
+			`    content: "${after}" !important;`,
+			`}`
+		);
+	}
 
-    if (selector.fontStyle === "italic") {
-        textStyles.push(`    font-style: italic !important;`);
-    } else if (selector.fontStyle === "underline") {
-        textStyles.push(`    text-decoration: underline !important;`);
-    } else if (selector.fontStyle === "line-through") {
-        textStyles.push(`    text-decoration: line-through !important;`);
-    }
-
-    textStyles.push(`}`);
-    return textStyles;
+  return lines;
 }
 
-/**
- * HIGH-PERFORMANCE CSS COMPILER: Deduplicates theme entries and writes atomatically to disk.
- */
 export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks): Promise<void> {
-    const instructions: string[] = [
-        "/* WARNING: Dynamically generated by re-supercharged-links. Do not edit directly. */",
-        ""
-    ];
+  const instructions: string[] = [
+    "/* WARNING: Dynamically generated by re-supercharged-links. Do not edit directly. */",
+    ""
+  ];
 
-    const lightVars: string[] = [".theme-light {"];
-    const darkVars: string[] = [".theme-dark {"];
-    const rules: string[] = [""];
+  const lightVars: string[] = [".theme-light {"];
+  const darkVars: string[] = [".theme-dark {"];
+  const rules: string[] = [""];
 
-    // Deduplicate variables by staging them inside flat master root blocks
-    selectors.forEach(selector => {
-        lightVars.push(
-            `    --scl-color-${selector.uid}: ${selector.lightColor || "var(--text-normal)"};`,
-            `    --scl-bg-${selector.uid}: ${selector.lightBgColor || "transparent"};`
-        );
+  for (const rawSelector of selectors) {
+    const selector = sanitizeRule(rawSelector);
+    const cssSelector = compileCssSelector(selector);
 
-        darkVars.push(
-            `    --scl-color-${selector.uid}: ${selector.darkColor || "var(--text-normal)"};`,
-            `    --scl-bg-${selector.uid}: ${selector.darkBgColor || "transparent"};`
-        );
+    lightVars.push(
+      `    --scl-color-${selector.uid}: ${selector.lightColor || "var(--text-normal)"};`,
+      `    --scl-bg-${selector.uid}: ${selector.lightBgColor || "transparent"};`
+    );
 
-        const cssSelector = compileCssSelector(selector);
-        const brainSelector = compileMyBrainSelector(selector); // Resolves the node class string
-        
-        rules.push(...buildStyleBlock(selector, cssSelector, brainSelector));
-        
-        if (selector.iconBefore) {
-            rules.push(...[
-                `div[data-id="${selector.uid}"] div.setting-item-description::before,`,
-                `.data-link-icon${cssSelector}::before {`,
-                `    content: "${selector.iconBefore} " !important;`,
-                `}`
-            ]);
-        }
+    darkVars.push(
+      `    --scl-color-${selector.uid}: ${selector.darkColor || "var(--text-normal)"};`,
+      `    --scl-bg-${selector.uid}: ${selector.darkBgColor || "transparent"};`
+    );
 
-        if (selector.iconAfter) {
-            rules.push(...[
-                `div[data-id="${selector.uid}"] div.setting-item-description::after,`,
-                `.data-link-icon-after${cssSelector}::after {`,
-                `    content: " ${selector.iconAfter}" !important;`,
-                `}`
-            ]);
-        }
-    });
+    rules.push(...buildStyleBlock(selector, cssSelector));
+    rules.push(...buildIconBlocks(selector, cssSelector));
+  }
 
-    lightVars.push("}");
-    darkVars.push("}");
+  lightVars.push("}");
+  darkVars.push("}");
 
-    // Flat aggregation sequence
-    const finalCSS = [...instructions, ...lightVars, "", ...darkVars, ...rules].join("\n");
+  const finalCSS = [...instructions, ...lightVars, "", ...darkVars, ...rules].join("\n");
 
-    const vault = plugin.app.vault;
-    const configDir = vault.configDir ?? ".obsidian";
-    const snippetsDir = `${configDir}/snippets`;
-    const snippetPath = `${snippetsDir}/re-supercharged-links-gen.css`;
-    
-    await vault.adapter.mkdir(snippetsDir);
-    await vault.adapter.write(snippetPath, finalCSS); // Single transactional flush override
+  const vault = plugin.app.vault;
+  const configDir = vault.configDir ?? ".obsidian";
+  const snippetsDir = `${configDir}/snippets`;
+  const snippetPath = `${snippetsDir}/re-supercharged-links-gen.css`;
 
-    // Hot-reload snippets inside the active workspace environment
-    if (plugin.settings.activateSnippet) {
-        // @ts-ignore
-        const customCss = plugin.app.customCss;
-        if (customCss) {
-            customCss.enabledSnippets.add('re-supercharged-links-gen');
-            customCss.requestLoadSnippets();
-        }
+  await vault.adapter.mkdir(snippetsDir);
+  await vault.adapter.write(snippetPath, finalCSS);
+
+  if (plugin.settings.activateSnippet) {
+    // @ts-ignore
+    const customCss = plugin.app.customCss;
+    if (customCss) {
+      customCss.enabledSnippets.add("re-supercharged-links-gen");
+      customCss.requestLoadSnippets();
     }
+  }
 }
