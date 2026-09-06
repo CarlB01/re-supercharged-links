@@ -27,26 +27,29 @@ Instead of plain internal links, you can style links based on frontmatter/fields
 
 ---
 
-## 🚀 What’s new in v0.0.25
+## 🚀 What’s new in v0.0.27
 
-This release cycle focuses on **stability + strictness + maintainability** without losing speed.
+This release focuses on **Bases compatibility**, **tag styling**, and **clean icon behavior**.
 
 ### Core improvements
 
-- ✅ Safer TypeScript patterns (reduced unsafe casts / `any` usage)
-- ✅ Better runtime guards for dynamic plugin integrations (incl. Dataview bridge)
-- ✅ Cleaner DOM handling patterns (lint-safe and future-proof)
-- ✅ Improved attribute hydration pipeline for internal links
-- ✅ Better consistency in metadata/property pane enrichment
-- ✅ General internal cleanup for long-term maintainability
+- ✅ Improved support for Obsidian **Bases**
+  - Works in native Bases leaves
+  - Includes markdown fallback for rendered base blocks when present
+- ✅ New advanced option to style **tag chips** (`a.tag`)
+  - Controlled by `enableTagChips`
+  - Adds `data-link-tags` on chips for consistent selector matching
+- ✅ Smarter prepend/append icon dedupe
+  - Skips duplicate icon when already present in the label text
+  - Handles emoji variation selector differences (e.g. `☠` and `☠️`)
+- ✅ Maintains high performance in large Bases tables and heavy scroll scenarios
 
 ### Why it matters
 
-You get the same visual power, but with a codebase that is:
-
-- easier to evolve,
-- easier to debug,
-- less fragile against Obsidian API/lint changes.
+You get:
+- more consistent styling across links and tags,
+- fewer duplicate visual icons,
+- and stable behavior across mixed Bases render paths.
 
 ---
 
@@ -65,7 +68,7 @@ The plugin is designed around a lightweight reactive model:
 
 ### Method 1: Obsidian Community Plugins (Recommended)
 
-Re-Supercharged Links is now officially available in the Obsidian Community Plugins directory.
+Re-Supercharged Links is officially available in the Obsidian Community Plugins directory.
 
 1. Open **Settings → Community plugins** in Obsidian.
 2. Make sure **Restricted mode** is turned off.
@@ -105,6 +108,14 @@ Tip: Start with 1–2 keys (`status`, `type`) and scale from there.
 
 ---
 
+## 🔧 Advanced options (highlights)
+
+- **Enable Bases**: activates Bases-specific observers/selectors.
+- **Style tag chips (`a.tag`)**: applies Supercharged tag attributes to visible tag chips in observed containers.
+- **Target tags**: includes target note tags in matching logic for internal links.
+
+---
+
 ## 🖼️ Screenshots
 
 Styles are created and edited directly in the settings UI.
@@ -119,11 +130,12 @@ Styles are created and edited directly in the settings UI.
 
 - Built for Obsidian users who rely on metadata-heavy workflows
 - Works especially well with structured vaults (projects, PARA, Zettelkasten hybrids)
+- Bases and tag chip styling are implemented with scoped observers for safety/performance
 - Dataview-related enrichment is handled defensively to avoid hard failures
 
 ---
 
-## 🗺️ Roadmap (post-0.0.25 direction)
+## 🗺️ Roadmap
 
 - Continued UX refinements in settings flow
 - More preset/style ergonomics
@@ -144,7 +156,7 @@ This project stands on that foundation, with a modernized architecture and indep
 If this plugin improves your workflow:
 
 - ⭐ Star the repo
-- 🐞 Report issues / suggest improvements 
+- 🐞 Report issues / suggest improvements
 
 ---
 
