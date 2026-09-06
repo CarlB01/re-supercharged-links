@@ -30,6 +30,8 @@ type LeafWithOptionalTabHeader = {
 	tabHeaderInnerTitleEl?: HTMLElement;
 };
 
+type AttrCache = Map<string, Record<string, string>>;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
 		? (value as Record<string, unknown>)
@@ -62,17 +64,17 @@ function hasTabHeaderInnerTitleEl(value: unknown): value is LeafWithOptionalTabH
 }
 
 function getNestedChild(
-  root: Element | null | undefined,
-  path: number[]
+	root: Element | null | undefined,
+	path: number[]
 ): Element | null {
-  let cur: Element | null = root ?? null;
+	let cur: Element | null = root ?? null;
 
-  for (const idx of path) {
-    cur = cur?.children.item(idx) ?? null;
-    if (cur === null) return null;
-  }
+	for (const idx of path) {
+		cur = cur?.children.item(idx) ?? null;
+		if (cur === null) return null;
+	}
 
-  return cur;
+	return cur;
 }
 
 function getDataviewContainer(app: App): DataviewPluginContainer | null {
@@ -100,7 +102,7 @@ export function clearExtraAttributes(link: HTMLElement): void {
 }
 
 export function processKey(key: string): string {
-	return key.replace(/ /g, "-");
+	return key.trim().replace(/\s+/g, "-");
 }
 
 export function processValue(key: string, value: string): string {
@@ -131,23 +133,18 @@ export function fetchTargetAttributesSync(
 	const activeAttributes = plugin.activeAttributesSet;
 
 	if (frontmatter && activeAttributes.size > 0) {
+		const fm = frontmatter as Record<string, unknown>;
 		activeAttributes.forEach((attribute) => {
-			if (!Object.prototype.hasOwnProperty.call(frontmatter, attribute)) return;
-			
-			const fm = frontmatter as Record<string, unknown>;
+			if (!Object.prototype.hasOwnProperty.call(fm, attribute)) return;
 
-			activeAttributes.forEach((attribute) => {
-				if (!Object.prototype.hasOwnProperty.call(fm, attribute)) return;
+			const value: unknown = fm[attribute];
+			if (value === null || value === undefined) return;
 
-				const value: unknown = fm[attribute];
-				if (value === null || value === undefined) return;
-
-				if (attribute === "tag" || attribute === "tags") {
-					newProps.tags += String(value);
-				} else {
-					newProps[attribute] = String(value);
-				}
-			});
+			if (attribute === "tag" || attribute === "tags") {
+				newProps.tags += String(value);
+			} else {
+				newProps[attribute] = String(value);
+			}
 		});
 	}
 
@@ -183,6 +180,22 @@ export function fetchTargetAttributesSync(
 	return hyphenatedProps;
 }
 
+export function fetchTargetAttributesCached(
+	app: App,
+	plugin: ResuperchargedLinks,
+	dest: TFile,
+	addDataHref: boolean,
+	cache: AttrCache
+): Record<string, string> {
+	const key = `${dest.path}::${addDataHref ? "1" : "0"}`;
+	const hit = cache.get(key);
+	if (hit) return hit;
+
+	const resolved = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
+	cache.set(key, resolved);
+	return resolved;
+}
+
 /**
  * 🚀 BATCHED INJECTOR: Commits attributes and CSS classes in single operational cycles.
  */
@@ -207,18 +220,26 @@ function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): v
 		const curValue = link.getAttribute(attributeName);
 		const newValue = processValue(key, propValue);
 
-		if (!newValue || curValue !== newValue) {
+		if (!newValue) {
+			if (curValue !== null) link.removeAttribute(attributeName);
+			continue;
+		}
+
+		if (curValue !== newValue) {
 			link.setAttribute(attributeName, newValue);
-			const variableKey = `--data-link-${domKey}`;
-			if (newValue.startsWith("http") || newValue.startsWith("data:")) {
-				cssProperties[variableKey] = `url(${newValue})`;
-			} else {
-				cssProperties[variableKey] = newValue;
-			}
+		}
+
+		const variableKey = `--data-link-${domKey}`;
+		if (newValue.startsWith("http") || newValue.startsWith("data:")) {
+			cssProperties[variableKey] = `url(${newValue})`;
+		} else {
+			cssProperties[variableKey] = newValue;
 		}
 	}
 
-	link.setCssProps(cssProperties);
+	if (Object.keys(cssProperties).length > 0) {
+		link.setCssProps(cssProperties);
+	}
 	link.addClass("data-link-icon", "data-link-icon-after", "data-link-text");
 }
 
@@ -267,6 +288,7 @@ export function updateElLinks(
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext
 ): void {
+	const attrCache: AttrCache = new Map();
 	const links = el.querySelectorAll("a.internal-link");
 	const destName = ctx.sourcePath.replace(/(.*)\.md$/, "$1");
 
@@ -279,7 +301,7 @@ export function updateElLinks(
 		const dest = app.metadataCache.getFirstLinkpathDest(linkHref, destName);
 		if (!dest) return;
 
-		const newProps = fetchTargetAttributesSync(app, plugin, dest, false);
+		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
 		setLinkNewProps(node, newProps);
 	});
 }
@@ -364,6 +386,7 @@ export function updatePropertiesPane(
 
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
 	const settings = plugin.settings;
+	const attrCache: AttrCache = plugin.attrCycleCache;
 
 	app.workspace.iterateRootLeaves((leaf) => {
 		if (!(leaf.view instanceof MarkdownView) || !leaf.view.file) return;
@@ -400,7 +423,7 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 			const dest = app.metadataCache.getFirstLinkpathDest(link.link, fileName);
 			if (!dest) return;
 
-			const newProps = fetchTargetAttributesSync(app, plugin, dest, false);
+			const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
 			const escapedHref = CSS.escape(link.link);
 			const internalLinks = leaf.view.containerEl.querySelectorAll(
 				`a.internal-link[href="${escapedHref}"]`

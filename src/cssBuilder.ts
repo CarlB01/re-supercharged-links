@@ -1,78 +1,13 @@
 import { CSSLink } from "./cssLink";
 import ResuperchargedLinks from "./main";
+import { sanitizeRule } from "./selectorSanitizer";
 
 /**
  * Logical match modes used by plugin settings/UI.
  * These are later translated to CSS attribute operators.
  */
 type MatchTypes = "exact" | "contains" | "startswith" | "endswith" | "whiteSpace";
-
-/**
- * CSS attribute operators used in generated selectors.
- */
 type OpKey = "=" | "*=" | "^=" | "$=" | "~=";
-
-// #region HELPERS
-
-/**
- * Maps raw CSS operators to internal match modes.
- * Used when sanitizing malformed user input such as "=foo" or "*=foo".
- */
-const opToMatch: Record<OpKey, MatchTypes> = {
-  "=": "exact",
-  "*=": "contains",
-  "^=": "startswith",
-  "$=": "endswith",
-  "~=": "whiteSpace",
-};
-
-/**
- * Type guard for valid CSS attribute operators.
- */
-function isOp(x: string): x is OpKey {
-  return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
-}
-
-/**
- * Normalizes and sanitizes a rule before CSS generation.
- *
- * Why:
- * - Users may accidentally type operators into value fields (e.g. "*=tag").
- * - Path exact matches should consistently target Obsidian paths (".md").
- *
- * Behavior:
- * - If value is only an operator, it updates match mode and clears value.
- * - If value starts with one or more operators, it derives the final operator
- *   from the trailing operator and strips operators from value.
- */
-function sanitizeRule(r: CSSLink): CSSLink {
-  const out = { ...r };
-  let v = (out.value || "").trim();
-
-  if (isOp(v)) {
-    out.match = opToMatch[v];
-    out.value = "";
-    return out;
-  }
-
-  const m = v.match(/^((?:=|\*=|\^=|\$=|~=)+)\s*(.*)$/);
-  if (m) {
-    const [, rawOps = "", restRaw = ""] = m;
-    const rest = restRaw.trim();
-
-    const lastOp: OpKey =
-      rawOps.endsWith("*=") ? "*=" :
-      rawOps.endsWith("^=") ? "^=" :
-      rawOps.endsWith("$=") ? "$=" :
-      rawOps.endsWith("~=") ? "~=" : "=";
-
-    out.match = opToMatch[lastOp];
-    out.value = rest;
-    v = rest;
-  }
-
-  return out;
-}
 
 /**
  * Converts internal match mode to CSS attribute operator.

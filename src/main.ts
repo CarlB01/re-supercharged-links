@@ -12,9 +12,14 @@ export default class ResuperchargedLinks extends Plugin {
 	declare settingTab: SCLSettingTab;
 	declare observers: [MutationObserver, string, string][];
 	declare modalObservers: MutationObserver[];
+	declare attrCycleCache: Map<string, Record<string, string>>;
 
 	// 🚀 ROI OPTIMIZATION: Cache compiled unique rule attributes globally
 	activeAttributesSet: Set<string> = new Set();
+
+	private clearAttrCycleCacheDebounced = debounce(() => {
+		this.attrCycleCache.clear();
+	}, 120, true);
 
 	/**
 	 * Pre-compiles selectors into a static hash set to eliminate hot-path processing loops.
@@ -31,76 +36,86 @@ export default class ResuperchargedLinks extends Plugin {
 	}
 
 	async onload(): Promise<void> {
-			
-			// Safety lock: Instantiate array registers immediately to block undefined runtime evaluation
-			this.observers = [];
-			this.modalObservers = [];
+		// Safety lock: Instantiate array registers immediately to block undefined runtime evaluation
+		this.observers = [];
+		this.modalObservers = [];
+		this.attrCycleCache = new Map();
 
-			await this.loadSettings();
+		await this.loadSettings();
 
-				// 🔑 COMPILE ONCE: Bygg listen én gang ved oppstart
-			this.compileActiveAttributes(); 
-			
-			this.addSettingTab(new SCLSettingTab(this.app, this));
+		// 🔑 COMPILE ONCE: Bygg listen én gang ved oppstart
+		this.compileActiveAttributes();
 
-			// Mount safe document parser hooks
-			this.registerMarkdownPostProcessor((el, ctx) => {
-					updateElLinks(this.app, this, el, ctx);
-			});
+		this.addSettingTab(new SCLSettingTab(this.app, this));
 
-			// Setup real-time workspace compilation pipeline
-			const updateLinksDebounced = debounce((_file: TFile) => {
-					updateVisibleLinks(this.app, this);
-					this.observers.forEach(([_, type, ownClass]) => {
-							const leaves = this.app.workspace.getLeavesOfType(type);
-							leaves.forEach(leaf => {
-									if (leaf?.view?.containerEl) {
-											this.updateContainer(leaf.view.containerEl, this, ownClass);
-									}
-							});
-					});
-			}, 500, true);
+		// Mount safe document parser hooks
+		this.registerMarkdownPostProcessor((el, ctx) => {
+			updateElLinks(this.app, this, el, ctx);
+		});
 
-			// Mount Live Preview CodeMirror extensions safely
-			const livePreviewExtension = Prec.lowest(buildCMViewPlugin(this.app, this));
-			this.registerEditorExtension(livePreviewExtension);
-
-			// Defer internal view hooks until Obsidian's workspace framing has stabilized
-			this.app.workspace.onLayoutReady(() => {
-					initViewObservers(this);
-					initModalObservers(this, document);
-					updateVisibleLinks(this.app, this);
-			});
-
-			// Watch for desktop window layering triggers
-			this.registerEvent(this.app.workspace.on("window-open", (window) => {
-					if (window?.getContainer()?.doc) {
-							initModalObservers(this, window.getContainer().doc);
+		// Setup real-time workspace compilation pipeline
+		const updateLinksDebounced = debounce((_file: TFile | null) => {
+			this.clearAttrCycleCacheDebounced();
+			updateVisibleLinks(this.app, this);
+			this.observers.forEach(([_, type, ownClass]) => {
+				const leaves = this.app.workspace.getLeavesOfType(type);
+				leaves.forEach(leaf => {
+					if (leaf?.view?.containerEl) {
+						this.updateContainer(leaf.view.containerEl, this, ownClass);
 					}
-			}));
+				});
+			});
+		}, 500, true);
 
-			// Efficient cache event subscription bindings
-			this.registerEvent(this.app.metadataCache.on('changed', updateLinksDebounced));
-			
-			// @ts-ignore
-			this.registerEvent(this.app.workspace.on("layout-change", debounce(() => updateLinksDebounced(null), 10, true)));
-			this.registerEvent(this.app.workspace.on("layout-change", () => initViewObservers(this)));
+		// Mount Live Preview CodeMirror extensions safely
+		const livePreviewExtension = Prec.lowest(buildCMViewPlugin(this.app, this));
+		this.registerEditorExtension(livePreviewExtension);
+
+		// Defer internal view hooks until Obsidian's workspace framing has stabilized
+		this.app.workspace.onLayoutReady(() => {
+			this.clearAttrCycleCacheDebounced();
+			initViewObservers(this);
+			initModalObservers(this, document);
+			updateVisibleLinks(this.app, this);
+		});
+
+		// Watch for desktop window layering triggers
+		this.registerEvent(this.app.workspace.on("window-open", (window) => {
+			if (window?.getContainer()?.doc) {
+				initModalObservers(this, window.getContainer().doc);
+			}
+		}));
+
+		// Efficient cache event subscription bindings
+		this.registerEvent(this.app.metadataCache.on('changed', (_file) => {
+			this.clearAttrCycleCacheDebounced();
+			updateLinksDebounced(_file);
+		}));
+
+		// @ts-ignore
+		this.registerEvent(this.app.workspace.on("layout-change", debounce(() => {
+			this.clearAttrCycleCacheDebounced();
+			updateLinksDebounced(null);
+		}, 10, true)));
+
+		this.registerEvent(this.app.workspace.on("layout-change", () => initViewObservers(this)));
 	}
 
 	/**
 	 * Unified interface targeting batch operations across elements
 	 */
 	updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
-			if (!container || typeof container.findAll !== "function") return;
-			if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
-			if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
+		if (!container || typeof container.findAll !== "function") return;
+		if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
+		if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
 
-			const nodes = container.findAll(selector);
-			
-			nodes.forEach(node => {
-					if (node.instanceOf(HTMLElement)) {
-						updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);					}
-			});
+		const nodes = container.findAll(selector);
+
+		nodes.forEach(node => {
+			if (node.instanceOf(HTMLElement)) {
+				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
+			}
+		});
 	}
 
 	onunload(): void {

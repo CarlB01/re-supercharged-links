@@ -143,12 +143,12 @@ class LivePreviewPlugin {
 							iconDecoAfterWhere = null;
 					}
 
-					if ((isLink && !isAlias && !isPipe) || isMDUrl) {
+					if ((isLink && !isAlias && !isPipe) || isMDUrl || isMDLink) {
 						let linkText = view.state.doc.sliceString(node.from, node.to);
 						linkText = linkText.split("#")[0] || "";                                
 						
 						let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-						if (isMDUrl && !file) {
+						if ((isMDUrl || isMDLink) && !file) {
 							const decoded = safeDecodeURIComponent(linkText);
 							if (decoded) {
 								const af = this.app.vault.getAbstractFileByPath(decoded);
@@ -170,20 +170,20 @@ class LivePreviewPlugin {
 							const iconDecoBefore = Decoration.widget({ widget: new HeaderWidget(attributes, false) });
 							iconDecoAfter = Decoration.widget({ widget: new HeaderWidget(attributes, true) });
 
-							if (isMDUrl && mdAliasFrom !== null && mdAliasTo !== null) {
-									const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
+							if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
+								const mdDeco = Decoration.mark({ attributes, class: "data-link-text" });
 
-									if (mdAliasFrom >= from) {
-											builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
-											builder.add(mdAliasFrom, mdAliasTo, mdDeco);
-									}
-									if (iconDecoAfter && mdAliasTo >= from) {
-											builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
-											iconDecoAfter = null;
-											iconDecoAfterWhere = null;
-											mdAliasFrom = null;
-											mdAliasTo = null;
-									}
+								if (mdAliasFrom >= from) {
+										builder.add(mdAliasFrom, mdAliasFrom, iconDecoBefore);
+										builder.add(mdAliasFrom, mdAliasTo, mdDeco);
+								}
+								if (iconDecoAfter && mdAliasTo >= from) {
+										builder.add(mdAliasTo, mdAliasTo, iconDecoAfter);
+										iconDecoAfter = null;
+										iconDecoAfterWhere = null;
+										mdAliasFrom = null;
+										mdAliasTo = null;
+								}
 							} else {
 									if (node.from >= from) {
 											builder.add(node.from, node.from, iconDecoBefore);

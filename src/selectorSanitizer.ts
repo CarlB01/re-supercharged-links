@@ -51,11 +51,6 @@ export function sanitizeRule(rule: CSSLink): CSSLink {
     v = rest;
   }
 
-  // Path exact convenience: append .md if user entered note name only
-  if (out.type === "path" && out.match === "exact" && v && !v.toLowerCase().endsWith(".md")) {
-    out.value = `${v}.md`;
-  }
-
   return out;
 }
 
