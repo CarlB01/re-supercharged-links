@@ -7,6 +7,11 @@ import { buildCMViewPlugin } from './livePreview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observerEngine';
 import { sanitizeRule } from './selectorSanitizer';
 
+export type TagIconRules = {
+	before: Map<string, string>;
+	after: Map<string, string>;
+};
+
 export default class ResuperchargedLinks extends Plugin {
 	declare settings: SCLSettings;
 	declare settingTab: SCLSettingTab;
@@ -16,6 +21,37 @@ export default class ResuperchargedLinks extends Plugin {
 
 	// 🚀 ROI OPTIMIZATION: Cache compiled unique rule attributes globally
 	activeAttributesSet: Set<string> = new Set();
+
+	public tagIconRulesCache: TagIconRules = { before: new Map(), after: new Map() };
+	private tagIconRulesCacheKey = "";
+
+	rebuildTagIconRulesCache(): void {
+		const before = new Map<string, string>();
+		const after = new Map<string, string>();
+
+		for (const s of this.settings.selectors) {
+			if (s.type !== "tag") continue;
+			const tag = (s.value || "").trim();
+			if (!tag) continue;
+
+			const b = (s.iconBefore || "").trim();
+			const a = (s.iconAfter || "").trim();
+
+			if (b) before.set(tag.toLowerCase(), b);
+			if (a) after.set(tag.toLowerCase(), a);
+		}
+
+		this.tagIconRulesCache = { before, after };
+		// DEBUG (midlertidig): verifiser at cache faktisk bygges
+		console.debug("[SCL cache] rebuilt", {
+			selectorsTotal: this.settings.selectors?.length ?? 0,
+			beforeSize: before.size,
+			afterSize: after.size,
+			sampleBefore: Array.from(before.entries()).slice(0, 5),
+			sampleAfter: Array.from(after.entries()).slice(0, 5),
+		});
+
+	}
 
 	private clearAttrCycleCacheDebounced = debounce(() => {
 		this.attrCycleCache.clear();
@@ -42,7 +78,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.attrCycleCache = new Map();
 
 		await this.loadSettings();
-
+		
 		// 🔑 COMPILE ONCE: Bygg listen én gang ved oppstart
 		this.compileActiveAttributes();
 
@@ -145,6 +181,7 @@ export default class ResuperchargedLinks extends Plugin {
 	async loadSettings(): Promise<void> {
 		const loaded = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+		this.rebuildTagIconRulesCache();
 
 		const original = this.settings.selectors ?? [];
 		let changed = false;
@@ -171,5 +208,6 @@ export default class ResuperchargedLinks extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		this.rebuildTagIconRulesCache();
 	}
 }

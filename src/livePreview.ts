@@ -3,7 +3,7 @@ import { RangeSet, RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree, tokenClassNodeProp } from "@codemirror/language";
 import { ViewPlugin, EditorView, ViewUpdate, DecorationSet, WidgetType, Decoration } from "@codemirror/view";
 import { fetchTargetAttributesSync, processValue } from "./linkAttributes";
-import ResuperchargedLinks from "./main";
+import ResuperchargedLinks, { TagIconRules } from "./main";
 
 // ---------- Debug ----------
 const DEBUG_ICON_DEDUPE = false;
@@ -69,6 +69,103 @@ function toDataLinkAttributes(raw: Record<string, string>): Record<string, strin
 	return out;
 }
 
+function splitTagTokens(tags: string): string[] {
+	return (tags || "")
+		.split(/[,\|;]+/)
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+function joinTagTokens(tokens: string[]): string {
+	return tokens.join(", ");
+}
+
+function normIconText(s: string): string {
+	return (s || "").normalize("NFC").replace(/\uFE0F/g, "").trim();
+}
+
+function labelStartsWithIcon(label: string, icon: string): boolean {
+	const l = normIconText(label);
+	const i = normIconText(icon);
+	return !!l && !!i && l.startsWith(i);
+}
+
+function labelEndsWithIcon(label: string, icon: string): boolean {
+	const l = normIconText(label);
+	const i = normIconText(icon);
+	return !!l && !!i && l.endsWith(i);
+}
+
+function dedupeTagDrivenIconsOnAttributes(
+	attributes: Record<string, string>,
+	linkLabel: string,
+	tagIconRules: TagIconRules
+) {
+	const rawTags = attributes["data-link-tags"];
+	if (!rawTags) return;
+
+	const tags = splitTagTokens(rawTags);
+	if (!tags.length) return;
+	
+	// DEBUG (midlertidig)
+	console.debug("[SCL dedupe] input", {
+		linkLabel,
+		rawTags,
+		beforeSize: tagIconRules.before.size,
+		afterSize: tagIconRules.after.size,
+	});
+
+	const kept: string[] = [];
+
+	for (const tag of tags) {
+		const key = tag.replace(/^#/, "").trim().toLowerCase();
+		const beforeIcon = tagIconRules.before.get(key);
+		const afterIcon = tagIconRules.after.get(key);
+		const dropBecauseBeforeDup = !!beforeIcon && labelStartsWithIcon(linkLabel, beforeIcon);
+		const dropBecauseAfterDup = !!afterIcon && labelEndsWithIcon(linkLabel, afterIcon);
+
+		// DEBUG (midlertidig)
+		console.debug("[SCL dedupe] tag-check", {
+			tag,
+			key,
+			beforeIcon,
+			afterIcon,
+			dropBecauseBeforeDup,
+			dropBecauseAfterDup,
+		});
+		// If either side duplicates, drop this tag trigger for Live Preview mark
+		if (dropBecauseBeforeDup || dropBecauseAfterDup) continue;
+
+		kept.push(tag);
+	}
+
+	if (kept.length) attributes["data-link-tags"] = joinTagTokens(kept);
+	else delete attributes["data-link-tags"];
+
+	// DEBUG (midlertidig)
+	console.debug("[SCL dedupe] output", {
+		finalTags: attributes["data-link-tags"] ?? null,
+	});
+
+	for (const tag of tags) {
+		const key = tag.replace(/^#/, "").trim().toLowerCase();
+		const beforeIcon = tagIconRules.before.get(key);
+		const afterIcon = tagIconRules.after.get(key);
+
+		const dropBecauseBeforeDup = !!beforeIcon && labelStartsWithIcon(linkLabel, beforeIcon);
+		const dropBecauseAfterDup = !!afterIcon && labelEndsWithIcon(linkLabel, afterIcon);
+
+		console.debug("[SCL dedupe] tag-check", {
+			tag,
+			key,
+			beforeIcon,
+			afterIcon,
+			dropBecauseBeforeDup,
+			dropBecauseAfterDup
+		});
+	}
+}
+
 class LivePreviewPlugin {
 	decorations: DecorationSet;
 	private app: App;
@@ -103,103 +200,109 @@ class LivePreviewPlugin {
 	}
 
 	destroy(): void {}
+	
 
-buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
-	const builder = new RangeSetBuilder<Decoration>();
-	if (!this.plugin.settings.enableEditor) return builder.finish();
+	buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
+		const builder = new RangeSetBuilder<Decoration>();
+		if (!this.plugin.settings.enableEditor) return builder.finish();
 
-	const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-	if (!mdView || !mdView.file) return builder.finish();
+		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!mdView || !mdView.file) return builder.finish();
 
-	const activeFileBasename = mdView.file.basename;
+		const activeFileBasename = mdView.file.basename;
 
-	let lastAttributes: Record<string, string> = {};
-	let mdAliasFrom: number | null = null;
-	let mdAliasTo: number | null = null;
+		let lastAttributes: Record<string, string> = {};
+		let mdAliasFrom: number | null = null;
+		let mdAliasTo: number | null = null;
 
-	for (const { from, to } of view.visibleRanges) {
-		if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
+		for (const { from, to } of view.visibleRanges) {
+			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
 
-		syntaxTree(view.state).iterate({
-			from,
-			to,
-			enter: (node) => {
-				if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
+			syntaxTree(view.state).iterate({
+				from,
+				to,
+				enter: (node) => {
+					if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
-				// @ts-ignore
-				const tokenProps = node.type.prop(tokenClassNodeProp);
-				if (!tokenProps) return;
+					// @ts-ignore
+					const tokenProps = node.type.prop(tokenClassNodeProp);
+					if (!tokenProps) return;
 
-				const props = new Set(tokenProps.split(" "));
-				if (props.has("formatting-link") || props.has("formatting-link-string")) return;
+					const props = new Set(tokenProps.split(" "));
+					if (props.has("formatting-link") || props.has("formatting-link-string")) return;
 
-				const isLink = props.has("hmd-internal-link");
-				const isAlias = props.has("link-alias");
-				const isPipe = props.has("link-alias-pipe");
-				const isMDLink = props.has("link");
-				const isMDUrl = props.has("url");
+					const isLink = props.has("hmd-internal-link");
+					const isAlias = props.has("link-alias");
+					const isPipe = props.has("link-alias-pipe");
+					const isMDLink = props.has("link");
+					const isMDUrl = props.has("url");
 
-				if (isMDLink) {
-					mdAliasFrom = node.from;
-					mdAliasTo = node.to;
-				}
-
-				const isPrimary = (isLink && !isAlias && !isPipe) || isMDUrl || isMDLink;
-				if (isPrimary) {
-					let linkText = view.state.doc.sliceString(node.from, node.to);
-					linkText = linkText.split("#")[0] || "";
-
-					let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-					if ((isMDUrl || isMDLink) && !file) {
-						const decoded = safeDecodeURIComponent(linkText);
-						if (decoded) {
-							const af = this.app.vault.getAbstractFileByPath(decoded);
-							file = af instanceof TFile ? af : null;
-						}
-					}
-					if (!file) return;
-
-					const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-					const attributes = toDataLinkAttributes(rawAttrs);
-
-					// alias-safe visible label for dedupe
-					let linkLabel = view.state.doc.sliceString(node.from, node.to);
-					if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
-						linkLabel = view.state.doc.sliceString(mdAliasFrom, mdAliasTo).replace(/^\[|\]$/g, "").trim();
+					if (isMDLink) {
+						mdAliasFrom = node.from;
+						mdAliasTo = node.to;
 					}
 
-					const deco = Decoration.mark({ attributes, class: "data-link-text" });
+					const isPrimary = (isLink && !isAlias && !isPipe) || isMDUrl || isMDLink;
+					if (isPrimary) {
+						let linkText = view.state.doc.sliceString(node.from, node.to);
+						linkText = linkText.split("#")[0] || "";
 
-					if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
-						if (mdAliasFrom >= from) {
-							builder.add(mdAliasFrom, mdAliasTo, deco);
+						let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
+						if ((isMDUrl || isMDLink) && !file) {
+							const decoded = safeDecodeURIComponent(linkText);
+							if (decoded) {
+								const af = this.app.vault.getAbstractFileByPath(decoded);
+								file = af instanceof TFile ? af : null;
+							}
 						}
-						mdAliasFrom = null;
-						mdAliasTo = null;
-					} else {
+						if (!file) return;
+
+						const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+						const attributes = toDataLinkAttributes(rawAttrs);
+
+						// alias-safe visible label for dedupe
+						let linkLabel = view.state.doc.sliceString(node.from, node.to);
+						if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
+							linkLabel = view.state.doc.sliceString(mdAliasFrom, mdAliasTo).replace(/^\[|\]$/g, "").trim();
+						}
+
+						dedupeTagDrivenIconsOnAttributes(attributes, linkLabel, this.plugin.tagIconRulesCache);
+						
+						const deco = Decoration.mark({ attributes, class: "data-link-text" });
+
+						if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
+							if (mdAliasFrom >= from) {
+								builder.add(mdAliasFrom, mdAliasTo, deco);
+							}
+							mdAliasFrom = null;
+							mdAliasTo = null;
+						} else {
+							if (node.from >= from && node.to <= to) {
+								builder.add(node.from, node.to, deco);
+							}
+						}
+
+						lastAttributes = attributes;
+						return;
+					}
+
+					// Alias token for wikilinks
+					if (isLink && isAlias) {
+						const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
 						if (node.from >= from && node.to <= to) {
 							builder.add(node.from, node.to, deco);
 						}
 					}
-
-					lastAttributes = attributes;
-					return;
 				}
+			});
+		}
 
-				// Alias token for wikilinks
-				if (isLink && isAlias) {
-					const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
-					if (node.from >= from && node.to <= to) {
-						builder.add(node.from, node.to, deco);
-					}
-				}
-			}
-		});
+		return builder.finish();
 	}
 
-	return builder.finish();
 }
-}
+
+
 
 export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): ViewPlugin<LivePreviewPlugin> {
 	return ViewPlugin.define((view) => new LivePreviewPlugin(view, app, plugin), {

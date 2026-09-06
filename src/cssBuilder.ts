@@ -189,6 +189,14 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
     rules.push(...buildIconBlocks(selector, cssSelector));
   }
 
+  // Guard classes:
+  // When runtime adds these classes, suppress pseudo icons to prevent duplicates.
+  rules.push(
+    "",
+    ".data-link-text.scl-hide-before::before { content: \"\" !important; }",
+    ".data-link-text.scl-hide-after::after { content: \"\" !important; }"
+  );
+
   lightVars.push("}");
   darkVars.push("}");
 

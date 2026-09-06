@@ -31,6 +31,7 @@ type LeafWithOptionalTabHeader = {
 };
 
 type AttrCache = Map<string, Record<string, string>>;
+type TagIconRules = { before: Map<string, string>; after: Map<string, string> };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
@@ -236,6 +237,86 @@ function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): v
 		return !!t && !!k && t.endsWith(k);
 	};
 
+	
+	// Solid approach:
+	// Do NOT mutate data-link-tags (can break clickability in some surfaces like Bases).
+	// Instead, add guard classes that suppress pseudo icons when already present in label.
+	link.removeClass("scl-hide-before");
+	link.removeClass("scl-hide-after");
+
+	const rawTags = (newProps["tags"] || "").trim();
+	if (rawTags) {
+		const pluginRef = (link as unknown as { __sclPlugin?: ResuperchargedLinks }).__sclPlugin;
+		const rules: TagIconRules | undefined =
+			pluginRef ? (pluginRef as unknown as { tagIconRulesCache?: TagIconRules }).tagIconRulesCache : undefined;
+
+		if (rules) {
+			const tagTokens = rawTags
+				.split(/[,\|;]+|\s+/)
+				.map((s) => s.trim())
+				.filter(Boolean);
+
+			let hideBefore = false;
+			let hideAfter = false;
+
+			for (const token of tagTokens) {
+				const key = token.replace(/^#/, "").trim().toLowerCase();
+				const beforeIcon = rules.before.get(key);
+				const afterIcon = rules.after.get(key);
+
+				const dropBecauseBeforeDup = !!beforeIcon && startsWithToken(visibleText, beforeIcon);
+				const dropBecauseAfterDup = !!afterIcon && endsWithToken(visibleText, afterIcon);
+
+				if (dropBecauseBeforeDup) hideBefore = true;
+				if (dropBecauseAfterDup) hideAfter = true;
+
+				if (hideBefore && hideAfter) break;
+			}
+
+			if (hideBefore) link.addClass("scl-hide-before");
+			if (hideAfter) link.addClass("scl-hide-after");
+		}
+	}
+
+// --- Tag-driven icon dedupe for non-LivePreview surfaces (read mode, tabs, bases, etc.) ---
+	// If label already contains the icon that would be injected by tag-rules (::before/::after),
+	// remove that tag trigger from data-link-tags so CSS won't duplicate the icon.
+	const dedupeTagDrivenIcons = (props: Record<string, string>, label: string): void => {
+		const rawTags = props["tags"];
+		if (!rawTags) return;
+
+		const rules: TagIconRules | undefined = (pluginRef as unknown as { tagIconRulesCache?: TagIconRules }).tagIconRulesCache;
+		if (!rules) return;
+
+		const tokens = rawTags
+			.split(/[,\|;]+|\s+/)
+			.map((s) => s.trim())
+			.filter(Boolean);
+		if (!tokens.length) return;
+
+		const kept: string[] = [];
+
+		for (const token of tokens) {
+			const key = token.replace(/^#/, "").trim().toLowerCase();
+			const beforeIcon = rules.before.get(key);
+			const afterIcon = rules.after.get(key);
+
+			const dropBecauseBeforeDup = !!beforeIcon && startsWithToken(label, beforeIcon);
+			const dropBecauseAfterDup = !!afterIcon && endsWithToken(label, afterIcon);
+
+			if (dropBecauseBeforeDup || dropBecauseAfterDup) continue;
+			kept.push(token);
+		}
+
+		if (kept.length) props["tags"] = kept.join(" ");
+		else delete props["tags"];
+	};
+
+	// Access plugin cache without changing call sites/signature:
+	// set once per invocation from globally attached reference below.
+	const pluginRef = (link as unknown as { __sclPlugin?: ResuperchargedLinks }).__sclPlugin;
+	if (pluginRef) dedupeTagDrivenIcons(newProps, visibleText);
+
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey = processKey(key);
 		const attributeName = `data-link-${domKey}`;
@@ -311,6 +392,7 @@ export function updateDivExtraAttributes(
 	if (!dest) return;
 
 	const newProps = fetchTargetAttributesSync(app, plugin, dest, true);
+	(link as unknown as { __sclPlugin?: ResuperchargedLinks }).__sclPlugin = plugin;
 	setLinkNewProps(link, newProps);
 }
 
@@ -334,6 +416,7 @@ export function updateElLinks(
 		if (!dest) return;
 
 		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
+		(node as unknown as { __sclPlugin?: ResuperchargedLinks }).__sclPlugin = plugin;
 		setLinkNewProps(node, newProps);
 	});
 }
@@ -462,7 +545,10 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 			);
 
 			internalLinks.forEach((node) => {
-				if (node.instanceOf(HTMLElement)) setLinkNewProps(node, newProps);
+				if (node.instanceOf(HTMLElement)) {
+					(node as unknown as { __sclPlugin?: ResuperchargedLinks }).__sclPlugin = plugin;
+					setLinkNewProps(node, newProps);
+				}
 			});
 		});
 	});
