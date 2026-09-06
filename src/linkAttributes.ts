@@ -135,8 +135,6 @@ export function fetchTargetAttributesSync(
 	if (frontmatter && activeAttributes.size > 0) {
 		const fm = frontmatter as Record<string, unknown>;
 		activeAttributes.forEach((attribute) => {
-			if (!Object.prototype.hasOwnProperty.call(fm, attribute)) return;
-
 			const value: unknown = fm[attribute];
 			if (value === null || value === undefined) return;
 
@@ -213,6 +211,30 @@ function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): v
 	});
 
 	const cssProperties: Record<string, string> = {};
+	const visibleText = (link.textContent || "").trim();
+
+	// Normalize for comparison:
+	// - NFC
+	// - strip variation selector-16 (U+FE0F) so ☠ and ☠️ compare equal
+	// - collapse whitespace
+	const norm = (s: string): string =>
+		(s || "")
+			.normalize("NFC")
+			.replace(/\uFE0F/g, "")
+			.replace(/\s+/g, " ")
+			.trim();
+
+	const startsWithToken = (text: string, token: string): boolean => {
+		const t = norm(text);
+		const k = norm(token);
+		return !!t && !!k && t.startsWith(k);
+	};
+
+	const endsWithToken = (text: string, token: string): boolean => {
+		const t = norm(text);
+		const k = norm(token);
+		return !!t && !!k && t.endsWith(k);
+	};
 
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey = processKey(key);
@@ -221,6 +243,16 @@ function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): v
 		const newValue = processValue(key, propValue);
 
 		if (!newValue) {
+			if (curValue !== null) link.removeAttribute(attributeName);
+			continue;
+		}
+
+		// Dedupe prepend/append icon if already present in visible label
+		if (domKey === "icon" && startsWithToken(visibleText, newValue)) {
+			if (curValue !== null) link.removeAttribute(attributeName);
+			continue;
+		}
+		if (domKey === "icon-after" && endsWithToken(visibleText, newValue)) {
 			if (curValue !== null) link.removeAttribute(attributeName);
 			continue;
 		}
@@ -434,4 +466,68 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 			});
 		});
 	});
+}
+
+export function normalizeTagToken(input: string): string {
+	let s = (input || "").trim().replace(/\s+/g, " ");
+	if (!s) return "";
+	s = s.replace(/^[\s,;|]+|[\s,;|]+$/g, "");
+	if (!s.startsWith("#")) s = `#${s}`;
+	return s;
+}
+
+export function extractTagTokensFromElement(el: HTMLElement): string[] {
+	const candidates = [
+		el.getAttribute("data-tag"),
+		el.getAttribute("data-tags"),
+		el.getAttribute("href"),
+		el.textContent
+	].filter((v): v is string => !!v);
+
+	const out: string[] = [];
+
+	for (const raw of candidates) {
+		const parts = raw.trim().split(/\s+/).map(p => p.trim()).filter(Boolean);
+		for (let token of parts) {
+			try { token = decodeURIComponent(token); } catch {}
+			const hashIdx = token.lastIndexOf("#");
+			if (hashIdx > 0 && (token.startsWith("http") || token.startsWith("/"))) {
+				token = token.slice(hashIdx);
+			}
+			const normalized = normalizeTagToken(token);
+			if (normalized) out.push(normalized);
+		}
+	}
+
+	return Array.from(new Set(out));
+}
+
+export function hasLeadingToken(text: string, token: string): boolean {
+	const t = (text || "").trimStart();
+	const k = (token || "").trim();
+	if (!t || !k) return false;
+	return t.startsWith(k);
+}
+
+export function hasTrailingToken(text: string, token: string): boolean {
+	const t = (text || "").trimEnd();
+	const k = (token || "").trim();
+	if (!t || !k) return false;
+	return t.endsWith(k);
+}
+
+/**
+ * Returns false if icon should be skipped due to already present at start/end.
+ */
+export function shouldApplyAffixIcon(
+	visibleText: string,
+	icon: string,
+	mode: "prepend" | "append"
+): boolean {
+	if (!icon?.trim()) return false;
+	if (!visibleText?.trim()) return true;
+
+	return mode === "prepend"
+		? !hasLeadingToken(visibleText, icon)
+		: !hasTrailingToken(visibleText, icon);
 }

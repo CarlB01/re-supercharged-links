@@ -9,6 +9,7 @@
   "enableQuickSwitcher": true,
   "enableSuggestor": true,
   "enableBases": true,
+  "enableTagChips": true,
   "selectors": [
     {
       "type": "tag",
@@ -113,6 +114,38 @@
       "fontStyle": "normal",
       "lightColor": "#c83c3c",
       "darkColor": "",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
+    },
+    {
+      "uid": "73ad-813f",
+      "type": "tag",
+      "name": "",
+      "value": "symptom",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#b9c606",
+      "darkColor": "#f0f971",
+      "lightBgColor": "transparent",
+      "darkBgColor": "transparent"
+    },
+    {
+      "uid": "a70d-517c",
+      "type": "tag",
+      "name": "",
+      "value": "👥gruppe",
+      "match": "exact",
+      "matchCaseSensitive": false,
+      "iconBefore": "👥",
+      "iconAfter": "",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "lightColor": "#3c931f",
+      "darkColor": "#a6f28c",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
     }

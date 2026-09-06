@@ -1,5 +1,5 @@
 import ResuperchargedLinks from "./main";
-import { updatePropertiesPane, clearExtraAttributes, updateDivExtraAttributes } from "./linkAttributes";
+import { updatePropertiesPane, clearExtraAttributes } from "./linkAttributes";
 
 const scheduledContainerUpdates = new WeakMap<HTMLElement, number>();
 
@@ -18,13 +18,12 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
  * RE-ARCHITECTED OBSERVATION CONTROLLER: Safely provisions isolated trackers across active panes.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
-	// Gracefully decouple any lingering operational views to avoid data bleeding
+
 	if (plugin.observers) {
 		plugin.observers.forEach(([observer]) => observer.disconnect());
 	}
 	plugin.observers = [];
 
-	// Map strategic UI hooks strictly across verified Core Obsidian structures
 	registerViewType("backlink", plugin, ".tree-item-inner", true);
 	registerViewType("outgoing-link", plugin, ".tree-item-inner", true);
 	registerViewType("search", plugin, ".tree-item-inner");
@@ -34,7 +33,19 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("bookmarks", plugin, ".tree-item-inner", false, true);
 	registerViewType("file-properties", plugin, "div.internal-link > .multi-select-pill-content");
 
-	// Provision modern third-party community plugin integrations dynamically
+	// Obsidian Bases
+	if (plugin.settings.enableBases) {
+		// Direct bases leaves
+		registerViewType("bases", plugin, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
+
+		// Fallback when bases content is rendered inside markdown-like containers
+		registerViewType(
+			"markdown",
+			plugin,
+			".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]"
+		);
+	}
+
 	const pluginRegistry = plugin.app?.plugins?.plugins;
 	if (pluginRegistry?.breadcrumbs) {
 		registerViewType("bc-matrix-view", plugin, "span.internal-link");
@@ -53,7 +64,6 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		registerViewType("notebook-navigator", plugin, "div.nn-file-name");
 	}
 
-	// Embed direct structural mutations within the Native file-properties canvas context
 	const propertyLeaves = plugin.app.workspace.getLeavesOfType("file-properties");
 	propertyLeaves.forEach((leaf, idx) => {
 		const container = leaf?.view?.containerEl;
@@ -90,7 +100,7 @@ export function registerViewType(
 }
 
 /**
- * SUGGESTION POPUP CONTROLLER: Injects metadata styles cleanly inside modals, omnisearch, and completers.
+ * SUGGESTION POPUP CONTROLLER
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const config = { subtree: false, childList: true, attributes: false };
@@ -154,6 +164,7 @@ function watchContainerDynamic(
 
 	const observer = new window.MutationObserver((records) => {
 		let shouldRun = false;
+
 		records.forEach((mutation) => {
 			if (mutation.type !== "childList") return;
 			if (mutation.addedNodes.length === 0) return;
@@ -168,6 +179,7 @@ function watchContainerDynamic(
 		});
 
 		if (!shouldRun) return;
+
 		scheduleContainerUpdate(container, () => {
 			plugin.updateContainer(container, plugin, selector);
 		});

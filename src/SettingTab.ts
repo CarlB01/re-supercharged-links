@@ -441,7 +441,8 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
       "enableFileList",
       "enableBacklinks",
       "enableQuickSwitcher",
-      "enableSuggestor"
+      "enableSuggestor",
+      "enableBases"
     ];
 
     if (coreKeys.includes(key)) {
@@ -572,6 +573,11 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
                   control: { type: "toggle", key: "targetTags" }
                 },
                 {
+                  name: "Style tag chips (a.tag)",
+                  desc: "Apply Supercharged styles to tag chips like <a class=\"tag\">...</a> in supported views.",
+                  control: { type: "toggle", key: "enableTagChips" }
+                },
+                {
                   name: "Automatically activate CSS snippet",
                   desc: "Enable generated snippet.",
                   control: { type: "toggle", key: "activateSnippet" }
@@ -617,6 +623,11 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
                   name: "Activate in Link Autocompleter",
                   desc: "Apply styling in [[ suggestions.",
                   control: { type: "toggle", key: "enableSuggestor" }
+                   },
+                {
+                  name: "Activate in Bases",
+                  desc: "Apply styling to internal links in Bases tables/views.",
+                  control: { type: "toggle", key: "enableBases" }
                 }
               ]
             },

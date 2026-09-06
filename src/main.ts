@@ -2,7 +2,7 @@ import { Plugin, debounce, TFile } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { DEFAULT_SETTINGS, SCLSettings } from './Settings';
 import SCLSettingTab from './SettingTab';
-import { updateElLinks, updateVisibleLinks, updateDivExtraAttributes } from "./linkAttributes";
+import { updateElLinks, updateVisibleLinks, updateDivExtraAttributes, extractTagTokensFromElement } from "./linkAttributes";
 import { buildCMViewPlugin } from './livePreview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observerEngine';
 import { sanitizeRule } from './selectorSanitizer';
@@ -116,6 +116,25 @@ export default class ResuperchargedLinks extends Plugin {
 				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
 			}
 		});
+
+		// generell tag-chip styling (uavhengig av Bases)
+		if (plugin.settings.enableTagChips) {
+			const tagNodes = container.querySelectorAll("a.tag");
+			tagNodes.forEach((n) => {
+				if (!(n instanceof HTMLElement)) return;
+				const tokens = extractTagTokensFromElement(n);
+				if (tokens.length === 0) return;
+
+				const expanded = new Set<string>();
+				for (const t of tokens) {
+					expanded.add(t);
+					if (t.startsWith("#") && t.length > 1) expanded.add(t.slice(1));
+				}
+
+				n.setAttribute("data-link-tags", Array.from(expanded).join(" "));
+				n.addClass("data-link-text", "data-link-icon", "data-link-icon-after");
+			});
+		}
 	}
 
 	onunload(): void {

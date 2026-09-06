@@ -11,6 +11,7 @@ export interface SCLSettings {
 	enableQuickSwitcher: boolean;
 	enableSuggestor: boolean;
 	enableBases: boolean;
+	enableTagChips: boolean; // ny
 	selectors: CSSLink[];
 }
 
@@ -25,5 +26,6 @@ export const DEFAULT_SETTINGS: SCLSettings = {
 	enableQuickSwitcher: true,
 	enableSuggestor: true,
 	enableBases: true,
+	enableTagChips: true,
 	selectors: []
 }
