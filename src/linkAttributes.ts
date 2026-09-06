@@ -272,7 +272,7 @@ function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): v
 	if (Object.keys(cssProperties).length > 0) {
 		link.setCssProps(cssProperties);
 	}
-	link.addClass("data-link-icon", "data-link-icon-after", "data-link-text");
+	link.addClass("data-link-text");
 }
 
 export function updateDivExtraAttributes(

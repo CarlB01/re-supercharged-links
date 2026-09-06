@@ -132,7 +132,7 @@ export default class ResuperchargedLinks extends Plugin {
 				}
 
 				n.setAttribute("data-link-tags", Array.from(expanded).join(" "));
-				n.addClass("data-link-text", "data-link-icon", "data-link-icon-after");
+				n.addClass("data-link-text");
 			});
 		}
 	}
