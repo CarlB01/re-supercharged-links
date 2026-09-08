@@ -29,6 +29,18 @@
     {
       "type": "tag",
       "name": "",
+      "value": "him",
+      "matchCaseSensitive": false,
+      "match": "exact",
+      "uid": "ed89-b784",
+      "iconBefore": "👤",
+      "iconAfter": "",
+      "lightColor": "#5773ff",
+      "darkColor": "#a9b6f9"
+    },
+    {
+      "type": "tag",
+      "name": "",
       "value": "tekst",
       "matchCaseSensitive": false,
       "match": "exact",
@@ -57,18 +69,6 @@
       "darkColor": "#e5c8f4",
       "lightBgColor": "#f29191",
       "darkBgColor": "transparent"
-    },
-    {
-      "type": "tag",
-      "name": "",
-      "value": "him",
-      "matchCaseSensitive": false,
-      "match": "exact",
-      "uid": "ed89-b784",
-      "iconBefore": "👤",
-      "iconAfter": "",
-      "lightColor": "#5773ff",
-      "darkColor": "#a9b6f9"
     },
     {
       "type": "tag",
@@ -108,11 +108,11 @@
       "value": "lege",
       "match": "exact",
       "matchCaseSensitive": false,
-      "iconBefore": "🛌",
+      "iconBefore": "",
       "iconAfter": "⚕️",
       "fontWeight": "normal",
       "fontStyle": "normal",
-      "lightColor": "#c83c3c",
+      "lightColor": "#b97cd0",
       "darkColor": "",
       "lightBgColor": "transparent",
       "darkBgColor": "transparent"
@@ -124,13 +124,13 @@
       "value": "symptom",
       "match": "exact",
       "matchCaseSensitive": false,
-      "iconBefore": "",
+      "iconBefore": "🛌",
       "iconAfter": "",
       "fontWeight": "normal",
       "fontStyle": "normal",
       "lightColor": "#b9c606",
       "darkColor": "#f0f971",
-      "lightBgColor": "transparent",
+      "lightBgColor": "#fffedb",
       "darkBgColor": "transparent"
     },
     {
@@ -142,11 +142,11 @@
       "matchCaseSensitive": false,
       "iconBefore": "👥",
       "iconAfter": "",
-      "fontWeight": "normal",
+      "fontWeight": "lighter",
       "fontStyle": "normal",
-      "lightColor": "#3c931f",
-      "darkColor": "#a6f28c",
-      "lightBgColor": "transparent",
+      "lightColor": "",
+      "darkColor": "#ed0c0c",
+      "lightBgColor": "#bea2a2",
       "darkBgColor": "transparent"
     }
   ],

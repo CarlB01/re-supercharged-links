@@ -1,11 +1,15 @@
 import { Plugin, debounce, TFile } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { DEFAULT_SETTINGS, SCLSettings } from './Settings';
-import SCLSettingTab from './SettingTab';
-import { updateElLinks, updateVisibleLinks, updateDivExtraAttributes, extractTagTokensFromElement } from "./linkAttributes";
-import { buildCMViewPlugin } from './livePreview';
-import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observerEngine';
-import { sanitizeRule } from './selectorSanitizer';
+import SCLSettingTab from './settings/setting-tab';
+
+// Core Workflow Imports: Pointing directly to our clean, stratified folder structure
+import { updateElLinks, updateVisibleLinks, updateContainer } from "./views/view-updaters";
+import { buildCMViewPlugin } from './views/livePreview';
+import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
+
+// 1. FIXED & OPTIMALIZED: Import the orchestrator to handle arrays and diff-checking seamlessly
+import { sanitizeRuleset } from './processors/rule-sanitizer';
 
 export default class ResuperchargedLinks extends Plugin {
 	declare settings: SCLSettings;
@@ -14,15 +18,89 @@ export default class ResuperchargedLinks extends Plugin {
 	declare modalObservers: MutationObserver[];
 	declare attrCycleCache: Map<string, Record<string, string>>;
 
-	// 🚀 ROI OPTIMIZATION: Cache compiled unique rule attributes globally
+	// Hot-path optimizer: Compiled lookup cache containing actively tracked metadata properties
 	activeAttributesSet: Set<string> = new Set();
 
-	private clearAttrCycleCacheDebounced = debounce(() => {
+	/**
+	 * Instantly flushes the local memory lifecycle buffer during modification frame triggers.
+	 */
+	clearAttrCycleCache(): void {
 		this.attrCycleCache.clear();
-	}, 120, true);
+	}
+
+	async onload(): Promise<void> {
+		// Safety initialization bounds: Instantiated immediately to block undefined evaluation at runtime
+		this.observers = [];
+		this.modalObservers = [];
+		this.attrCycleCache = new Map();
+
+		await this.loadSettings();
+
+		// COMPILE ONCE: Assemble active global attributes index maps once upon boot routines
+		this.compileActiveAttributes();
+
+		this.addSettingTab(new SCLSettingTab(this.app, this));
+
+		// Mount robust DOM post-processors for standard Reading Mode layouts
+		this.registerMarkdownPostProcessor((el, ctx) => {
+			updateElLinks(this.app, this, el, ctx);
+		});
+
+		// Pipeline Core: Consolidated update runner wrapped inside high-performance event boundaries
+		const updateLinksDebounced = debounce((_file: TFile | null) => {
+			// Clear cache synchronously right as execution begins so child lookups share a fresh map context
+			this.clearAttrCycleCache();
+			
+			updateVisibleLinks(this.app, this);
+			
+			this.observers.forEach(([_, type, ownClass]) => {
+				const leaves = this.app.workspace.getLeavesOfType(type);
+				leaves.forEach(leaf => {
+					if (leaf?.view?.containerEl) {
+						updateContainer(leaf.view.containerEl, this, ownClass);
+					}
+				});
+			});
+		}, 300, true);
+
+		// Mount ultra-fast real-time Live Preview components into CodeMirror configurations
+		const livePreviewExtension = Prec.lowest(buildCMViewPlugin(this.app, this));
+		this.registerEditorExtension(livePreviewExtension);
+
+		// Defer resource-heavy rendering sequences until after Obsidian finishes core frame compilation
+		this.app.workspace.onLayoutReady(() => {
+			this.clearAttrCycleCache();
+			initViewObservers(this);
+			initModalObservers(this, document);
+			updateVisibleLinks(this.app, this);
+		});
+
+		// Polyfill safety hooks: Attach fresh watchers to secondary window frames seamlessly
+		this.registerEvent(this.app.workspace.on("window-open", (window) => {
+			if (window?.getContainer()?.doc) {
+				initModalObservers(this, window.getContainer().doc);
+			}
+		}));
+
+		// Repaint workspace targets whenever cache parameters are updated by native operations
+		this.registerEvent(this.app.metadataCache.on('changed', (_file) => {
+			updateLinksDebounced(_file);
+		}));
+
+		// Layout Change Debouncer: Protects against CPU spiking during rapid tab switching phases
+		this.registerEvent(this.app.workspace.on("layout-change", debounce(() => {
+			initViewObservers(this);
+			updateLinksDebounced(null);
+		}, 150, true)));
+	}
+
+	onunload(): void {
+		disconnectAllObservers(this);
+		removeStylingFromViews(this);
+	}
 
 	/**
-	 * Pre-compiles selectors into a static hash set to eliminate hot-path processing loops.
+	 * Flattens array query rulesets down to a static Set array to bypass loop overheads on hot-paths.
 	 */
 	compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
@@ -35,135 +113,17 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	async onload(): Promise<void> {
-		// Safety lock: Instantiate array registers immediately to block undefined runtime evaluation
-		this.observers = [];
-		this.modalObservers = [];
-		this.attrCycleCache = new Map();
-
-		await this.loadSettings();
-
-		// 🔑 COMPILE ONCE: Bygg listen én gang ved oppstart
-		this.compileActiveAttributes();
-
-		this.addSettingTab(new SCLSettingTab(this.app, this));
-
-		// Mount safe document parser hooks
-		this.registerMarkdownPostProcessor((el, ctx) => {
-			updateElLinks(this.app, this, el, ctx);
-		});
-
-		// Setup real-time workspace compilation pipeline
-		const updateLinksDebounced = debounce((_file: TFile | null) => {
-			this.clearAttrCycleCacheDebounced();
-			updateVisibleLinks(this.app, this);
-			this.observers.forEach(([_, type, ownClass]) => {
-				const leaves = this.app.workspace.getLeavesOfType(type);
-				leaves.forEach(leaf => {
-					if (leaf?.view?.containerEl) {
-						this.updateContainer(leaf.view.containerEl, this, ownClass);
-					}
-				});
-			});
-		}, 500, true);
-
-		// Mount Live Preview CodeMirror extensions safely
-		const livePreviewExtension = Prec.lowest(buildCMViewPlugin(this.app, this));
-		this.registerEditorExtension(livePreviewExtension);
-
-		// Defer internal view hooks until Obsidian's workspace framing has stabilized
-		this.app.workspace.onLayoutReady(() => {
-			this.clearAttrCycleCacheDebounced();
-			initViewObservers(this);
-			initModalObservers(this, document);
-			updateVisibleLinks(this.app, this);
-		});
-
-		// Watch for desktop window layering triggers
-		this.registerEvent(this.app.workspace.on("window-open", (window) => {
-			if (window?.getContainer()?.doc) {
-				initModalObservers(this, window.getContainer().doc);
-			}
-		}));
-
-		// Efficient cache event subscription bindings
-		this.registerEvent(this.app.metadataCache.on('changed', (_file) => {
-			this.clearAttrCycleCacheDebounced();
-			updateLinksDebounced(_file);
-		}));
-
-		// @ts-ignore
-		this.registerEvent(this.app.workspace.on("layout-change", debounce(() => {
-			this.clearAttrCycleCacheDebounced();
-			updateLinksDebounced(null);
-		}, 10, true)));
-
-		this.registerEvent(this.app.workspace.on("layout-change", () => initViewObservers(this)));
-	}
-
 	/**
-	 * Unified interface targeting batch operations across elements
+	 * Pulls local user parameters securely and passes layout fields through the centralized sanitizer.
 	 */
-	updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
-		if (!container || typeof container.findAll !== "function") return;
-		if (!plugin.settings.enableBacklinks && container.getAttribute("data-type") !== "file-explorer") return;
-		if (!plugin.settings.enableFileList && container.getAttribute("data-type") === "file-explorer") return;
-
-		const nodes = container.findAll(selector);
-
-		nodes.forEach(node => {
-			if (node.instanceOf(HTMLElement)) {
-				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
-			}
-		});
-
-		// generell tag-chip styling (uavhengig av Bases)
-		if (plugin.settings.enableTagChips) {
-			const tagNodes = container.querySelectorAll("a.tag");
-			tagNodes.forEach((n) => {
-				if (!(n instanceof HTMLElement)) return;
-				const tokens = extractTagTokensFromElement(n);
-				if (tokens.length === 0) return;
-
-				const expanded = new Set<string>();
-				for (const t of tokens) {
-					expanded.add(t);
-					if (t.startsWith("#") && t.length > 1) expanded.add(t.slice(1));
-				}
-
-				n.setAttribute("data-link-tags", Array.from(expanded).join(" "));
-				n.addClass("data-link-text");
-			});
-		}
-	}
-
-	onunload(): void {
-		disconnectAllObservers(this);
-		removeStylingFromViews(this);
-	}
-
 	async loadSettings(): Promise<void> {
 		const loaded = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 
-		const original = this.settings.selectors ?? [];
-		let changed = false;
+		// 2. OPTIMALIZED & UNIFIED: Delegate validation and comparison entirely to the sanitizer file
+		const { sanitized, hasChanges } = sanitizeRuleset(this.settings.selectors);
 
-		const sanitized = original.map((r) => {
-			const s = sanitizeRule(r);
-			// cheap shallow compare on fields that sanitizer may change
-			if (
-				s.match !== r.match ||
-				s.value !== r.value ||
-				s.type !== r.type ||
-				s.name !== r.name
-			) {
-				changed = true;
-			}
-			return s;
-		});
-
-		if (changed) {
+		if (hasChanges) {
 			this.settings.selectors = sanitized;
 			await this.saveSettings();
 		}

@@ -2,8 +2,8 @@ export type MatchTypes = 'exact' | 'contains' | 'startswith' | 'endswith' | 'whi
 export type SelectorTypes = 'attribute' | 'tag' | 'path';
 
 /**
- * 🚀 FIXED & UNIFIED ENGINE DATA MODEL
- * Merged the duplicate interface and class declarations into a single, clean exported blueprint.
+ * 🚀 UNIFIED ENGINE DATA MODEL
+ * Represents a single, clean user-defined styling rule blueprint.
  */
 export class CSSLink {
     uid: string;
@@ -30,9 +30,8 @@ export class CSSLink {
         this.matchCaseSensitive = false;
         this.match = "exact";
         
-        // Secure, cryptographically distributed unique identifier block
-        const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
-        this.uid = s4() + "-" + s4();
+        // Fast, collision-resistant unique identifier generator block
+        this.uid = this.generateId();
         
         // Strict baseline default initializations to prevent Color Picker runtime crashes
         this.iconBefore = "";
@@ -48,10 +47,19 @@ export class CSSLink {
         this.lightBgColor = "transparent";
         this.darkBgColor = "transparent";
     }
+
+    /**
+     * Helper to assemble a lightweight, secure component hash id.
+     */
+    private generateId(): string {
+        const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+        return `${s4()}${s4()}-${s4()}`;
+    }
 }
 
 /**
- * 🔑 FIXED OPERATORS: Contains complete production CSS attribute qualifiers
+ * 🔑 CSS ATTRIBUTE OPERATORS: Production-ready CSS modifier tokens.
+ * Shared globally across compilers to eliminate duplicate translation blocks.
  */
 export const matchSign: Record<MatchTypes, string> = {
     'exact': "=",
@@ -61,6 +69,9 @@ export const matchSign: Record<MatchTypes, string> = {
     'whiteSpace': "~="
 };
 
+/**
+ * Human-readable sentence fragments used to build UI descriptions inside SettingTab rows contextually.
+ */
 export const matchPreview: Record<MatchTypes, string> = {
     'exact': "with value",
     'contains': "containing",

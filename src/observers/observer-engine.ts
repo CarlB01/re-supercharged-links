@@ -1,8 +1,17 @@
-import ResuperchargedLinks from "./main";
-import { updatePropertiesPane, clearExtraAttributes } from "./linkAttributes";
 
+// Import core workflows and mutators from our re-architected system
+import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
+import { clearExtraAttributes } from "../processors/link-mutator";
+import { isHtmlElement } from "../utils/string-utils";
+import ResuperchargedLinks from "../main";
+
+// Thread-safe map to keep track of debounced animation frame animation handles per container
 const scheduledContainerUpdates = new WeakMap<HTMLElement, number>();
 
+/**
+ * Schedules a high-performance DOM update bound to the browser's repaint cycle.
+ * Prevents layout thrashing by collapsing multiple rapid mutations into a single frame.
+ */
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 	const prev = scheduledContainerUpdates.get(container);
 	if (prev !== undefined) cancelAnimationFrame(prev);
@@ -15,15 +24,17 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 }
 
 /**
- * RE-ARCHITECTED OBSERVATION CONTROLLER: Safely provisions isolated trackers across active panes.
+ * RE-ARCHITECTED OBSERVATION CONTROLLER: 
+ * Safely provisions isolated trackers across all registered active pane layouts.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
-
+	// Disconnect existing lifecycles to prevent memory leaks during reload/layout changes
 	if (plugin.observers) {
 		plugin.observers.forEach(([observer]) => observer.disconnect());
 	}
 	plugin.observers = [];
 
+	// Register core Obsidian native leaf views
 	registerViewType("backlink", plugin, ".tree-item-inner", true);
 	registerViewType("outgoing-link", plugin, ".tree-item-inner", true);
 	registerViewType("search", plugin, ".tree-item-inner");
@@ -33,12 +44,9 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("bookmarks", plugin, ".tree-item-inner", false, true);
 	registerViewType("file-properties", plugin, "div.internal-link > .multi-select-pill-content");
 
-	// Obsidian Bases
+	// Obsidian Bases Third-Party Compatibility
 	if (plugin.settings.enableBases) {
-		// Direct bases leaves
 		registerViewType("bases", plugin, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
-
-		// Fallback when bases content is rendered inside markdown-like containers
 		registerViewType(
 			"markdown",
 			plugin,
@@ -46,7 +54,8 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		);
 	}
 
-	const pluginRegistry = plugin.app?.plugins?.plugins;
+	// Ecosystem Integration: Intercept popular third-party plugins safely
+	const pluginRegistry = (plugin.app as any)?.plugins?.plugins;
 	if (pluginRegistry?.breadcrumbs) {
 		registerViewType("bc-matrix-view", plugin, "span.internal-link");
 		registerViewType("BC-ducks", plugin, ".internal-link");
@@ -64,6 +73,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		registerViewType("notebook-navigator", plugin, "div.nn-file-name");
 	}
 
+	// Special Handler: Setup isolated listener for the Native File Metadata Properties Panel
 	const propertyLeaves = plugin.app.workspace.getLeavesOfType("file-properties");
 	propertyLeaves.forEach((leaf, idx) => {
 		const container = leaf?.view?.containerEl;
@@ -79,6 +89,9 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	});
 }
 
+/**
+ * Automates query lookups and binds native view leaf trees to mutation watchers.
+ */
 export function registerViewType(
 	viewTypeName: string,
 	plugin: ResuperchargedLinks,
@@ -100,37 +113,47 @@ export function registerViewType(
 }
 
 /**
- * SUGGESTION POPUP CONTROLLER
+ * SUGGESTION POPUP & MODAL CONTROLLER
+ * Listens to document injections to style the Quick Switcher, Omnisearch, and Link Suggestor popups.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const config = { subtree: false, childList: true, attributes: false };
 
 	const observer = new window.MutationObserver(records => {
-		records.forEach((mutation) => {
-			if (mutation.type !== "childList") return;
+		for (let i = 0; i < records.length; i++) {
+			const mutation = records[i];
+			if (!mutation || mutation.type !== "childList") continue;
 
+			// Handle elements injected into the DOM core layout
 			mutation.addedNodes.forEach(node => {
-				if (node.instanceOf(HTMLElement) && node.className && typeof node.className.includes === "function") {
-					const isModal = node.className.includes("modal-container") && plugin.settings.enableQuickSwitcher;
-					const isSuggest = node.className.includes("suggestion-container") && plugin.settings.enableSuggestor;
+				if (isHtmlElement(node)) {
+					const list = node.classList;
+					
+					// Safe structural mapping via classList to prevent substring mismatch bugs
+					const isModal = list.contains("modal-container") && plugin.settings.enableQuickSwitcher;
+					const isSuggest = list.contains("suggestion-container") && plugin.settings.enableSuggestor;
 
 					if (isModal || isSuggest) {
 						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
-						if (node.className.includes("suggestion-container")) {
+						if (list.contains("suggestion-container")) {
 							selector = ".suggestion-title, .suggestion-note";
 						}
-						plugin.updateContainer(node, plugin, selector);
+						
+						updateContainer(node, plugin, selector);
 						watchContainer(null, node, plugin, selector);
 					}
 				}
 			});
-		});
+		}
 	});
 
 	plugin.modalObservers.push(observer);
 	observer.observe(doc.body, config);
 }
 
+/**
+ * Standard tree observer that monitors static elements for layout additions or tree drops.
+ */
 function watchContainer(
 	viewType: string | null,
 	container: HTMLElement,
@@ -139,13 +162,14 @@ function watchContainer(
 	filterCollapsible = false
 ): void {
 	const observer = new window.MutationObserver((records) => {
+		// Performance Gold: Short-circuit frame invocation if mutations don't change child arrays
 		const hasRelevantMutation = records.some(
 			(m) => m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)
 		);
 		if (!hasRelevantMutation) return;
 
 		scheduleContainerUpdate(container, () => {
-			plugin.updateContainer(container, plugin, selector, filterCollapsible);
+			updateContainer(container, plugin, selector, filterCollapsible);
 		});
 	});
 
@@ -153,6 +177,9 @@ function watchContainer(
 	if (viewType) plugin.observers.push([observer, viewType, selector]);
 }
 
+/**
+ * High-frequency dynamic observer built for rapidly updating arrays like backlink layouts.
+ */
 function watchContainerDynamic(
 	viewType: string,
 	container: HTMLElement,
@@ -165,23 +192,24 @@ function watchContainerDynamic(
 	const observer = new window.MutationObserver((records) => {
 		let shouldRun = false;
 
-		records.forEach((mutation) => {
-			if (mutation.type !== "childList") return;
-			if (mutation.addedNodes.length === 0) return;
+		for (let i = 0; i < records.length; i++) {
+			const mutation = records[i];
+			if (!mutation || mutation.type !== "childList" || mutation.addedNodes.length === 0) continue;
 
+			// Check if the added nodes match the required target structural class
 			mutation.addedNodes.forEach((node) => {
-				if (node.instanceOf(HTMLElement) && node.className && typeof node.className.includes === "function") {
-					if (node.className.includes(parentClass)) {
-						shouldRun = true;
-					}
+				if ((isHtmlElement(node)) && node.classList.contains(parentClass)) {
+					shouldRun = true;
 				}
 			});
-		});
+
+			if (shouldRun) break; // Escape loop early if condition is met
+		}
 
 		if (!shouldRun) return;
 
 		scheduleContainerUpdate(container, () => {
-			plugin.updateContainer(container, plugin, selector);
+			updateContainer(container, plugin, selector);
 		});
 	});
 
@@ -189,6 +217,9 @@ function watchContainerDynamic(
 	plugin.observers.push([observer, viewType, selector]);
 }
 
+/**
+ * Tears down all global tracking loops to ensure zero background leaks during plugin unload cycles.
+ */
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	if (plugin.observers) {
 		plugin.observers.forEach(([observer]) => observer.disconnect());
@@ -198,6 +229,9 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	}
 }
 
+/**
+ * Resets the DOM state completely when the plugin is deactivated by the user.
+ */
 export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 	if (!plugin.observers) return;
 
@@ -207,7 +241,7 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 			if (leaf?.view?.containerEl && ownClass) {
 				const nodes = leaf.view.containerEl.findAll(ownClass);
 				nodes.forEach(node => {
-					if (node.instanceOf(HTMLElement)) clearExtraAttributes(node);
+					if (isHtmlElement(node)) clearExtraAttributes(node);
 				});
 			}
 		});
