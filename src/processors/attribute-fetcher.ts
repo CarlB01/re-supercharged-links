@@ -4,18 +4,48 @@ import { processKey } from "../utils/string-utils";
 
 export type AttrCache = Map<string, Record<string, string>>;
 
-let cachedDvApi: any = null;
+/**
+ * Explicit contract for the external Dataview API endpoints.
+ */
+interface DataviewAPI {
+	page(path: string): Record<string, unknown> | undefined;
+}
 
-function getDataviewApi(app: App): any {
+/**
+ * Isolated structural model for Obsidian's hidden third-party plugin registry tree.
+ */
+interface InternalPluginRegistry {
+	plugins?: {
+		dataview?: {
+			enabled?: boolean;
+			api?: DataviewAPI;
+		};
+	};
+}
+
+// 🔑 FIKSET: Lagrer API-referansen med et konkret, typesikkert grensesnitt i stedet for any
+let cachedDvApi: DataviewAPI | null = null;
+
+/**
+ * Safe accessor targeting the Dataview infrastructure without global runtime hazards.
+ */
+function getDataviewApi(app: App): DataviewAPI | null {
 	if (cachedDvApi) return cachedDvApi;
-	const dv = (app as any).plugins?.plugins?.dataview;
-	if (dv && dv.enabled) {
+	
+	// Secure structural casting mapping via unknown to bypass native App object seal restrictions
+	const internalPlugins = (app as unknown as { plugins: InternalPluginRegistry }).plugins;
+	const dv = internalPlugins.plugins?.dataview;
+	
+	if (dv && dv.enabled && dv.api) {
 		cachedDvApi = dv.api;
 		return cachedDvApi;
 	}
 	return null;
 }
 
+/**
+ * Gathers and compiles all targeted user metadata attributes synchronously from a document instance.
+ */
 export function fetchTargetAttributesSync(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -31,7 +61,7 @@ export function fetchTargetAttributesSync(
 
 	const activeAttributes = plugin.activeAttributesSet;
 
-	// 1. Frontmatter extraction loop
+	// 1. Extract structural Frontmatter block fields
 	if (cache.frontmatter && activeAttributes.size > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		for (const attribute of activeAttributes) {
@@ -46,7 +76,7 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	// 2. Token tag extraction cache bridge
+	// 2. Map standard indexed tag cache tokens
 	if (settings.targetTags) {
 		const allTags = getAllTags(cache);
 		if (allTags && allTags.length > 0) {
@@ -57,7 +87,7 @@ export function fetchTargetAttributesSync(
 	if (addDataHref) newProps["data-href"] = dest.basename;
 	newProps.path = dest.path;
 
-	// 3. Dataview Inline Fields parsing pipeline
+	// 3. Parse experimental third-party Dataview inline nodes fully typesafe
 	if (settings.getFromInlineField) {
 		const api = getDataviewApi(app);
 		if (api) {
@@ -73,7 +103,7 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	// 4. Map values into clean hyphenated CSS-ready string structures
+	// 4. Flatten arrays and keys into hyphenated properties strings contextually
 	const hyphenatedProps: Record<string, string> = {};
 	for (const [key, value] of Object.entries(newProps)) {
 		hyphenatedProps[processKey(key)] = value;
@@ -82,6 +112,9 @@ export function fetchTargetAttributesSync(
 	return hyphenatedProps;
 }
 
+/**
+ * High-performance transaction cache boundary routing requests safely.
+ */
 export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,

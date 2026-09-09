@@ -27,7 +27,13 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	for (const raw of candidates) {
 		const parts = raw.trim().split(/\s+/).map(p => p.trim()).filter(Boolean);
 		for (let token of parts) {
-			try { token = decodeURIComponent(token); } catch {}
+			token = (() => {
+				try {
+					return decodeURIComponent(token);
+				} catch (e) {
+					return token; // Returnerer den rå strengen hvis dekodingen feiler
+				}
+			})();
 			const hashIdx = token.lastIndexOf("#");
 			if (hashIdx > 0 && (token.startsWith("http") || token.startsWith("/"))) {
 				token = token.slice(hashIdx);

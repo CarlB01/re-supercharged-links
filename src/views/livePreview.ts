@@ -121,13 +121,18 @@ class LivePreviewPlugin {
 
 						let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
 						if ((isMDUrl || isMDLink) && !file) {
-							try {
-								const decoded = decodeURIComponent(linkText);
-								if (decoded) {
-									const af = this.app.vault.getAbstractFileByPath(decoded);
-									file = af instanceof TFile ? af : null;
+							const decoded = (() => {
+								try {
+									return decodeURIComponent(linkText);
+								} catch (e) {
+									return "";
 								}
-							} catch {}
+							})();
+
+							if (decoded) {
+								const af = this.app.vault.getAbstractFileByPath(decoded);
+								file = af instanceof TFile ? af : null;
+							}
 						}
 						if (!file) return;
 

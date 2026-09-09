@@ -16,7 +16,7 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 	const prev = scheduledContainerUpdates.get(container);
 	if (prev !== undefined) cancelAnimationFrame(prev);
 
-	const id = requestAnimationFrame(() => {
+	const id = window.requestAnimationFrame(() => {
 		scheduledContainerUpdates.delete(container);
 		fn();
 	});

@@ -1,8 +1,20 @@
-import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
+import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { isHtmlElement } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, clearExtraAttributes, tagChipStyles } from "../processors/link-mutator";
+
+// 🔑 OBSIDIAN-GODKJENT: Frittstående kontrakter som ikke prøver å arve direkte fra låste klasser
+interface ObsidianViewMetadataInternal {
+	metadataEditor?: {
+		contentEl?: HTMLElement;
+	};
+}
+
+interface ObsidianLeafHeaderInternal {
+	tabHeaderInnerTitleEl?: HTMLElement;
+}
+
 
 function isHtmlInputElement(value: unknown): value is HTMLInputElement {
 	return value instanceof HTMLInputElement;
@@ -24,7 +36,6 @@ export function updateContainer(container: HTMLElement, plugin: ResuperchargedLi
 	if (!plugin.settings.enableBacklinks && dataType !== "file-explorer") return;
 	if (!plugin.settings.enableFileList && dataType === "file-explorer") return;
 
-	// Henter den ferdige, optimaliserte funksjonen fra mutatoren direkte
 	if (plugin.settings.enableTagChips) {
 		tagChipStyles(container, plugin);
 	}
@@ -76,10 +87,16 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 	const destName = ctx.sourcePath.replace(/(.*)\.md$/, "$1");
 
 	links.forEach((node) => {
-		// 🚀 FIKSET: Multi-window safe typesjekk i stedet for .instanceOf
 		if (!isHtmlElement(node)) return;
+		
 		const hrefAttr = node.getAttribute("href");
-		const linkHref = hrefAttr?.split("#")[0];
+		if (!hrefAttr) return; // Hopper over hvis lenken mangler href-attributt
+
+		const parts = hrefAttr.split("#");
+		const linkHref = parts[0];
+		
+		// 🔑 TYPESIKKER GUARD: Avbryt tidlig hvis linken er tom eller undefined.
+		// Dette garanterer overfor TypeScript at linkHref er en 100% gyldig streng!
 		if (!linkHref) return;
 
 		const dest = app.metadataCache.getFirstLinkpathDest(linkHref, destName);
@@ -89,6 +106,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 		setLinkNewProps(node, newProps, plugin);
 	});
 }
+
 
 function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string, linkText: string): string | null {
 	const rawVal = frontmatter[key];
@@ -165,20 +183,22 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		const file = leaf.view.file;
 		const cachedFile = app.metadataCache.getFileCache(file);
 
+		// 🔑 FIKSET TYPESIKKERHET: Cast viewet via unknown til vår interne kontrakt i stedet for any
 		let metadataPane: HTMLElement | null = null;
-		const unknownView: any = leaf.view;
-		if (unknownView?.metadataEditor?.contentEl instanceof HTMLElement) {
-			metadataPane = unknownView.metadataEditor.contentEl;
+		const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
+		if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {
+			metadataPane = internalView.metadataEditor.contentEl;
 		}
 
 		if (metadataPane) {
 			updatePropertiesPane(metadataPane, file, app, plugin);
 		}
 
+		// 🔑 FIKSET TYPESIKKERHET: Gjør det samme med tab-headeren på leaf-objektet
 		let tabHeader: HTMLElement | null = null;
-		const unknownLeaf: any = leaf;
-		if (unknownLeaf?.tabHeaderInnerTitleEl instanceof HTMLElement) {
-			tabHeader = unknownLeaf.tabHeaderInnerTitleEl;
+		const internalLeaf = leaf as unknown as ObsidianLeafHeaderInternal;
+		if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
+			tabHeader = internalLeaf.tabHeaderInnerTitleEl;
 		}
 
 		if (tabHeader) {
@@ -206,3 +226,4 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		});
 	});
 }
+

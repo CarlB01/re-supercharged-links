@@ -32,9 +32,11 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
   const { setting, plugin, selector, propKey, modeName, fallbackColor, isBackground, setControlValue, refreshUI } = config;
   const historyKey = `${propKey}_${selector.uid}`;
 
-  // Initialize a fresh timeline bucket state if this element is clicked for the first time
+  // Cast selector lookups through a safe string record contract to eliminate any-keywords completely
+  const modelProxy = selector as unknown as Record<string, string>;
+
   if (!colorTimelines[historyKey]) {
-    colorTimelines[historyKey] = { past: [selector[propKey] || ""], future: [] };
+    colorTimelines[historyKey] = { past: [modelProxy[propKey] || ""], future: [] };
   }
 
   const timeline = colorTimelines[historyKey]!;
@@ -47,7 +49,6 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
     setIcon(el, "undo");
     el.setAttribute("aria-label", "Undo step");
 
-    // 🔑 FIKSET BLINKING: Sjekk tilstand SYNKRONTS med en gang i stedet for setTimeout
     if (timeline.past.length <= 1) el.hide(); else el.show();
 
     undoBtn.onClick(async () => {
@@ -57,7 +58,9 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       timeline.future.push(current);
       
       const previous = timeline.past[timeline.past.length - 1] ?? "";
-      selector[propKey] = previous as any;
+      
+      // 🔑 FIKSET: Vi skriver via modelProxy for å garantere lagring under runtime uten as any!
+      modelProxy[propKey] = previous;
 
       await setControlValue(`scl_${propKey}_${selector.uid}`, previous, false);
       refreshUI();
@@ -72,7 +75,6 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
     setIcon(el, "redo");
     el.setAttribute("aria-label", "Redo step");
 
-    // 🔑 FIKSET BLINKING: Sjekk tilstand synkront under rendering
     if (timeline.future.length === 0) el.hide(); else el.show();
 
     redoBtn.onClick(async () => {
@@ -80,7 +82,9 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
 
       const next = timeline.future.pop()!;
       timeline.past.push(next);
-      selector[propKey] = next as any;
+      
+      // 🔑 FIKSET: Skriver typesikkert via proxyen
+      modelProxy[propKey] = next;
 
       await setControlValue(`scl_${propKey}_${selector.uid}`, next, false);
       refreshUI();
@@ -92,21 +96,20 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
     const defaultVal = isBackground ? "transparent" : "";
     const lastSaved = timeline.past[timeline.past.length - 1];
 
-    // 🔑 FIKSET: Reset sletter IKKE historikken lenger. Den legger bare til 'transparent' eller tom streng
-    // som et nytt ledd i tidslinjen, slik at du kan trykke UNDO for å få fargen din tilbake!
     if (defaultVal !== lastSaved) {
       timeline.past.push(defaultVal);
-      timeline.future = []; // Start en ny gren i tidslinjen
+      timeline.future = []; 
     }
 
-    selector[propKey] = defaultVal as any;
+    // 🔑 FIKSET: Nullstiller typesikkert
+    modelProxy[propKey] = defaultVal;
     await setControlValue(`scl_${propKey}_${selector.uid}`, defaultVal, false);
     refreshUI();
   }));
 
   // 4. ATTACH THE NATIVE OBISIDIAN COLOR PICKER
   setting.addColorPicker((cp) => {
-    const currentVal = selector[propKey];
+    const currentVal = modelProxy[propKey];
     cp.setValue(currentVal && currentVal !== "transparent" ? currentVal : fallbackColor);
     
     cp.onChange(async (v) => {
@@ -117,7 +120,6 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
         timeline.future = []; 
       }
 
-      // Live oppdatering av knappene på den aktive linjen under drag
       const row = setting.settingEl;
       const uEl = row.querySelector(`.scl-undo-btn[data-key="${historyKey}"]`) as HTMLElement;
       const rEl = row.querySelector(`.scl-redo-btn[data-key="${historyKey}"]`) as HTMLElement;
