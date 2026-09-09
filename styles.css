@@ -1,123 +1,331 @@
 /* =========================================================================
-   1) HOVEDLINJER (Med integrert nesting)
+   1) MAIN RULE ROWS (Nested with Modern CSS)
    ========================================================================= */
 
 .vertical-tab-content-container {
   .setting-item.scl-clickable-row.scl-main-rule-row {
     cursor: pointer;
     display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
+    width: 100%;
     padding: 0.6em;
 
-    &:hover { background-color: var(--background-modifier-hover); }
-    .setting-item-control { display: flex; align-items: center; }
-    .scl-badge-container { display: flex; align-items: center; margin-right: 12px; }
+    &:hover {
+      background-color: var(--background-modifier-hover);
+    }
 
-    /* Farge-rektangelet */
+    .setting-item-control {
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      flex: 0 0 auto;
+      width: max-content;
+    }
+
+    .scl-badge-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      margin-right: 12px;
+    }
+
+    /* 💎 ALTERNATIV 1: Elegant farge-rektangel med luft i mellom */
     .scl-bg-capsule {
       display: flex;
       align-items: center;
       justify-content: center;
       width: 32px;
       height: 20px;
-      margin-right: 6px;
-      border-radius: 4px;
+      margin-right: 6px; 
+      border-radius: 4px; /* Svakt avrundede hjørner */
       border: 1px solid var(--background-modifier-border);
+      box-sizing: border-box;
+      flex-shrink: 0;
 
-      &.is-transparent { border: 1px dashed var(--text-muted); }
-      &.is-dark { margin-right: 0; }
+      &.is-transparent {
+        background-color: var(--background-primary);
+        border: 1px dashed var(--text-muted);
+        opacity: 0.8;
+      }
+
+      &.is-dark {
+        margin-right: 0;
+
+        &.is-transparent {
+          background-color: var(--background-secondary);
+        }
+      }
     }
 
-    /* Fargesirkelen inni */
+    /* Tydelig sirkel inni rektangelet */
     .scl-color-dot {
+      display: inline-block;
       width: 14px;
       height: 14px;
+      min-width: 14px;
+      min-height: 14px;
       border-radius: 50%;
       border: 1px solid rgba(0, 0, 0, 0.15);
+      box-sizing: border-box;
+      flex-shrink: 0;
       background-color: var(--scl-dot-color);
     }
 
-    /* NOTE-KAPSELEN: Nøyaktig kopi av rektangelet */
+    /* 🚀 NYTT: Note-forhåndsvisningen gjøres til en direkte replika av rektangelet! */
     .data-link-text {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      height: 20px;
-      border-radius: 4px;
+      height: 20px;       /* Nøyaktig samme høyde som farge-rektangelet */
+      border-radius: 4px; /* Nøyaktig samme avrunding */
       border: 1px solid var(--background-modifier-border);
-      padding: 0 3px; 
-      margin: 0 4px;
+      box-sizing: border-box;
+      padding: 0 6px;     /* 🔑 2 piksler ekstra luft på sidene (Note er vanligvis 4ch, pluss 2px) */
+      margin: 0 4px;      /* Luft på utsiden av rektangelet i setningen */
+      font-size: 0.9em;
       white-space: nowrap;
 
-      &::before { margin-right: 0px !important; padding-right: 0px !important; }
-      &::after { margin-left: 0px !important; padding-left: 0px !important; }
+      /* Fjern all luft mellom eventuelle pseudo-elementer (ikoner) og selve Note-teksten */
+      &::before {
+        margin-right: 0px !important;
+        padding-right: 0px !important;
+      }
+      &::after {
+        margin-left: 0px !important;
+        padding-left: 0px !important;
+      }
+    }
+
+    button {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+
+      svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+    }
+
+    .scl-order-btn {
+      padding: 4px;
     }
   }
 }
 
 /* =========================================================================
-   2) DETALJER & FARGEVELGERE
+   2) DETAILS (Nested with Modern CSS)
    ========================================================================= */
 
 .vertical-tab-content-container {
-  /* 🔑 1) FIKSET HØYDE: Glem ubevegelige rader. Gjør detalj-linjene superkompakte */
   .setting-item.scl-detail-row {
-    padding-top: 0.4em;
-    padding-bottom: 0.4em;
-    border-top: none;
-    min-height: 0;
-
-    .setting-item-info { padding-top: 0; padding-bottom: 0; }
-    .setting-item-name { line-height: 1.25; margin-bottom: 0; }
-    .setting-item-description { line-height: 1.2; margin-top: 2px; }
-
     .setting-item-control {
       display: inline-flex;
+      flex: 0 0 auto;
+      width: fit-content;
+      min-width: 0;
+      margin-left: auto;
+      justify-content: flex-end;
       align-items: center;
       gap: 8px;
-      margin-left: auto;
+      flex-wrap: nowrap;
+      white-space: nowrap;
       
-      /* 🔑 2) FIKSET HØYREJUSTERING: All tekst i detalj-inputs høyrejusteres */
-      input[type="text"] { 
-        width: 140px; 
-        text-align: right; 
+      .dropdown,
+      input[type="text"] {
+        width: auto;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      input[type="text"] {
+        width: 180px;
+        max-width: 40vw;
       }
     }
 
-    /* 🔑 3) FIKSET BREDDE: Gjør prepend og append boksene bittelene (kun plass til noen få tegn) */
     &.scl-row-iconbefore, &.scl-row-iconafter {
       .setting-item-control input[type="text"] {
-        width: 6ch;
-        min-width: 6ch;
-        max-width: 8ch;
-        text-align: center; /* Ikoner ser best ut sentrert i en smal boks */
+        width: 7ch;
+        min-width: 7ch;
+        max-width: 9ch;
+        text-align: center;
+        padding-inline: 4px;
       }
+    }
+
+    &.scl-row-value {
+      .setting-item-control input[type="text"] {
+        width: 18ch;
+        max-width: 32ch;
+        text-align: right;
+      }
+    }
+
+    &.scl-row-attrname {
+      .setting-item-control input[type="text"] {
+        width: 14ch;
+        max-width: 24ch;
+      }
+    }
+
+    &.scl-row-weight, &.scl-row-style, &.scl-row-type {
+      .setting-item-control .dropdown {
+        width: auto;
+        min-width: fit-content;
+      }
+    }
+  }
+
+  .setting-item.scl-detail-row:not(.scl-color-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    width: 100%;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
+    border-top: none;
+    min-height: 0;
+
+    .setting-item-info {
+      padding-top: 0;
+      padding-bottom: 0;
+      min-width: 0;
+    }
+
+    .setting-item-name {
+      line-height: 1.25;
+      margin-bottom: 0;
+    }
+
+    .setting-item-description {
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+
+    .setting-item-control {
+      margin-top: 0;
+      align-self: center;
+      min-width: 0;
+      width: auto;
+      margin-left: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      gap: 8px;
+    }
+
+    .dropdown.is-measuring {
+      display: none;
+      width: 0;
+      height: 0;
+      opacity: 0;
+      pointer-events: none;
     }
   }
 
   .setting-item.scl-color-row {
-    padding-top: 0.4em;
-    padding-bottom: 0.4em;
+    padding-top: 0.5em;
+    padding-bottom: 0.5em;
     border-top: none;
-    .setting-item-control { display: flex; align-items: center; gap: 8px; }
 
-    &.scl-text-picker-row .setting-item-control input[type="color"] { width: 20px; height: 20px; border-radius: 50%; }
-    &.scl-bg-picker-row .setting-item-control input[type="color"] { width: 32px; height: 22px; border-radius: 4px; }
+    .setting-item-control {
+      display: flex;
+      flex-wrap: nowrap;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .extra-setting-button,
+    .clickable-icon,
+    input[type="color"] {
+      margin: 0;
+    }
+
+    .clickable-icon {
+      flex-shrink: 0;
+    }
+
+    .setting-item-control input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      padding: 0;
+      border: 1px solid var(--background-modifier-border);
+      box-sizing: border-box;
+      cursor: pointer;
+      background: transparent;
+
+      &::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      &::-webkit-color-swatch {
+        border: none;
+        border-radius: inherit;
+      }
+    }
+
+    &.scl-text-picker-row .setting-item-control input[type="color"] {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      max-width: 20px;
+      border-radius: 50%;
+    }
+
+    &.scl-bg-picker-row .setting-item-control input[type="color"] {
+      width: 32px;
+      height: 22px;
+      min-width: 32px;
+      max-width: 32px;
+      border-radius: 4px;
+    }
   }
 }
 
 /* =========================================================================
-   3) SYSTEMKOMPONENTER
+   3) GLOBAL COMPONENT INTERREACTIONS
    ========================================================================= */
 
 .scl-color-row input[type="color"] {
-  -webkit-appearance: none; appearance: none;
-  padding: 0; border: 1px solid var(--background-modifier-border);
-  cursor: pointer; background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  inline-size: 32px;
+  block-size: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  overflow: hidden;
 
-  &::-webkit-color-swatch-wrapper { padding: 0; }
-  &::-webkit-color-swatch { border: none; border-radius: inherit; }
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &::-webkit-color-swatch {
+    border: none;
+    border-radius: 50%;
+  }
 }
 
 .scl-undo-btn, .scl-redo-btn {

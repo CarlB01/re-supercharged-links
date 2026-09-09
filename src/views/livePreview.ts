@@ -5,7 +5,7 @@ import { ViewPlugin, EditorView, ViewUpdate, DecorationSet, Decoration } from "@
 import ResuperchargedLinks from "../main";
 
 // 1. KORRIGERT: Hent streng-logikk fra felles utils, og data-henting fra fetcheren
-import { norm, startsWithToken, endsWithToken, processValue, isHtmlElement } from "../utils/string-utils";
+import { norm, startsWithToken, endsWithToken } from "../utils/string-utils";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
 import { findMatchingIcon } from "../processors/rule-sanitizer";
 
@@ -13,27 +13,6 @@ export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): ViewPl
 	return ViewPlugin.define((view) => new LivePreviewPlugin(view, app, plugin), {
 		decorations: (v) => v.decorations
 	});
-}
-
-function safeDecodeURIComponent(value: string): string | null {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return null;
-	}
-}
-
-// OPTIMALISERT OG TYPESIKKER: Skipper tomme verdier og sikrer mot undefined
-function injectDataLinkAttributes(raw: Record<string, string>, target: Record<string, string>): void {
-	for (const key in raw) {
-		if (Object.prototype.hasOwnProperty.call(raw, key)) {
-			const value = raw[key];
-			// Sikkerhetsbelte: Fortsett kun hvis verdien faktisk eksisterer og er en streng
-			if (value !== undefined && value !== null) {
-				target[`data-link-${key}`] = value;
-			}
-		}
-	}
 }
 
 class LivePreviewPlugin {
@@ -96,8 +75,10 @@ class LivePreviewPlugin {
 				enter: (node) => {
 					if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
-					// @ts-ignore
-					const tokenProps = node.type.prop(tokenClassNodeProp);
+					// 🔑 FIKSET: Hent ut token-egenskapene typesikkert ved å caste node.type via Record-kontrakt
+					const nodeTypeLookup = node.type as unknown as { prop(prop: unknown): string | undefined };
+					// @ts-ignore — Behold denne kun hvis tokenClassNodeProp ikke er importert i filen
+					const tokenProps = typeof nodeTypeLookup.prop === "function" ? nodeTypeLookup.prop(tokenClassNodeProp) : undefined;
 					if (!tokenProps) return;
 
 					const props = new Set(tokenProps.split(" "));
@@ -124,7 +105,7 @@ class LivePreviewPlugin {
 							const decoded = (() => {
 								try {
 									return decodeURIComponent(linkText);
-								} catch (e) {
+								} catch {
 									return "";
 								}
 							})();
@@ -201,7 +182,7 @@ class LivePreviewPlugin {
 		if (!hideAfter && linkLabel.length > 1) {
 			const cleanedLabel = norm(linkLabel);
 			// Match common unicode medical symbols and emoji presentation variations contextually
-			const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/.test(cleanedLabel);
+			const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedLabel); // 🔑 Lagt til 'u' flagg
 			if (endsWithEmojiSymbol) {
 				hideAfter = true;
 			}

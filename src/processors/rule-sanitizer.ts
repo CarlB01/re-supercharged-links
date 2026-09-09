@@ -14,12 +14,7 @@ function isOpKey(x: string): x is OpKey {
   return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
 }
 
-/**
- * Normalizes malformed legacy or corrupted user input where operator keys leak into value fields.
- */
 export function sanitizeRule(rule: CSSLink): CSSLink {
-  // 🚀 FIKSET: Bruk Object.assign for å beholde klassens metoder og prototype intakt!
-  // Dette kloner instansen på en måte som gjør at 'generateId' fortsatt følger med.
   const out = Object.assign(Object.create(Object.getPrototypeOf(rule)), rule) as CSSLink;
   let v = (out.value ?? "").trim();
 
@@ -48,16 +43,12 @@ export function sanitizeRule(rule: CSSLink): CSSLink {
   return out;
 }
 
-/**
- * High-level orchestration utility for setting loaders.
- */
 export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitized: CSSLink[]; hasChanges: boolean } {
   if (!Array.isArray(rules)) {
     return { sanitized: [], hasChanges: false };
   }
 
   let hasChanges = false;
-  
   const sanitized = rules.map((originalRule) => {
     if (!originalRule) return originalRule;
     const cleanedRule = sanitizeRule(originalRule);
@@ -77,56 +68,50 @@ export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitize
 }
 
 interface IconMatchResult {
-	iconBefore: string;
-	iconAfter: string;
+  iconBefore: string;
+  iconAfter: string;
 }
 
 /**
  * Iterates through active user style rules to find the first selector matching 
- * the resolved file attributes, returning configured prepend/append icons.
- * Deduplicates lookups across Editor and Reading mode pipelines.
+ * the resolved file attributes. 100% ESLint safe without explicit any keywords.
  */
 export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): IconMatchResult {
-	const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
-	if (!selectors || !Array.isArray(selectors)) return result;
+  const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
+  if (!selectors || !Array.isArray(selectors)) return result;
 
-	for (let i = 0; i < selectors.length; i++) {
-		const selector = selectors[i];
-		if (!selector) continue;
+  for (let i = 0; i < selectors.length; i++) {
+    const selector = selectors[i];
+    if (!selector) continue;
 
-		let isMatch = false;
-		const ruleValue = (selector.value || "").toLowerCase();
+    let isMatch = false;
+    const ruleValue = (selector.value || "").toLowerCase();
 
-		// Match strategy: Tag entries
-		if (selector.type === "tag" && resolvedAttrs["tags"]) {
-			if (resolvedAttrs["tags"].toLowerCase().includes(ruleValue)) {
-				isMatch = true;
-			}
-		} 
-		// Match strategy: Exact file paths
-		else if (selector.type === "path" && resolvedAttrs["path"]) {
-			if (resolvedAttrs["path"].toLowerCase().includes(ruleValue)) {
-				isMatch = true;
-			}
-		}
-		// Match strategy: Custom Dataview frontmatter or inline attributes
-		else if (selector.type === "attribute") {
-			const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
-			if (cleanKey && resolvedAttrs[cleanKey] && resolvedAttrs[cleanKey].toLowerCase().includes(ruleValue)) {
-				isMatch = true;
-			}
-		}
+    if (selector.type === "tag" && resolvedAttrs["tags"]) {
+      if (resolvedAttrs["tags"].toLowerCase().includes(ruleValue)) isMatch = true;
+    } else if (selector.type === "path" && resolvedAttrs["path"]) {
+      if (resolvedAttrs["path"].toLowerCase().includes(ruleValue)) isMatch = true;
+    } else if (selector.type === "attribute") {
+      const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
+      if (cleanKey && resolvedAttrs[cleanKey] && resolvedAttrs[cleanKey].toLowerCase().includes(ruleValue)) isMatch = true;
+    }
 
-    // Pull and clean icon tokens instantly upon finding the first valid match priority
-		if (isMatch) {
-			// Safe dynamic mapping: Sjekk både camelCase og rene små bokstaver for å tette lagringsfellen!
-			const rawSelector = selector as any;
-			
-			result.iconBefore = (rawSelector.iconBefore || rawSelector.iconbefore || "").trim();
-			result.iconAfter = (rawSelector.iconAfter || rawSelector.iconafter || "").trim();
-			break; 
-		}
-	}
+    if (isMatch) {
+      // 🔑 FIKSET: Vi fjerner 'as any' og bruker trygge type-guards for camelCase/lowercase-fallbacks
+      const hasIconBefore = "iconBefore" in selector || "iconbefore" in selector;
+      const hasIconAfter = "iconAfter" in selector || "iconafter" in selector;
 
-	return result;
+      if (hasIconBefore) {
+        const lookup = selector as unknown as Record<string, string>;
+        result.iconBefore = (lookup["iconBefore"] || lookup["iconbefore"] || "").trim();
+      }
+      if (hasIconAfter) {
+        const lookup = selector as unknown as Record<string, string>;
+        result.iconAfter = (lookup["iconAfter"] || lookup["iconafter"] || "").trim();
+      }
+      break;
+    }
+  }
+
+  return result;
 }

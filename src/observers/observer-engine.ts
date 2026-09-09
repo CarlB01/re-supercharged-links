@@ -5,6 +5,12 @@ import { clearExtraAttributes } from "../processors/link-mutator";
 import { isHtmlElement } from "../utils/string-utils";
 import ResuperchargedLinks from "../main";
 
+interface ObsidianAppInternalRegistry {
+	plugins?: {
+		plugins?: Record<string, unknown>;
+	};
+}
+
 // Thread-safe map to keep track of debounced animation frame animation handles per container
 const scheduledContainerUpdates = new WeakMap<HTMLElement, number>();
 
@@ -55,7 +61,8 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	}
 
 	// Ecosystem Integration: Intercept popular third-party plugins safely
-	const pluginRegistry = (plugin.app as any)?.plugins?.plugins;
+	const internalApp = plugin.app as unknown as ObsidianAppInternalRegistry;
+	const pluginRegistry = internalApp.plugins?.plugins;
 	if (pluginRegistry?.breadcrumbs) {
 		registerViewType("bc-matrix-view", plugin, "span.internal-link");
 		registerViewType("BC-ducks", plugin, ".internal-link");

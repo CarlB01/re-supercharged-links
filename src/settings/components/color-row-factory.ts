@@ -29,7 +29,7 @@ interface ColorRowConfig {
 }
 
 export function buildUnifiedColorRow(config: ColorRowConfig): void {
-  const { setting, plugin, selector, propKey, modeName, fallbackColor, isBackground, setControlValue, refreshUI } = config;
+  const { setting, plugin, selector, propKey, fallbackColor, isBackground, setControlValue, refreshUI } = config;
   const historyKey = `${propKey}_${selector.uid}`;
 
   // Cast selector lookups through a safe string record contract to eliminate any-keywords completely
@@ -59,7 +59,6 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       
       const previous = timeline.past[timeline.past.length - 1] ?? "";
       
-      // 🔑 FIKSET: Vi skriver via modelProxy for å garantere lagring under runtime uten as any!
       modelProxy[propKey] = previous;
 
       await setControlValue(`scl_${propKey}_${selector.uid}`, previous, false);

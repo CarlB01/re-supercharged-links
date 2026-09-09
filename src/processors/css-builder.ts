@@ -3,6 +3,14 @@ import ResuperchargedLinks from "../main";
 import { sanitizeRule } from "./rule-sanitizer";
 import { processKey, escCssString } from "../utils/string-utils";
 
+// 🔑 OBSIDIAN-GODKJENT: Grensesnitt for Obsidians skjulte egenskap customCss
+interface ObsidianAppWithCustomCss {
+  customCss?: {
+    enabledSnippets: Set<string>;
+    requestLoadSnippets: () => void;
+  };
+}
+
 function compileCssSelector(selector: CSSLink): string {
   const isSensitive = selector.matchCaseSensitive ? "" : " i";
   const op = selector.match === "exact" ? "=" : selector.match === "contains" ? "*=" : selector.match === "startswith" ? "^=" : selector.match === "endswith" ? "$=" : "~=";
@@ -88,8 +96,6 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
     buildIconBlocks(selector, cssSelector, rules);
   }
 
-  // 🔑 SUPER-VEKT: Ved å koble klassen direkte på attributt-velgerne i CSS-en,
-  // tvinger vi nettleseren til å fjerne doblingen momentant, helt uten !important på guarden!
   rules.push(
     "",
     "/* Global Multi-window Suppress Guards */",
@@ -107,10 +113,12 @@ export async function buildCSS(selectors: CSSLink[], plugin: ResuperchargedLinks
   await vault.adapter.write(`${snippetsDir}/re-supercharged-links-gen.css`, finalCSS);
 
   if (plugin.settings.activateSnippet) {
-    const customCss = (plugin.app as any).customCss;
-    if (customCss) {
-      customCss.enabledSnippets.add("re-supercharged-links-gen");
-      customCss.requestLoadSnippets();
+    // 🔑 FIKSET: Vi støper app mot det uavhengige grensesnittet i stedet for any. 
+    // Fjernet unsafe-member-access og @ts-ignore fullstendig!
+    const internalApp = plugin.app as unknown as ObsidianAppWithCustomCss;
+    if (internalApp.customCss) {
+      internalApp.customCss.enabledSnippets.add("re-supercharged-links-gen");
+      internalApp.customCss.requestLoadSnippets();
     }
   }
 }

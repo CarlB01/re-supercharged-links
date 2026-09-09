@@ -1,4 +1,4 @@
-import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
+import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { isHtmlElement } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
