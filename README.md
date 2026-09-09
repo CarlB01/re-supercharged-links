@@ -108,11 +108,34 @@ Tip: Start with 1–2 keys (`status`, `type`) and scale from there.
 
 ---
 
-## 🔧 Advanced options (highlights)
+## 🚀 What's New in v0.0.31
 
-- **Enable Bases**: activates Bases-specific observers/selectors.
-- **Style tag chips (`a.tag`)**: applies Supercharged tag attributes to visible tag chips in observed containers.
-- **Target tags**: includes target note tags in matching logic for internal links.
+* **Linear Undo/Redo Timelines**: Granular history stacks for rule modifications that let you step through changes fluidly.
+* **Zero-Allocation Hot-Paths**: Re-engineered CodeMirror view loops that maintain a locked 60+ FPS rhythm during typing and scrolling.
+* **Foolproof Emoji Deduplication**: Multi-stage regex boundaries that eliminate trailing emoji duplicates even on composite Unicode glyphs (e.g., `male⚕️`).
+* **Multi-Window Isolation**: Context-agnostic DOM node validation ensuring styles load identically in Obsidian desktop pop-out windows.
+
+---
+
+## 🧠 Architecture Highlights
+
+The plugin follows a strict, layered single-responsibility design modeled after a predictable assembly line pipeline:
+
+Obsidian Core Event ➔ View Updaters ➔ Attribute Fetchers ➔ String Utilities ➔ Link Mutators
+
+* **Hot-Path Transaction Cache**: local map dictionaries (`attrCycleCache`) hold fully evaluated metadata attributes resolved within a single event loop cycle, preventing layout thrashing during high-frequency scroll frames.
+* **Data Layer (Model)**: Fully decoupled from HTML mutations. Communicates safely with native metadata caches and third-party Dataview pipelines to build clean, typed state structures.
+* **Graphics Engine (View)**: Mutes layout thrashing by executing atomic style updates and hardware-accelerated CSS variables inside the browser's repaint cycle.
+* **Mobile-First Footprint**: Low memory profile and zero-allocation execution paths guarantee a stutter-free note-taking experience across iOS, Android, and lower-end hardware devices.
+
+---
+
+## 🔧 Core Options & Advanced Features
+
+* **Visual Metadata Styling**: Color internal links contextually based on frontmatter or fields to communicate status, type, or priority at a glance.
+* **Style Tag Chips (`a.tag`)**: Extends Supercharged styling frameworks safely to active tag chip nodes inside all observed layout containers.
+* **Deduplicated Affix Icons**: Smarter prepend/append icon rules that automatically suppress duplicate visuals if the icon is already part of the file name.
+* **Ecosystem Integration**: Scoped, high-performance MutationObservers that safely intercept and style popular community interfaces like **Bases**, **Breadcrumbs**, **Omnisearch**, and native **File Explorer** trees.
 
 ---
 
