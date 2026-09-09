@@ -27,40 +27,12 @@ Instead of plain internal links, you can style links based on frontmatter/fields
 
 ---
 
-## 🚀 What’s new in v0.0.27
+## 🚀 What's New in v0.0.31
 
-This release focuses on **Bases compatibility**, **tag styling**, and **clean icon behavior**.
-
-### Core improvements
-
-- ✅ Improved support for Obsidian **Bases**
-  - Works in native Bases leaves
-  - Includes markdown fallback for rendered base blocks when present
-- ✅ New advanced option to style **tag chips** (`a.tag`)
-  - Controlled by `enableTagChips`
-  - Adds `data-link-tags` on chips for consistent selector matching
-- ✅ Smarter prepend/append icon dedupe
-  - Skips duplicate icon when already present in the label text
-  - Handles emoji variation selector differences (e.g. `☠` and `☠️`)
-- ✅ Maintains high performance in large Bases tables and heavy scroll scenarios
-
-### Why it matters
-
-You get:
-- more consistent styling across links and tags,
-- fewer duplicate visual icons,
-- and stable behavior across mixed Bases render paths.
-
----
-
-## 🧠 Architecture highlights
-
-The plugin is designed around a lightweight reactive model:
-
-- **Cache-first metadata reads** to avoid unnecessary heavy DOM scans
-- **Batched attribute/style updates** to reduce visual churn
-- **Decoupled rendering logic** for easier maintenance
-- **Mobile-aware behavior** for smoother editing on iOS/Android
+* **Linear Undo/Redo Timelines**: Granular history stacks for rule modifications that let you step through changes fluidly.
+* **Zero-Allocation Hot-Paths**: Re-engineered CodeMirror view loops that maintain a locked 60+ FPS rhythm during typing and scrolling.
+* **Foolproof Emoji Deduplication**: Multi-stage regex boundaries that eliminate trailing emoji duplicates even on composite Unicode glyphs (e.g., `male⚕️`).
+* **Multi-Window Isolation**: Context-agnostic DOM node validation ensuring styles load identically in Obsidian desktop pop-out windows.
 
 ---
 
@@ -105,15 +77,6 @@ If you want pre-release or beta updates:
 4. Save and verify links update in notes/panes.
 
 Tip: Start with 1–2 keys (`status`, `type`) and scale from there.
-
----
-
-## 🚀 What's New in v0.0.31
-
-* **Linear Undo/Redo Timelines**: Granular history stacks for rule modifications that let you step through changes fluidly.
-* **Zero-Allocation Hot-Paths**: Re-engineered CodeMirror view loops that maintain a locked 60+ FPS rhythm during typing and scrolling.
-* **Foolproof Emoji Deduplication**: Multi-stage regex boundaries that eliminate trailing emoji duplicates even on composite Unicode glyphs (e.g., `male⚕️`).
-* **Multi-Window Isolation**: Context-agnostic DOM node validation ensuring styles load identically in Obsidian desktop pop-out windows.
 
 ---
 
