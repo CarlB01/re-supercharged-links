@@ -75,3 +75,58 @@ export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitize
 
   return { sanitized, hasChanges };
 }
+
+interface IconMatchResult {
+	iconBefore: string;
+	iconAfter: string;
+}
+
+/**
+ * Iterates through active user style rules to find the first selector matching 
+ * the resolved file attributes, returning configured prepend/append icons.
+ * Deduplicates lookups across Editor and Reading mode pipelines.
+ */
+export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): IconMatchResult {
+	const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
+	if (!selectors || !Array.isArray(selectors)) return result;
+
+	for (let i = 0; i < selectors.length; i++) {
+		const selector = selectors[i];
+		if (!selector) continue;
+
+		let isMatch = false;
+		const ruleValue = (selector.value || "").toLowerCase();
+
+		// Match strategy: Tag entries
+		if (selector.type === "tag" && resolvedAttrs["tags"]) {
+			if (resolvedAttrs["tags"].toLowerCase().includes(ruleValue)) {
+				isMatch = true;
+			}
+		} 
+		// Match strategy: Exact file paths
+		else if (selector.type === "path" && resolvedAttrs["path"]) {
+			if (resolvedAttrs["path"].toLowerCase().includes(ruleValue)) {
+				isMatch = true;
+			}
+		}
+		// Match strategy: Custom Dataview frontmatter or inline attributes
+		else if (selector.type === "attribute") {
+			const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
+			if (cleanKey && resolvedAttrs[cleanKey] && resolvedAttrs[cleanKey].toLowerCase().includes(ruleValue)) {
+				isMatch = true;
+			}
+		}
+
+    // Pull and clean icon tokens instantly upon finding the first valid match priority
+		if (isMatch) {
+			// Safe dynamic mapping: Sjekk både camelCase og rene små bokstaver for å tette lagringsfellen!
+			const rawSelector = selector as any;
+			
+			result.iconBefore = (rawSelector.iconBefore || rawSelector.iconbefore || "").trim();
+			result.iconAfter = (rawSelector.iconAfter || rawSelector.iconafter || "").trim();
+			break; 
+		}
+	}
+
+	return result;
+}

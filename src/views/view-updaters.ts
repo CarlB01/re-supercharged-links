@@ -67,7 +67,7 @@ export function updateDivExtraAttributes(
 	if (!dest) return;
 
 	const newProps = fetchTargetAttributesSync(app, plugin, dest, true);
-	setLinkNewProps(link, newProps);
+	setLinkNewProps(link, newProps, plugin);
 }
 
 export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
@@ -86,7 +86,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 		if (!dest) return;
 
 		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
-		setLinkNewProps(node, newProps);
+		setLinkNewProps(node, newProps, plugin);
 	});
 }
 
@@ -200,7 +200,7 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 
 			internalLinks.forEach((node) => {
 				if (isHtmlElement(node)) {
-					setLinkNewProps(node, newProps);
+					setLinkNewProps(node, newProps, plugin);
 				}
 			});
 		});

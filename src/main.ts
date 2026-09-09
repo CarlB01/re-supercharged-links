@@ -12,13 +12,39 @@ import { initViewObservers, initModalObservers, disconnectAllObservers, removeSt
 import { sanitizeRuleset } from './processors/rule-sanitizer';
 
 export default class ResuperchargedLinks extends Plugin {
+	/**
+	 * Natively hydrated typed configurations containing user styling definitions.
+	 */
 	declare settings: SCLSettings;
+
+	/**
+	 * Managed reference to the custom UI settings dashboard dashboard view.
+	 */
 	declare settingTab: SCLSettingTab;
+
+	/**
+	 * A registry of active MutationObservers mapping specific workspace layouts (e.g., Backlinks, 
+	 * File Explorer) alongside their targeted CSS selector bindings to orchestrate reactive changes.
+	 */
 	declare observers: [MutationObserver, string, string][];
+
+	/**
+	 * An isolated bucket array of global document observers capturing modal, quick switcher, 
+	 * and autocompleter suggestion injections dynamically within the native DOM tree.
+	 */
 	declare modalObservers: MutationObserver[];
+
+	/**
+	 * HOT-PATH TRANSACTION CACHE: A localized map dictionary holding fully evaluated 
+	 * link metadata attributes resolved within a single event loop cycle. Prevents extreme 
+	 * layout thrashing and duplicate internal cache lookups during high-frequency repaint frames.
+	 */
 	declare attrCycleCache: Map<string, Record<string, string>>;
 
-	// Hot-path optimizer: Compiled lookup cache containing actively tracked metadata properties
+	/**
+	 * Pre-compiled runtime registry containing an unique, deduplicated index of metadata attributes 
+	 * actively targeted by the user's styling rules to bypass linear array lookups.
+	 */
 	activeAttributesSet: Set<string> = new Set();
 
 	/**

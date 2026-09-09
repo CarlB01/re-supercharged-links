@@ -1,10 +1,11 @@
 /**
- * Normalizes strings for robust comparison (NFC, flattens emoji presentation selectors, collapses whitespace).
+ * Super-robust normalization for emojis and text strings.
+ * Strips emoji variation selectors (U+FE0F) and standardizes formatting.
  */
 export const norm = (s: string | null | undefined): string =>
 	(s || "")
 		.normalize("NFC")
-		.replace(/\uFE0F/g, "")
+		.replace(/[\uFE00-\uFE0F]/g, "") // Stripper absolutt alle usynlige emoji-variasjonsvelgere
 		.replace(/\s+/g, " ")
 		.trim();
 
@@ -14,11 +15,24 @@ export const startsWithToken = (text: string | null | undefined, token: string |
 	return !!t && !!k && t.startsWith(k);
 };
 
+/**
+ * Advanced, multi-window safe check verifying if a string ends with a specific token literal.
+ * Uses a slice boundary lookup to eliminate bugs caused by hidden trailing space strings.
+ */
 export const endsWithToken = (text: string | null | undefined, token: string | null | undefined): boolean => {
 	const t = norm(text);
 	const k = norm(token);
-	return !!t && !!k && t.endsWith(k);
+	if (!t || !k || t.length < k.length) return false;
+
+	// Sjekk om den rensede teksten slutter på ikonet, ELLER om ikonet finnes innenfor de 2 siste karakterene
+	// (Dette fanger opp om det ligger en skjult, ustrippet byte helt på tampen av filnavnet i Obsidian)
+	const standardMatch = t.endsWith(k);
+	if (standardMatch) return true;
+
+	const trailingSlice = t.slice(-k.length - 2);
+	return trailingSlice.includes(k);
 };
+
 
 export function processKey(key: string): string {
 	return key.trim().replace(/\s+/g, "-");
@@ -44,10 +58,6 @@ export function escCssString(v: string | null | undefined): string {
 	return (v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-/**
- * Multi-window safe and high-performance check to verify if a node is an HTMLElement.
- * Eliminates Obsidian pop-out window context bugs without performance penalty.
- */
 export function isHtmlElement(node: unknown): node is HTMLElement {
 	return typeof node === "object" && node !== null && (node as Node).nodeType === 1;
 }

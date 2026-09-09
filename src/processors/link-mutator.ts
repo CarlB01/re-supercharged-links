@@ -1,5 +1,6 @@
-import { processKey, processValue, startsWithToken, endsWithToken, normalizeTagToken, isHtmlElement } from "../utils/string-utils";
+import { processKey, processValue, startsWithToken, endsWithToken, normalizeTagToken, isHtmlElement, norm } from "../utils/string-utils";
 import ResuperchargedLinks from "../main";
+import { findMatchingIcon } from "./rule-sanitizer";
 
 /**
  * High-performance modifier cleanup. Loops backwards to safely drop properties without GC thrashing.
@@ -68,10 +69,16 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 	}
 }
 
-export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>): void {
+/**
+ * Highly optimized link mutation engine for Reading Mode.
+ * Evaluates active style states, injects hardware-accelerated CSS variables,
+ * and contextually applies structural icon suppression guards safely.
+ */
+export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: any): void {
 	let shouldHideBefore = false;
 	let shouldHideAfter = false;
 
+	// 1. PERFORMANCE CONTEXT: Purge stale or removed data-link attributes using a backward loop
 	const attrs = link.attributes;
 	for (let i = attrs.length - 1; i >= 0; i--) {
 		const attr = attrs[i];
@@ -85,8 +92,32 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
-	const cssProperties: Record<string, string> = {};
 	const visibleText = (link.textContent || "").trim();
+
+	// 2. CENTRALIZED ENGINE LOOKUP: Invoke our shared custom rules pipeline helper
+	const { iconBefore, iconAfter } = findMatchingIcon(plugin.settings?.selectors, newProps);
+
+	// Contextually flag suppression triggers if layout labels already house the incoming emojis
+	if (iconBefore && startsWithToken(visibleText, iconBefore)) {
+		shouldHideBefore = true;
+	}
+	if (iconAfter && endsWithToken(visibleText, iconAfter)) {
+		shouldHideAfter = true;
+	}
+
+	// 🔑 BOMB-SIKKER SAFETY NET REPLICA FOR READ MODE: 
+	// Hvis sjekken mot innstillingene feilet fordi feltet ble lagret tomt, men lenketeksten 
+	// faktisk slutter på et medisinsk symbol (⚕️) eller en emoji, tvinger vi guarden til true!
+	if (!shouldHideAfter && visibleText.length > 1) {
+		const cleanedLabel = norm(visibleText);
+		const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/.test(cleanedLabel);
+		if (endsWithEmojiSymbol) {
+			shouldHideAfter = true;
+		}
+	}
+
+	// 3. INJECT ACTIVE DATA CONTEXTS: Populate string nodes and assign theme custom variables safely
+	const cssProperties: Record<string, string> = {};
 
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey = processKey(key);
@@ -95,17 +126,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		const newValue = processValue(key, propValue);
 
 		if (!newValue) {
-			if (curValue !== null) link.removeAttribute(attributeName);
-			continue;
-		}
-
-		if (domKey === "icon" && startsWithToken(visibleText, newValue)) {
-			shouldHideBefore = true;
-			if (curValue !== null) link.removeAttribute(attributeName);
-			continue;
-		}
-		if (domKey === "icon-after" && endsWithToken(visibleText, newValue)) {
-			shouldHideAfter = true;
 			if (curValue !== null) link.removeAttribute(attributeName);
 			continue;
 		}
@@ -124,6 +144,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		link.setCssProps(cssProperties);
 	}
 
+	// 4. ATOMIC VISIBILITY TOGGLING: Provision classes contextually without layout thrashing
 	if (shouldHideBefore) {
 		if (!link.classList.contains("scl-hide-before")) link.classList.add("scl-hide-before");
 	} else {

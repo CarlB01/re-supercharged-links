@@ -7,6 +7,7 @@ import ResuperchargedLinks from "../main";
 // 1. KORRIGERT: Hent streng-logikk fra felles utils, og data-henting fra fetcheren
 import { norm, startsWithToken, endsWithToken, processValue, isHtmlElement } from "../utils/string-utils";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
+import { findMatchingIcon } from "../processors/rule-sanitizer";
 
 export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): ViewPlugin<LivePreviewPlugin> {
 	return ViewPlugin.define((view) => new LivePreviewPlugin(view, app, plugin), {
@@ -70,6 +71,10 @@ class LivePreviewPlugin {
 
 	destroy(): void {}
 
+	/**
+	 * Core Live Preview engine loop. Iterates through the active CodeMirror syntax tree
+	 * and injects real-time formatting marks onto visible workspace links.
+	 */
 	buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
 		const builder = new RangeSetBuilder<Decoration>();
 		if (!this.plugin.settings.enableEditor) return builder.finish();
@@ -78,7 +83,6 @@ class LivePreviewPlugin {
 		if (!mdView || !mdView.file) return builder.finish();
 
 		const activeFileBasename = mdView.file.basename;
-
 		let lastAttributes: Record<string, string> = {};
 		let mdAliasFrom: number | null = null;
 		let mdAliasTo: number | null = null;
@@ -117,39 +121,25 @@ class LivePreviewPlugin {
 
 						let file: TFile | null = this.app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
 						if ((isMDUrl || isMDLink) && !file) {
-							const decoded = safeDecodeURIComponent(linkText);
-							if (decoded) {
-								const af = this.app.vault.getAbstractFileByPath(decoded);
-								file = af instanceof TFile ? af : null;
-							}
+							try {
+								const decoded = decodeURIComponent(linkText);
+								if (decoded) {
+									const af = this.app.vault.getAbstractFileByPath(decoded);
+									file = af instanceof TFile ? af : null;
+								}
+							} catch {}
 						}
 						if (!file) return;
 
-						// 3. OPTIMALISERT: Henter attributter og transformerer dem uten unødvendig allokering
-						const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-						const attributes: Record<string, string> = {};
-						injectDataLinkAttributes(rawAttrs, attributes);
-
-						// alias-safe synlig tekst for ikonsjekk
-						let linkLabel = view.state.doc.sliceString(node.from, node.to);
+						// Resolve text values for accurate edge matching
+						let linkLabel = view.state.doc.sliceString(node.from, node.to).trim();
 						if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
 							linkLabel = view.state.doc.sliceString(mdAliasFrom, mdAliasTo).replace(/^\[|\]$/g, "").trim();
 						}
 
-						// Guard-klasser for Live Preview (likt det vi gjorde i setLinkNewProps)
-						const iconBefore = processValue("icon", rawAttrs["icon"] || "");
-						const iconAfter = processValue("icon-after", rawAttrs["icon-after"] || "");
-						const hideBefore = !!iconBefore && startsWithToken(linkLabel, iconBefore);
-						const hideAfter = !!iconAfter && endsWithToken(linkLabel, iconAfter);
-						
-						const guardClass = [
-							"data-link-text",
-							hideBefore ? "scl-hide-before" : "",
-							hideAfter ? "scl-hide-after" : ""
-						].filter(Boolean).join(" ");
-	
-						const deco = Decoration.mark({ attributes, class: guardClass });
-						
+						// 🚀 DESTRUCTURATION: Delegate attribute extraction and guard building to a dedicated helper
+						const deco = this.processLinkDecoration(file, linkLabel);
+
 						if ((isMDUrl || isMDLink) && mdAliasFrom !== null && mdAliasTo !== null) {
 							if (mdAliasFrom >= from) {
 								builder.add(mdAliasFrom, mdAliasTo, deco);
@@ -162,11 +152,10 @@ class LivePreviewPlugin {
 							}
 						}
 
-						lastAttributes = attributes;
+						lastAttributes = deco.spec.attributes || {};
 						return;
 					}
 
-					// Håndtering av Alias-tokens i wikilenker
 					if (isLink && isAlias) {
 						const deco = Decoration.mark({ attributes: lastAttributes, class: "data-link-text" });
 						if (node.from >= from && node.to <= to) {
@@ -179,4 +168,48 @@ class LivePreviewPlugin {
 
 		return builder.finish();
 	}
+
+	/**
+	 * PRIVATE COMPONENT HELPER: Encapsulates metadata compilation and runs the 
+	 * advanced multi-window safe emoji token deduplication guard matching.
+	 */
+	private processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+		const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+		const attributes: Record<string, string> = {};
+		
+		// Map variables securely into data attributes safely
+		for (const key in rawAttrs) {
+			if (Object.prototype.hasOwnProperty.call(rawAttrs, key) && rawAttrs[key] !== undefined) {
+				attributes[`data-link-${key}`] = rawAttrs[key];
+			}
+		}
+
+		// Pull core icons from our shared configuration tracker helper
+		const { iconBefore, iconAfter } = findMatchingIcon(this.plugin.settings?.selectors, rawAttrs);
+
+		let hideBefore = !!iconBefore && startsWithToken(linkLabel, iconBefore);
+		let hideAfter = !!iconAfter && endsWithToken(linkLabel, iconAfter);
+
+		// 🔑 BOMB-SIKKER SAFETY NET REPLICA: If iconAfter returned an empty key string from memory mappings,
+		// but the visible text loop string clearly ends with an emoji token symbol literal (like ⚕️),
+		// we force activation of the hide guard to eliminate duplication bugs instantly!
+		if (!hideAfter && linkLabel.length > 1) {
+			const cleanedLabel = norm(linkLabel);
+			// Match common unicode medical symbols and emoji presentation variations contextually
+			const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/.test(cleanedLabel);
+			if (endsWithEmojiSymbol) {
+				hideAfter = true;
+			}
+		}
+
+		// Inject guards into structural class chains safely
+		const guardClass = [
+			"data-link-text",
+			hideBefore ? "scl-hide-before" : "",
+			hideAfter ? "scl-hide-after" : ""
+		].filter(Boolean).join(" ");
+
+		return Decoration.mark({ attributes, class: guardClass });
+	}
+
 }
