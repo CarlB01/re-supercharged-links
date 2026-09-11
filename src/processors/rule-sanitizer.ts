@@ -10,7 +10,8 @@ const OP_TO_MATCH: Record<OpKey, MatchTypes> = {
   "~=": "whiteSpace",
 };
 
-function isOpKey(x: string): x is OpKey {
+function isOpKey(x: unknown): x is OpKey {
+  if (typeof x !== "string") return false;
   return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
 }
 

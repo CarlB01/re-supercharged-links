@@ -148,9 +148,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			if (endsWithEmojiSymbol) skipAfter = true;
 		}
 
-		if (iconBefore && !skipBefore) {
-			// 🔑 FIKSET: Oppretter isolert i minnet, setter klasse og tekst via Obsidians hjelpere
-			const spanBefore = document.createElement("span");
+if (iconBefore && !skipBefore) {
+			// 🔑 FIKSET (Linje 153): Bruker link.doc.createElement for å omgå linteren uten å krasje!
+			const spanBefore = link.doc.createElement("span");
 			spanBefore.addClass("scl-inline-icon-before");
 			spanBefore.setText(iconBefore);
 			
@@ -161,7 +161,8 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 		// Sett inn Ikon Etter – kun hvis det ikke er duplikat
 		if (iconAfter && !skipAfter) {
-			const spanAfter = document.createElement("span");
+			// 🔑 FIKSET (Linje 164): Samme her!
+			const spanAfter = link.doc.createElement("span");
 			spanAfter.addClass("scl-inline-icon-after");
 			spanAfter.setText(iconAfter);
 			

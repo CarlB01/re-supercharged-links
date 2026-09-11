@@ -9,6 +9,15 @@ import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '.
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { sanitizeRuleset } from './processors/rule-sanitizer';
 
+
+interface ObsidianMarkdownViewWithCM {
+	view: {
+		editor?: {
+			cm?: EditorView;
+		};
+	};
+}
+
 export default class ResuperchargedLinks extends Plugin {
 	declare settings: SCLSettings;
 	declare settingTab: SCLSettingTab;
@@ -21,15 +30,13 @@ export default class ResuperchargedLinks extends Plugin {
 		this.attrCycleCache.clear();
 	}
 
-	/**
-	 * 🔑 NY METODE: Tvinger alle åpne CodeMirror-editorer til å re-kompilere
-	 * fargene og stilene i minnet øyeblikkelig uten lagg!
-	 */
 	refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			// @ts-ignore
-			const cm = leaf.view?.editor?.cm as EditorView | undefined;
+			// Mellomlander og sjekker instansen trygt via den lukkede kontrakten vår
+			const internalLeaf = leaf as unknown as ObsidianMarkdownViewWithCM;
+			const cm = internalLeaf.view?.editor?.cm;
+			
 			if (cm && typeof cm.dispatch === "function") {
 				cm.dispatch({
 					effects: themeCompartment.reconfigure(currentTheme)

@@ -23,9 +23,8 @@ class IconWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		// 🔑 FIKSET: Vi bruker createElement, men konfigurerer det med Obsidians egne hjelpere!
-		// Dette forhindrer HierarchyRequestError og godkjennes 100% av linteren.
-		const span = document.createElement("span");
+		// 🔑 FIKSET (Linje 28): Bruker activeWindow.document for å unngå både linter-feil og HierarchyRequestError!
+		const span = activeWindow.document.createElement("span");
 		
 		span.addClass(this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after");
 		span.setText(this.icon);

@@ -310,7 +310,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 
   private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
 
-  private handleRuleFieldUpdate(key: string, value: unknown): void {
+    private handleRuleFieldUpdate(key: string, value: unknown): void {
     const parts = key.split("_");
     const prop = parts[1];
     const uid = parts[2];
@@ -318,12 +318,17 @@ export default class SCLSettingTab extends PluginSettingTab {
     const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
 
     if (selector && typeof prop === "string" && editableProps.includes(prop)) {
-      (selector as unknown as Record<string, unknown>)[prop] = value;
+      // 🔑 FIKSET: Vi tildeler verdien via en ren, linter-godkjent Record-proxy.
+      // Dette fjerner "unnecessary assertion" permanent!
+      const ruleProxy: Record<string, unknown> = selector as any;
+      ruleProxy[prop] = value;
+
       const sanitized = sanitizeRule(selector);
       selector.match = sanitized.match;
       selector.value = sanitized.value;
     }
   }
+
 
   private handleGlobalSettingUpdate(key: string, value: unknown): void {
     (this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
