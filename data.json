@@ -79,7 +79,7 @@
       "uid": "541c-90da",
       "iconBefore": "📅",
       "iconAfter": "",
-      "fontStyle": "underline",
+      "fontStyle": "italic",
       "lightColor": "#e00f00",
       "darkColor": "#f46767",
       "lightBgColor": "#fdeded",
@@ -135,7 +135,7 @@
     },
     {
       "uid": "a70d-517c",
-      "type": "tag",
+      "type": "path",
       "name": "",
       "value": "👥gruppe",
       "match": "exact",
@@ -144,9 +144,9 @@
       "iconAfter": "",
       "fontWeight": "lighter",
       "fontStyle": "normal",
-      "lightColor": "",
-      "darkColor": "#aa3131",
-      "lightBgColor": "#8f91cc",
+      "lightColor": "#9c29fa",
+      "darkColor": "#8431aa",
+      "lightBgColor": "#cbcdfb",
       "darkBgColor": "transparent"
     }
   ],

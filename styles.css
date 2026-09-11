@@ -34,7 +34,7 @@
       margin-right: 12px;
     }
 
-    /* 💎 ALTERNATIV 1: Elegant farge-rektangel med luft i mellom */
+    /* Elegant farge-rektangel med luft i mellom */
     .scl-bg-capsule {
       display: flex;
       align-items: center;
@@ -42,7 +42,7 @@
       width: 32px;
       height: 20px;
       margin-right: 6px; 
-      border-radius: 4px; /* Svakt avrundede hjørner */
+      border-radius: 4px;
       border: 1px solid var(--background-modifier-border);
       box-sizing: border-box;
       flex-shrink: 0;
@@ -76,28 +76,26 @@
       background-color: var(--scl-dot-color);
     }
 
-    /* 🚀 NYTT: Note-forhåndsvisningen gjøres til en direkte replika av rektangelet! */
+    /* NOTE-KAPSELEN: Nøyaktig kopi av rektangelet med stram luft */
     .data-link-text {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      height: 20px;       /* Nøyaktig samme høyde som farge-rektangelet */
-      border-radius: 4px; /* Nøyaktig samme avrunding */
+      height: 20px;       
+      border-radius: 4px; 
       border: 1px solid var(--background-modifier-border);
       box-sizing: border-box;
-      padding: 0 6px;     /* 🔑 2 piksler ekstra luft på sidene (Note er vanligvis 4ch, pluss 2px) */
-      margin: 0 4px;      /* Luft på utsiden av rektangelet i setningen */
-      font-size: 0.9em;
+      padding: 0 3px;     
+      margin: 0 4px;      
       white-space: nowrap;
 
-      /* Fjern all luft mellom eventuelle pseudo-elementer (ikoner) og selve Note-teksten */
       &::before {
-        margin-right: 0px !important;
-        padding-right: 0px !important;
+        margin-right: 0px;
+        padding-right: 0px;
       }
       &::after {
-        margin-left: 0px !important;
-        padding-left: 0px !important;
+        margin-left: 0px;
+        padding-left: 0px;
       }
     }
 
@@ -133,6 +131,26 @@
 
 .vertical-tab-content-container {
   .setting-item.scl-detail-row {
+    padding-top: 0.4em;
+    padding-bottom: 0.4em;
+    border-top: none;
+    min-height: 0;
+
+    .setting-item-info {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+
+    .setting-item-name {
+      line-height: 1.25;
+      margin-bottom: 0;
+    }
+
+    .setting-item-description {
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+
     .setting-item-control {
       display: inline-flex;
       flex: 0 0 auto;
@@ -144,6 +162,8 @@
       gap: 8px;
       flex-wrap: nowrap;
       white-space: nowrap;
+      margin-top: 0;
+      align-self: center;
       
       .dropdown,
       input[type="text"] {
@@ -153,18 +173,17 @@
       }
 
       input[type="text"] {
-        width: 180px;
-        max-width: 40vw;
+        width: 140px;
+        text-align: right;
       }
     }
 
     &.scl-row-iconbefore, &.scl-row-iconafter {
       .setting-item-control input[type="text"] {
-        width: 7ch;
-        min-width: 7ch;
-        max-width: 9ch;
+        width: 6ch;
+        min-width: 6ch;
+        max-width: 8ch;
         text-align: center;
-        padding-inline: 4px;
       }
     }
 
@@ -196,40 +215,6 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     width: 100%;
-    padding-top: 0.5em;
-    padding-bottom: 0.5em;
-    border-top: none;
-    min-height: 0;
-
-    .setting-item-info {
-      padding-top: 0;
-      padding-bottom: 0;
-      min-width: 0;
-    }
-
-    .setting-item-name {
-      line-height: 1.25;
-      margin-bottom: 0;
-    }
-
-    .setting-item-description {
-      line-height: 1.2;
-      margin-top: 2px;
-    }
-
-    .setting-item-control {
-      margin-top: 0;
-      align-self: center;
-      min-width: 0;
-      width: auto;
-      margin-left: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      flex-wrap: nowrap;
-      white-space: nowrap;
-      gap: 8px;
-    }
 
     .dropdown.is-measuring {
       display: none;
@@ -241,8 +226,8 @@
   }
 
   .setting-item.scl-color-row {
-    padding-top: 0.5em;
-    padding-bottom: 0.5em;
+    padding-top: 0.4em;
+    padding-bottom: 0.4em;
     border-top: none;
 
     .setting-item-control {
@@ -302,7 +287,7 @@
 }
 
 /* =========================================================================
-   3) GLOBAL COMPONENT INTERREACTIONS
+   3) GLOBAL COMPONENT INTERREACTIONS & RUNTIME UTILITY CLASSES
    ========================================================================= */
 
 .scl-color-row input[type="color"] {
@@ -330,4 +315,55 @@
 
 .scl-undo-btn, .scl-redo-btn {
   transition: opacity 0.15s ease-in-out;
+}
+
+/* =========================================================================
+   4) 🚀 UTILITY CLASSES FOR THE IN-MEMORY RUNTIME ENGINE
+   100% Obsidian compliant - completely removed all !important flags!
+   ========================================================================= */
+
+/* Fysiske inline-ikoner for Read Mode og Live Preview puster pent i mappen */
+.scl-inline-icon-before { 
+  margin-right: 3px; 
+  display: inline-block; 
+}
+
+.scl-inline-icon-after { 
+  margin-left: 3px; 
+  display: inline-block; 
+}
+
+/* Vekt og stiler vinner over Obsidian core ved å binde klassene sammen */
+.data-link-text.scl-weight-bold, 
+.data-link-text.scl-weight-bold .cm-underline,
+.cm-underline.scl-weight-bold { 
+  font-weight: bold; 
+}
+
+.data-link-text.scl-weight-lighter, 
+.data-link-text.scl-weight-lighter .cm-underline,
+.cm-underline.scl-weight-lighter { 
+  font-weight: lighter; 
+}
+
+.data-link-text.scl-style-italic,
+.cm-underline.scl-style-italic { 
+  font-style: italic; 
+}
+
+.data-link-text.scl-style-underline,
+.cm-underline.scl-style-underline { 
+  text-decoration: underline; 
+}
+
+.data-link-text.scl-style-line-through,
+.cm-underline.scl-style-line-through { 
+  text-decoration: line-through; 
+}
+
+/* 🔑 SIKRET FOR KONTROLLPANEL (NOTE): 
+   Lar compilePaneStyles overstyre radens utseende helt naturlig i minnet */
+.vertical-tab-content-container .scl-main-rule-row .data-link-text {
+  color: inherit;
+  background-color: transparent;
 }

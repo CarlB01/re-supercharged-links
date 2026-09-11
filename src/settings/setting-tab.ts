@@ -2,9 +2,9 @@ import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, Settin
 import ResuperchargedLinks from "../main";
 import { updateVisibleLinks } from "../views/view-updaters";
 import { CSSLink } from "../types/css-link";
-import { buildCSS } from "../processors/css-builder";
 import { sanitizeRule } from "../processors/rule-sanitizer";
-import { buildUnifiedColorRow, clearColorHistory } from "./components/color-row-factory";
+import { clearColorHistory } from "./components/color-row-factory";
+import { getRuleDetailItems } from "./components/detail-rows-factory"; // 🔑 Importerer den nye fabrikken
 
 // Import layout micro-components
 import { createColorCapsule } from "./components/color-capsule";
@@ -16,9 +16,8 @@ export default class SCLSettingTab extends PluginSettingTab {
   plugin: ResuperchargedLinks;
   private readonly debouncedGenerate: () => void;
   private rulesSearchQuery = "";
-  private colorHistory: Record<string, { original: string; redo: string; isUndoState: boolean }> = {};
   public activeEditUid: string | null = null;
-
+  private paneStyleEl: HTMLStyleElement | null = null;
 
   constructor(app: App, plugin: ResuperchargedLinks) {
     super(app, plugin);
@@ -26,7 +25,6 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.debouncedGenerate = debounce(() => { void this._generateSnippet(); }, 300, true);
     void this._generateSnippet();
 
-    // Event Delegation: Listens to row clicks across the vertical layout tree safely
     this.plugin.registerDomEvent(this.containerEl, "click", (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target) return;
@@ -41,21 +39,25 @@ export default class SCLSettingTab extends PluginSettingTab {
       const selector = filteredSelectors[index];
       if (!selector) return;
 
-      // 🔑 LØSNINGEN: Tøm historikk-registeret for farger når brukeren bytter eller lukker en rad!
       clearColorHistory();
 
       this.activeEditUid = this.activeEditUid === selector.uid ? null : selector.uid;
       this.refreshUI();
     });
-
   }
 
   hide(): void {
     clearColorHistory();
-    super.hide(); // Sørger for at Obsidian gjør sin interne standard opprydning
+    if (this.paneStyleEl) {
+      this.paneStyleEl.remove();
+      this.paneStyleEl = null;
+    }
+    super.hide();
   }
 
-  private refreshUI(): void { this.update(); }
+  public refreshUI(): void { 
+    this.update(); 
+  }
 
   private getFilteredSelectors(selectors: CSSLink[]): CSSLink[] {
     const q = this.rulesSearchQuery.trim().toLowerCase();
@@ -96,111 +98,40 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.plugin.registerDomEvent(grip, "click", (e) => { e.preventDefault(); e.stopPropagation(); if (longPressTriggered) { longPressTriggered = false; return; } moveBy(e.shiftKey ? -1 : 1); });
   }
 
-  private row(render: (setting: Setting) => void): MyGroupItems { return { render }; }
-  private setRowClass(setting: Setting, cls: string): void { setting.settingEl.className = `setting-item ${cls}`; }
-
-  private createTypeRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-type");
-      setting.setName("Match Target Type").setDesc("Select target metadata type.");
-      setting.addDropdown((d) => {
-        d.addOption("tag", "Tag").addOption("attribute", "Attribute").addOption("path", "Note Path").setValue(selector.type || "tag");
-        d.onChange(async (v) => { if (v === "tag" || v === "attribute" || v === "path") { await this.setControlValue(`scl_type_${selector.uid}`, v, true); this.refreshUI(); } });
-      });
-    });
-  }
-
-  private createAttributeNameRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-attrname");
-      setting.setName("Key name (attributes only)").setDesc("Frontmatter key to read.");
-      setting.addText((t) => t.setPlaceholder("status").setValue(selector.name || "").onChange(async (v) => { await this.setControlValue(`scl_name_${selector.uid}`, v, true); this.refreshUI(); }));
-    });
-  }
-
-  private createValueRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-value");
-      setting.setName("Value to match").setDesc("Trigger keyword.");
-      setting.addText((t) => t.setPlaceholder("todo").setValue(selector.value || "").onChange(async (v) => { await this.setControlValue(`scl_value_${selector.uid}`, v, true); this.refreshUI(); }));
-    });
-  }
-
-  private createIconBeforeRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-iconbefore");
-      setting.setName("Prepend Icon").setDesc("Icon to inject before link text.");
-      setting.addText((t) => t.setValue(selector.iconBefore || "").onChange(async (v) => await this.setControlValue(`scl_iconBefore_${selector.uid}`, v, true)));
-    });
-  }
-
-  private createIconAfterRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-iconafter");
-      setting.setName("Append Icon").setDesc("Icon to inject after link text.");
-      setting.addText((t) => t.setValue(selector.iconAfter || "").onChange(async (v) => await this.setControlValue(`scl_iconAfter_${selector.uid}`, v, true)));
-    });
-  }
-
-  private createFontWeightRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-weight");
-      setting.setName("Font Weight").setDesc("Choose font weight.");
-      setting.addDropdown((d) => { d.addOption("normal", "Normal").addOption("lighter", "Lighter").addOption("bold", "Bold").setValue(selector.fontWeight || "normal"); d.onChange(async (v) => await this.setControlValue(`scl_fontWeight_${selector.uid}`, v, true)); });
-    });
-  }
-
-  private createFontStyleRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-style");
-      setting.setName("Font Style").setDesc("Choose text decoration.");
-      setting.addDropdown((d) => { d.addOption("normal", "Normal").addOption("italic", "Italic").addOption("underline", "Underline").addOption("line-through", "Strikethrough").setValue(selector.fontStyle || "normal"); d.onChange(async (v) => await this.setControlValue(`scl_fontStyle_${selector.uid}`, v, true)); });
-    });
-  }
-
-    private createLightColorRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "mod-toggle scl-color-row scl-text-picker-row scl-row-lightcolor");
-      setting.setName("Light Mode Color").setDesc("Text color for light theme.");
-      buildUnifiedColorRow({ setting, plugin: this.plugin, selector, propKey: 'lightColor', modeName: "Light mode", fallbackColor: "#ffffff", isBackground: false, setControlValue: this.setControlValue.bind(this), refreshUI: this.refreshUI.bind(this) });
-    });
-  }
-
-  private createDarkColorRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "mod-toggle scl-color-row scl-text-picker-row scl-row-darkcolor");
-      setting.setName("Dark Mode Color").setDesc("Text color for dark theme.");
-      buildUnifiedColorRow({ setting, plugin: this.plugin, selector, propKey: 'darkColor', modeName: "Dark mode", fallbackColor: "#000000", isBackground: false, setControlValue: this.setControlValue.bind(this), refreshUI: this.refreshUI.bind(this) });
-    });
-  }
-
-  private createLightBgRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "mod-toggle scl-color-row scl-bg-picker-row scl-row-lightbg");
-      setting.setName("Light Mode Background").setDesc("Background color for light theme.");
-      buildUnifiedColorRow({ setting, plugin: this.plugin, selector, propKey: 'lightBgColor', modeName: "Light mode", fallbackColor: "#ffffff", isBackground: true, setControlValue: this.setControlValue.bind(this), refreshUI: this.refreshUI.bind(this) });
-    });
-  }
-
-  private createDarkBgRow(selector: CSSLink): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "mod-toggle scl-color-row scl-bg-picker-row scl-row-darkbg");
-      setting.setName("Dark Mode Background").setDesc("Background color for dark theme.");
-      buildUnifiedColorRow({ setting, plugin: this.plugin, selector, propKey: 'darkBgColor', modeName: "Dark mode", fallbackColor: "#1e1e1e", isBackground: true, setControlValue: this.setControlValue.bind(this), refreshUI: this.refreshUI.bind(this) });
-    });
-  }
-
-  private createDeleteRow(selector: CSSLink, index: number, selectors: CSSLink[]): MyGroupItems {
-    return this.row((setting) => {
-      this.setRowClass(setting, "scl-detail-row scl-row-delete");
-      setting.setName("Delete style").setDesc("Permanently remove this style rule.");
-      setting.addButton((btn) => { btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { selectors.splice(index, 1); if (this.activeEditUid === selector.uid) this.activeEditUid = null; this.plugin.compileActiveAttributes(); await this.plugin.saveSettings(); await this._generateSnippet(); this.refreshUI(); }); btn.buttonEl.addClass("mod-warning"); });
-    });
-  }
-
-  private async _generateSnippet() {
-    await buildCSS(this.plugin.settings.selectors, this.plugin);
+  private _generateSnippet() {
     updateVisibleLinks(this.app, this.plugin);
+    this.plugin.refreshEditorThemes();
+    this.compilePaneStyles();
+  }
+
+  public compilePaneStyles(): void {
+    const selectors = this.plugin.settings?.selectors || [];
+    const isDark = document.body.classList.contains("theme-dark");
+
+    for (let i = 0; i < selectors.length; i++) {
+      const rule = selectors[i];
+      if (!rule) continue;
+
+      const activeColor = isDark ? rule.darkColor : rule.lightColor;
+      const activeBg = isDark ? rule.darkBgColor : rule.lightBgColor;
+
+      // Finn rad-elementet i DOM-en via data-uid
+      const rowEl = this.containerEl.querySelector(`[data-uid="${rule.uid}"]`) as HTMLElement | null;
+      if (rowEl) {
+        // 🔑 INLINE RUNTIME OVERRIDE FOR UI: 
+        // Vi setter fargen direkte på radens stil. Dette er 100% uovervinnelig!
+        const noteEl = rowEl.querySelector(".data-link-text") as HTMLElement | null;
+        if (noteEl) {
+          if (activeColor) noteEl.style.color = activeColor;
+          if (activeBg && activeBg !== "transparent") noteEl.style.backgroundColor = activeBg;
+          
+          if (rule.fontWeight && rule.fontWeight !== "normal") noteEl.style.fontWeight = rule.fontWeight;
+          if (rule.fontStyle === "italic") noteEl.style.fontStyle = "italic";
+          else if (rule.fontStyle === "underline") noteEl.style.textDecoration = "underline";
+          else if (rule.fontStyle === "line-through") noteEl.style.textDecoration = "line-through";
+        }
+      }
+    }
   }
 
   override getControlValue(key: string): unknown {
@@ -211,11 +142,14 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     if (key.startsWith("scl_")) {
       const parts = key.split("_");
-      const prop = parts[1];
-      const uid = parts[2];
+      const prop = parts[1] ?? "";
+      const uid = parts[2] ?? "";
+      
       const selector = settings.selectors.find((s) => s.uid === uid);
       const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
-      if (selector && typeof prop === "string" && editableProps.includes(prop)) return (selector as unknown as Record<string, unknown>)[prop];
+      if (selector && prop && editableProps.includes(prop)) {
+        return (selector as unknown as Record<string, unknown>)[prop];
+      }
     }
     return undefined;
   }
@@ -226,11 +160,27 @@ export default class SCLSettingTab extends PluginSettingTab {
     const filteredSelectors = this.getFilteredSelectors(selectors);
     const existingRuleItems: MyGroupItems[] = [];
 
+    // Rigger opp kontekst-objektet for den eksterne fabrikken
+    const rowsContext = {
+      plugin: this.plugin,
+      activeEditUid: this.activeEditUid,
+      setControlValue: this.setControlValue.bind(this),
+      refreshUI: this.refreshUI.bind(this),
+      compilePaneStyles: this.compilePaneStyles.bind(this),
+      generateSnippet: this._generateSnippet.bind(this)
+    };
+
     filteredSelectors.forEach((selector) => {
       const index = selectors.indexOf(selector);
       const isEditing = this.activeEditUid === selector.uid;
       existingRuleItems.push({ render: (setting: Setting) => this.renderRuleRow(setting, selector, index, selectors, isEditing) });
-      if (isEditing) existingRuleItems.push(...this.getRuleDetailItems(selector, index, selectors));
+      
+      // 🔑 KALLER EKSTERN FABRIKK: Henter alle detaljradene typesikkert og ferdig renset!
+      if (isEditing) {
+        // 🔑 REKTIG & ELEGANT: Vi pakker hele tab-instansen inn i en typesikker kontrakt
+        const detailItems = getRuleDetailItems(this, selector, index, selectors);
+        existingRuleItems.push(...(detailItems as MyGroupItems[]));
+      }
     });
 
     const ruleItems: MyGroupItems[] = [
@@ -244,6 +194,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     ];
 
     definitions.push({ type: "group", heading: "Link Styling Rules", items: ruleItems as unknown as SettingGroupItem<string>[] });
+    
     definitions.push({
       type: "group",
       heading: "NEW rules",
@@ -326,7 +277,6 @@ export default class SCLSettingTab extends PluginSettingTab {
     setting.settingEl.addClass("markdown-rendered");
     if (isEditing) setting.settingEl.addClass("is-active");
     
-    // 🔑 DETTE ER LØSNINGEN: Gi HTML-elementet en unik ID-nøkkel så vi kan finne den lynraskt fra fargevelgeren!
     setting.settingEl.setAttribute("data-uid", selector.uid);
 
     setting.nameEl.empty();
@@ -335,21 +285,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.renderReorderGrip(setting, index, selectors);
   }
 
-
-  private getRuleDetailItems(selector: CSSLink, index: number, selectors: CSSLink[]): MyGroupItems[] {
-    const rows: MyGroupItems[] = [];
-    rows.push(this.createTypeRow(selector));
-    if (selector.type === "attribute") rows.push(this.createAttributeNameRow(selector));
-    rows.push(
-      this.createValueRow(selector), this.createIconBeforeRow(selector), this.createIconAfterRow(selector),
-      this.createFontWeightRow(selector), this.createFontStyleRow(selector), this.createLightColorRow(selector),
-      this.createDarkColorRow(selector), this.createLightBgRow(selector), this.createDarkBgRow(selector),
-      this.createDeleteRow(selector, index, selectors)
-    );
-    return rows;
-  }
-
-    private async moveRule(index: number, direction: number, selectors: CSSLink[]) {
+  private async moveRule(index: number, direction: number, selectors: CSSLink[]) {
     const targetIndex = index + direction;
     const currentSelector = selectors[index];
     const targetSelector = selectors[targetIndex];

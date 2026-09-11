@@ -115,3 +115,57 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
 
   return result;
 }
+
+/**
+ * 🔑 THE ULTIMATE MATCHING MATRIX: 
+ * Normalizes both user rule metrics and resolved document parameters to establish 
+ * a bulletproof paring sequence. Immune to leading hashtags, casing, or trailing spaces.
+ */
+export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): CSSLink | null {
+  if (!selectors || !Array.isArray(selectors)) return null;
+
+  for (let i = 0; i < selectors.length; i++) {
+    const selector = selectors[i];
+    if (!selector) continue;
+
+    let isMatch = false;
+    
+    // Vask regelen til ren, rå tekst uten mellomrom eller leading hashtags (f.eks. "👥gruppe")
+    const ruleValue = (selector.value || "").toLowerCase().trim().replace(/^#/, "");
+    if (!ruleValue) continue;
+
+    // 1. STRATEGI: Matcher mot tagger i fila (f.eks. "#👥gruppe" eller "👥gruppe")
+    if (selector.type === "tag") {
+      const rawTags = resolvedAttrs["tags"] || resolvedAttrs["data-link-tags"] || "";
+      const cleanFileTags = rawTags.toLowerCase().replace(/#/g, "").trim();
+      if (cleanFileTags.includes(ruleValue)) {
+        isMatch = true;
+      }
+    } 
+    // 2. STRATEGI: Matcher mot filnavn eller sti (f.eks. "👥menn.md")
+    else if (selector.type === "path") {
+      const rawPath = resolvedAttrs["path"] || resolvedAttrs["data-link-path"] || "";
+      const cleanPath = rawPath.toLowerCase().trim();
+      if (cleanPath.includes(ruleValue)) {
+        isMatch = true;
+      }
+    }
+    // 3. STRATEGI: Matcher mot egendefinerte frontmatter- eller Dataview-felter
+    else if (selector.type === "attribute") {
+      const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
+      if (cleanKey) {
+        const rawAttrVal = resolvedAttrs[cleanKey] || resolvedAttrs[`data-link-${cleanKey}`] || "";
+        const cleanAttrVal = rawAttrVal.toLowerCase().trim();
+        if (cleanAttrVal.includes(ruleValue)) {
+          isMatch = true;
+        }
+      }
+    }
+
+    if (isMatch) {
+      return selector; // Treff! Returner regelen umiddelbart
+    }
+  }
+
+  return null;
+}

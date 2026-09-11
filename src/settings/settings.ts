@@ -1,4 +1,4 @@
-import { CSSLink } from "./types/css-link";
+import { CSSLink } from "../types/css-link";
 
 export interface SCLSettings {
 	targetTags: boolean;
