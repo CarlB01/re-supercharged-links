@@ -118,8 +118,8 @@ export default class ResuperchargedLinks extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		const loaded = await this.loadData();
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+		const loadedData = (await this.loadData()) as Record<string, unknown> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData || {});
 		const { sanitized, hasChanges } = sanitizeRuleset(this.settings.selectors);
 		if (hasChanges) {
 			this.settings.selectors = sanitized;

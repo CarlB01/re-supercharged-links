@@ -32,14 +32,13 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
   const { setting, plugin, selector, propKey, fallbackColor, isBackground, setControlValue, refreshUI } = config;
   const historyKey = `${propKey}_${selector.uid}`;
 
-  // Cast selector lookups through a safe string record contract to eliminate any-keywords completely
   const modelProxy = selector as unknown as Record<string, string>;
 
   if (!colorTimelines[historyKey]) {
     colorTimelines[historyKey] = { past: [modelProxy[propKey] || ""], future: [] };
   }
 
-  const timeline = colorTimelines[historyKey]!;
+  const timeline = colorTimelines[historyKey];
 
   // 1. ADD DEDICATED UNDO BUTTON NODE
   setting.addExtraButton((undoBtn) => {

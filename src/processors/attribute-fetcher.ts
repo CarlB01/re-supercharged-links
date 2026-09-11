@@ -23,7 +23,6 @@ interface InternalPluginRegistry {
 	};
 }
 
-// 🔑 FIKSET: Lagrer API-referansen med et konkret, typesikkert grensesnitt i stedet for any
 let cachedDvApi: DataviewAPI | null = null;
 
 /**

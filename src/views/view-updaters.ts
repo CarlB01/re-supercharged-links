@@ -183,7 +183,6 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		const file = leaf.view.file;
 		const cachedFile = app.metadataCache.getFileCache(file);
 
-		// 🔑 FIKSET TYPESIKKERHET: Cast viewet via unknown til vår interne kontrakt i stedet for any
 		let metadataPane: HTMLElement | null = null;
 		const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
 		if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {

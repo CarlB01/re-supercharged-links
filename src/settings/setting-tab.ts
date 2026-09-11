@@ -9,8 +9,6 @@ import { getRuleDetailItems } from "./components/detail-rows-factory"; // 🔑 I
 // Import layout micro-components
 import { createColorCapsule } from "./components/color-capsule";
 import { renderRuleSentence } from "./components/rule-renderer";
-import { compilePaneStyles } from "./components/pane-style-compiler";
-
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
 export default class SCLSettingTab extends PluginSettingTab {
@@ -103,7 +101,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     updateVisibleLinks(this.app, this.plugin);
     this.plugin.refreshEditorThemes();
     window.requestAnimationFrame(() => {
-      compilePaneStyles(this.containerEl, this.plugin.settings?.selectors || []);
+      this.compilePaneStyles();
     });
   }
 
@@ -248,7 +246,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     this.renderReorderGrip(setting, index, selectors);
 
     window.requestAnimationFrame(() => {
-      compilePaneStyles(this.containerEl, this.plugin.settings?.selectors || []);
+      this.compilePaneStyles();
     });
   }
 
@@ -329,5 +327,44 @@ export default class SCLSettingTab extends PluginSettingTab {
 
   private handleGlobalSettingUpdate(key: string, value: unknown): void {
     (this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
+  }
+
+  public compilePaneStyles(): void {
+    const selectors = this.plugin.settings?.selectors || [];
+    const isDark = document.body.classList.contains("theme-dark");
+
+    for (let i = 0; i < selectors.length; i++) {
+      const rule = selectors[i];
+      if (!rule) continue;
+
+      const activeColor = isDark ? rule.darkColor : rule.lightColor;
+      const activeBg = isDark ? rule.darkBgColor : rule.lightBgColor;
+
+      // Finn Note-kapselen direkte i kontrollpanelet via den unike klassen
+      const noteEl = this.containerEl.querySelector(`.data-link-text.scl-rule-${rule.uid}`) as HTMLElement | null;
+      
+      if (noteEl) {
+        // Bygg opp et lovlig stil-objekt fullstendig uten undefined-verdier
+        const targetStyles: Partial<CSSStyleDeclaration> = {
+          color: activeColor || "var(--text-normal)",
+          backgroundColor: (activeBg && activeBg !== "transparent") ? activeBg : "transparent",
+          fontWeight: (rule.fontWeight && rule.fontWeight !== "normal") ? rule.fontWeight : "normal",
+          fontStyle: "normal",
+          textDecoration: "none"
+        };
+        
+        // Håndter tekstdekorasjoner trygt
+        if (rule.fontStyle === "italic") {
+          targetStyles.fontStyle = "italic";
+        } else if (rule.fontStyle === "underline") {
+          targetStyles.textDecoration = "underline";
+        } else if (rule.fontStyle === "line-through") {
+          targetStyles.textDecoration = "line-through";
+        }
+
+        // Appliker stilene 100 % Obsidian-lovlig!
+        noteEl.setCssStyles(targetStyles);
+      }
+    }
   }
 }

@@ -1,12 +1,18 @@
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
-import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
 import { findMatchingRule } from "../processors/rule-sanitizer";
 import { startsWithToken, endsWithToken, norm } from "../utils/string-utils";
 import { extractCleanLinkPath, resolveLinkFile } from "./live-preview";
+
+interface CodeMirrorNodeRef {
+	name: string;
+	from: number;
+	to: number;
+}
 
 /**
  * 🟢 RUNTIME EMOJI WIDGET: Physical DOM factory that eradicates icon duplicates.
@@ -17,13 +23,23 @@ class IconWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
+		// 🔑 FIKSET: Vi bruker createElement, men konfigurerer det med Obsidians egne hjelpere!
+		// Dette forhindrer HierarchyRequestError og godkjennes 100% av linteren.
 		const span = document.createElement("span");
-		span.className = this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after";
-		span.textContent = this.icon;
-		if (this.isBefore) span.style.marginRight = "3px"; else span.style.marginLeft = "3px";
-		span.style.display = "inline-block";
+		
+		span.addClass(this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after");
+		span.setText(this.icon);
+
+		// Linter-sikret stil-tildeling via prototype
+		if (this.isBefore) {
+			span.setCssStyles({ marginRight: "3px", display: "inline-block" });
+		} else {
+			span.setCssStyles({ marginLeft: "3px", display: "inline-block" });
+		}
+
 		return span;
 	}
+
 
 	eq(other: IconWidget): boolean {
 		return other.icon === this.icon && other.isBefore === this.isBefore;
@@ -61,7 +77,7 @@ export class CMViewPlugin {
 		this.decorations = this.buildDecorations(view);
 	}
 
-	update(update: any): void {
+	update(update: ViewUpdate): void {
 		if (update.docChanged || update.viewportChanged) {
 			this.decorations = this.buildDecorations(update.view);
 		}
@@ -107,7 +123,16 @@ export class CMViewPlugin {
 	 * 🔑 THE GOLDEN SUBROUTINE: Processes nodes cleanly based on the stable node.name contract.
 	 * 🛠️ FIKSET: Farger og stiler tildeles ALLTID, uavhengig av om ikonet skjules!
 	 */
-	private processNodeToken(view: EditorView, node: any, state: IterationState, updateFrom: number, updateTo: number): void {
+	/**
+	 * 🔑 THE GOLDEN SUBROUTINE: Processes nodes cleanly based on the stable node.name contract.
+	 */
+	private processNodeToken(
+		view: EditorView, 
+		node: CodeMirrorNodeRef, 
+		state: IterationState, 
+		updateFrom: number, 
+		updateTo: number
+	): void {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
 		if (isCodeMirrorInternalLink(node.name)) {
@@ -123,12 +148,16 @@ export class CMViewPlugin {
 			const linkLabel = view.state.doc.sliceString(node.from, node.to).trim();
 			const deco = this.processLinkDecoration(file, linkLabel);
 
-			state.currentActiveAttributes = deco.spec.attributes || {};
-			state.currentActiveClasses = deco.spec.class || "";
+			// 🔑 SIKRET UTPAKKING: Vi forteller linteren nøyaktig hvordan spec-objektet ser ut via en ukjent mellomlanding
+			const specProxy = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec || {};
+			
+			state.currentActiveAttributes = specProxy.attributes || {};
+			state.currentActiveClasses = specProxy.class || "";
 
 			if (node.from >= state.from && node.to <= state.to) {
-				const iconBefore = (state.currentActiveAttributes as any)?.["data-scl-icon-before"] || "";
-				const iconAfter = (state.currentActiveAttributes as any)?.["data-scl-icon-after"] || "";
+				const attrs = state.currentActiveAttributes;
+				const iconBefore = attrs["data-scl-icon-before"] || "";
+				const iconAfter = attrs["data-scl-icon-after"] || "";
 
 				const skipBefore = state.currentActiveClasses.includes("scl-hide-before");
 				const skipAfter = state.currentActiveClasses.includes("scl-hide-after");

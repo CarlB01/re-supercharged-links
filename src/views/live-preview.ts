@@ -1,4 +1,4 @@
-import { Compartment } from "@codemirror/state";
+import { Compartment, Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import { App, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
@@ -25,12 +25,12 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 	return file;
 }
 
+
 /**
  * 🚀 REAKTIV MINNE-TEMA GENERATOR
  * Kobler fargene direkte til .data-link-text og .cm-underline.
- * Dette gjør fargene uovervinnelige mot Obsidians standardstiler, helt uten !important!
  */
-export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): any {
+export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
 	const themeSpec: Record<string, Record<string, string>> = {};
 	const selectors = plugin.settings?.selectors || [];
 	const isDark = document.body.classList.contains("theme-dark");
@@ -42,8 +42,6 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): any {
 		const activeColor = isDark ? rule.darkColor : rule.lightColor;
 		const activeBg = isDark ? rule.darkBgColor : rule.lightBgColor;
 		
-		// 🔑 FIKSET VEKT: Kobler fargeregelen eksplisitt til våre kjerne-klasser!
-		// Dette garanterer at fargene overlever selv om ikonet blir deaktivert.
 		const targetSelector = `& .data-link-text.scl-rule-${rule.uid}, & .cm-underline.scl-rule-${rule.uid}`;
 		themeSpec[targetSelector] = {};
 
@@ -64,7 +62,8 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): any {
 	return EditorView.theme(themeSpec);
 }
 
-export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): any {
+
+export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): Extension {
 	return ViewPlugin.fromClass(
 		class extends CMViewPlugin {
 			constructor(view: EditorView) {
@@ -74,3 +73,4 @@ export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): any {
 		{ decorations: (v) => v.decorations }
 	);
 }
+

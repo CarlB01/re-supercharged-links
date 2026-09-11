@@ -74,7 +74,7 @@ interface IconMatchResult {
 
 /**
  * Iterates through active user style rules to find the first selector matching 
- * the resolved file attributes. 100% ESLint safe without explicit any keywords.
+ * the resolved file attributes. 
  */
 export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): IconMatchResult {
   const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
@@ -97,7 +97,6 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
     }
 
     if (isMatch) {
-      // 🔑 FIKSET: Vi fjerner 'as any' og bruker trygge type-guards for camelCase/lowercase-fallbacks
       const hasIconBefore = "iconBefore" in selector || "iconbefore" in selector;
       const hasIconAfter = "iconAfter" in selector || "iconafter" in selector;
 

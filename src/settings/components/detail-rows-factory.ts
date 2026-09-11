@@ -1,12 +1,10 @@
 import { Setting, SettingDefinitionItem, App } from "obsidian";
-import { CSSLink, SelectorTypes } from "../../types/css-link";
+import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
 import ResuperchargedLinks from "../../main";
-import { compilePaneStyles } from "./pane-style-compiler";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
-// 🔑 FIKSET: Erstattet 'any' med de faktiske, konkrete objektene fra arkitekturen din
 export interface ISCLSettingTab {
 	plugin: ResuperchargedLinks;
 	app: App;
@@ -14,6 +12,7 @@ export interface ISCLSettingTab {
 	setControlValue(key: string, value: unknown, silent?: boolean): Promise<void>;
 	update(): void;
 	containerEl: HTMLElement;
+	compilePaneStyles(): void; 
 }
 
 /**
@@ -34,9 +33,6 @@ function createDetailRow(
 	};
 }
 
-/**
- * 👑 UTEN REPETISJONER, ANY ELLER UNDEFINED
- */
 export function getRuleDetailItems(
 	tab: ISCLSettingTab, 
 	selector: CSSLink,
@@ -44,7 +40,7 @@ export function getRuleDetailItems(
 	selectors: CSSLink[]
 ): MyGroupItems[] {
 	const rows: MyGroupItems[] = [];
-	const triggerStylesUpdate = () => compilePaneStyles(tab.containerEl, selectors);
+	const triggerStylesUpdate = () => tab.compilePaneStyles();
 
 	// 1. Match Target Type Row
 	rows.push(createDetailRow("scl-detail-row scl-row-type", "Match Target Type", "Select target metadata type.", (setting) => {

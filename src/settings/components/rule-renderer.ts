@@ -1,5 +1,4 @@
 import { CSSLink } from "../../types/css-link";
-import { processKey } from "../../utils/string-utils";
 
 export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void {
   // Vi oppretter spanet med nøyaktig de samme klassene som en live lenke bruker!
@@ -22,9 +21,6 @@ export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void 
 
   noteSpan.setText("Note");
 }
-
-
-
 
 /**
  * Assembles human-readable configuration descriptive strings alongside dynamic inline markup.
