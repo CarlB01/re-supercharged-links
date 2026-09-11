@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/github/downloads/CarlB01/re-supercharged-links/total)](https://github.com/CarlB01/re-supercharged-links/releases)
 [![Stars](https://img.shields.io/github/stars/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/stargazers)
 
-A modern, performance-focused fork of **Supercharged Links** for Obsidian — rebuilt for cleaner architecture, faster rendering, and a smoother mobile experience.
+A modern, high-performance, and completely re-architected fork of **Supercharged Links** for Obsidian. Rebuilt from the ground up for instantaneous rendering, zero layout thrashing, and an ultra-light memory footprint.
 
 ---
 
@@ -26,79 +26,43 @@ Instead of plain internal links, you can style links based on frontmatter/fields
 - Keep visual consistency across large vaults without manual formatting
 
 ---
+## ✨ The Architectural Evolution: Original vs. Re-Supercharged
 
-## 🚀 What's New in v0.0.31
+To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive, multi-thousand-note vaults.
 
-* **Linear Undo/Redo Timelines**: Granular history stacks for rule modifications that let you step through changes fluidly.
-* **Zero-Allocation Hot-Paths**: Re-engineered CodeMirror view loops that maintain a locked 60+ FPS rhythm during typing and scrolling.
-* **Foolproof Emoji Deduplication**: Multi-stage regex boundaries that eliminate trailing emoji duplicates even on composite Unicode glyphs (e.g., `male⚕️`).
-* **Multi-Window Isolation**: Context-agnostic DOM node validation ensuring styles load identically in Obsidian desktop pop-out windows.
+### 📊 Comparative Analysis
 
----
-
-## 📦 Installation
-
-### Method 1: Obsidian Community Plugins (Recommended)
-
-Re-Supercharged Links is officially available in the Obsidian Community Plugins directory.
-
-1. Open **Settings → Community plugins** in Obsidian.
-2. Make sure **Restricted mode** is turned off.
-3. Click **Browse**.
-4. Search for **Re-Supercharged Links**.
-5. Click **Install**, then **Enable**.
-
-### Method 2: BRAT (Optional for beta testing)
-
-If you want pre-release or beta updates:
-
-1. Install and enable **BRAT** from Community Plugins.
-2. Open BRAT settings and click **Add Beta plugin**.
-3. Paste: `https://github.com/CarlB01/re-supercharged-links`
-4. Confirm to install.
-
-### Method 3: Manual Installation
-
-1. Go to the [Releases](https://github.com/CarlB01/re-supercharged-links/releases) page.
-2. Download `main.js`, `manifest.json`, and `styles.css`.
-3. Place them in:
-
-   `.obsidian/plugins/re-supercharged-links/`
-
-4. Reload Obsidian and enable the plugin in **Community plugins**.
+| Feature / Core Mechanism | Original Supercharged Links (`mdelobelle/..`) | Re-Supercharged Links (`CarlB01/..`) |
+| :--- | :--- | :--- |
+| **Styling Mechanism** | **Disk Persisted CSS Snippets.** Generates and writes a massive, static `.css` file (`re-supercharged-links-gen.css`) to your local drive every time a settings rule is touched. | **All-In-Memory Runtime.** Eliminates disk manipulation entirely. Styles are compiled and processed directly in-memory, updating UI profiles synchronously. |
+| **DOM Engine Lookup** | **Substring Attribute Scanning ($=, \*=).** Forces the browser's graphics thread to perform deep, heavy sub-string match checks (e.g., `[data-link-tags*="👥gruppe" i]`) continuously on every frame while scrolling. | **O(1) Hash-Table Matching.** Assigns clean, static structural rules (`.scl-rule-${uid}`) during node assembly. The browser performs a point-blank lookup map query instantly. |
+| **Icon Affixes (Emojis)** | **CSS Pseudo-Elements (`::before` / `::after`).** Emojis are injected blindly via text content properties in CSS style rules, creating standard timing lag anomalies. | **Physical HTML Widgets (`<span>`).** Embeds localized, lightweight spans natively inside CodeMirror 6 and Read Mode streams, giving the plugin total program control over the exact node lifecycle. |
+| **Deduplication Handling** | **Prone to Visual Doubling.** If a filename naturally starts or ends with an emoji, the blind CSS selector injects a duplicate emoji anyway, cluttering link paths. | **Foolproof Early Suppression.** The TypeScript pipeline evaluates the raw label string *before* building nodes. If the emoji is already present in the filename text, node generation is cleanly bypassed. |
 
 ---
 
-## ⚙️ Quick start
+## ⚖️ The Honest Trade-offs: Pros and Cons
 
-1. Open plugin settings.
-2. Create a rule for a metadata key (example: `status`).
-3. Assign styles for light/dark mode.
-4. Save and verify links update in notes/panes.
+Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in user experience and speed, it changes how the plugin interacts with the user's setup.
 
-Tip: Start with 1–2 keys (`status`, `type`) and scale from there.
+### 🟢 Pros (Why you should use it)
+* **Zero UI Lag or Scrolling Micro-Stutter:** By dropping expensive string-matching CSS queries, large files maintain a fluid, locked 60+ FPS rhythm.
+* **Instant Settings Feedback:** Color choices light up your links inside configuration preview badges in the exact microsecond you release the cursor from the color wheel.
+* **No More Emoji Nightmares:** Edge-case composite Unicode duplication bugs (such as medical or group icons mirroring themselves onto links) are completely eliminated.
+* **Cleaner Workspace Footprint:** No more ghost CSS snippet files lingering on your storage drive or crashing background file-watcher threads during rapid synchronization.
 
----
-
-## 🧠 Architecture Highlights
-
-The plugin follows a strict, layered single-responsibility design modeled after a predictable assembly line pipeline:
-
-Obsidian Core Event ➔ View Updaters ➔ Attribute Fetchers ➔ String Utilities ➔ Link Mutators
-
-* **Hot-Path Transaction Cache**: local map dictionaries (`attrCycleCache`) hold fully evaluated metadata attributes resolved within a single event loop cycle, preventing layout thrashing during high-frequency scroll frames.
-* **Data Layer (Model)**: Fully decoupled from HTML mutations. Communicates safely with native metadata caches and third-party Dataview pipelines to build clean, typed state structures.
-* **Graphics Engine (View)**: Mutes layout thrashing by executing atomic style updates and hardware-accelerated CSS variables inside the browser's repaint cycle.
-* **Mobile-First Footprint**: Low memory profile and zero-allocation execution paths guarantee a stutter-free note-taking experience across iOS, Android, and lower-end hardware devices.
+### 🔴 Cons (What to be aware of)
+* **No Manual External CSS Tweaking:** Because styles are kept as active runtime states in memory instead of being exposed inside a global, readable `.css` file on your hard drive, you can't easily open an external text editor and manually hack the plugin's layout outputs with custom cascading user-snippets. (Custom rules must be built using the dedicated settings UI pane).
+* **Deep Architectural Divergence:** This plugin has moved so far past the original implementation that settings objects are structurally unique. It cannot cleanly read or inherit old legacy data structures from the original plugin without re-configuring rules.
 
 ---
 
-## 🔧 Core Options & Advanced Features
+## ⚙️ Quick Start
 
-* **Visual Metadata Styling**: Color internal links contextually based on frontmatter or fields to communicate status, type, or priority at a glance.
-* **Style Tag Chips (`a.tag`)**: Extends Supercharged styling frameworks safely to active tag chip nodes inside all observed layout containers.
-* **Deduplicated Affix Icons**: Smarter prepend/append icon rules that automatically suppress duplicate visuals if the icon is already part of the file name.
-* **Ecosystem Integration**: Scoped, high-performance MutationObservers that safely intercept and style popular community interfaces like **Bases**, **Breadcrumbs**, **Omnisearch**, and native **File Explorer** trees.
+1. Open **Settings → Community plugins** and install **Re-Supercharged Links**.
+2. Navigate to the option pane and create a new selector rule targeting a metadata marker (e.g., `status`).
+3. Assign text weight options, custom icon affixes, and distinct colors for both light and mørk mode.
+4. Watch your workspace map itself out visually in real-time!
 
 ---
 
@@ -121,19 +85,9 @@ Styles are created and edited directly in the settings UI.
 
 ---
 
-## 🗺️ Roadmap
+## 🤝 Credits & Lineage
 
-- Continued UX refinements in settings flow
-- More preset/style ergonomics
-- Extra polish for large vault performance
-- Ongoing strict-mode and lint hardening
-
----
-
-## 🤝 Credits
-
-Massive respect to the original **Supercharged Links** creators and contributors.  
-This project stands on that foundation, with a modernized architecture and independent maintenance path.
+Deepest respect and gratitude to the original creators and maintainers of **Supercharged Links**. Their brilliant vision provided the conceptual baseline for what metadata links could achieve in Obsidian. This fork stands on that pioneering foundation, built to carry the workflow safely into future Obsidian API environments.
 
 ---
 
@@ -146,4 +100,6 @@ If this plugin improves your workflow:
 
 ---
 
-Developed with care by a healthcare worker who loves colorful, meaningful links.
+Developed with care by a healthcare worker who relies on metadata-heavy vaults and loves colorful, meaningful links that tell a story at a glance.
+
+License: **MIT**
