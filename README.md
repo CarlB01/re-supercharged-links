@@ -64,6 +64,7 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 3. Assign text weight options, custom icon affixes, and distinct colors for both light and mørk mode.
 4. Watch your workspace map itself out visually in real-time!
 
+---
 
 ## 🖼️ Screenshots
 
