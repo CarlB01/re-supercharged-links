@@ -1,36 +1,28 @@
 import { CSSLink } from "../../types/css-link";
 import { processKey } from "../../utils/string-utils";
 
-/**
- * Dynamically provisions an inline document preview node mimicking live layout attribute configurations.
- */
 export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void {
-  const noteSpan = parent.createSpan({ cls: "data-link-text" });
+  // Vi oppretter spanet med nøyaktig de samme klassene som en live lenke bruker!
+  const noteSpan = parent.createSpan({ 
+    cls: `data-link-text scl-rule-${selector.uid}` 
+  });
 
-  // Bind den unike regelen sin UID slik at compilePaneStyles fanger den opp
-  noteSpan.setAttribute("data-uid", selector.uid);
-
-  // Vask og normaliser verdien
+  // Valider verdien
   const val = (selector.value || "").trim();
 
-  // 🔑 FIKSET: Vi lagrer verdien i BÅDE standard-feltet og data-link feltet 
-  // for å garantere at findMatchingRule fanger den opp uansett visnings-kontekst!
+  // Lagre attributter for å simulere en ekte lenke i DOM-en
   if (selector.type === "tag") {
-    noteSpan.setAttribute("tags", val);
     noteSpan.setAttribute("data-link-tags", val);
   } else if (selector.type === "attribute") {
     const key = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
-    if (key) {
-      noteSpan.setAttribute(key, val);
-      noteSpan.setAttribute(`data-link-${key}`, val);
-    }
+    if (key) noteSpan.setAttribute(`data-link-${key}`, val);
   } else {
-    noteSpan.setAttribute("path", val);
     noteSpan.setAttribute("data-link-path", val);
   }
 
   noteSpan.setText("Note");
 }
+
 
 
 

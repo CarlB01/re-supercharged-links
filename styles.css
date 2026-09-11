@@ -88,15 +88,6 @@
       padding: 0 3px;     
       margin: 0 4px;      
       white-space: nowrap;
-
-      &::before {
-        margin-right: 0px;
-        padding-right: 0px;
-      }
-      &::after {
-        margin-left: 0px;
-        padding-left: 0px;
-      }
     }
 
     button {
@@ -359,11 +350,4 @@
 .data-link-text.scl-style-line-through,
 .cm-underline.scl-style-line-through { 
   text-decoration: line-through; 
-}
-
-/* 🔑 SIKRET FOR KONTROLLPANEL (NOTE): 
-   Lar compilePaneStyles overstyre radens utseende helt naturlig i minnet */
-.vertical-tab-content-container .scl-main-rule-row .data-link-text {
-  color: inherit;
-  background-color: transparent;
 }

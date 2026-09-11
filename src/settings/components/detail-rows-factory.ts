@@ -1,25 +1,41 @@
-import { Setting, SettingDefinitionItem } from "obsidian";
-import { CSSLink } from "../../types/css-link";
+import { Setting, SettingDefinitionItem, App } from "obsidian";
+import { CSSLink, SelectorTypes } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
+import ResuperchargedLinks from "../../main";
+import { compilePaneStyles } from "./pane-style-compiler";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
-function row(render: (setting: Setting) => void): MyGroupItems { return { render }; }
-function setRowClass(setting: Setting, cls: string): void { setting.settingEl.className = `setting-item ${cls}`; }
-
-// 🔑 LØSNINGEN: Et frittstående grensesnitt i stedet for direkte import av klassen.
-// Dette kutter sirkulære avhengigheter tvert av og sikrer at CodeMirror-temaet laster perfekt!
+// 🔑 FIKSET: Erstattet 'any' med de faktiske, konkrete objektene fra arkitekturen din
 export interface ISCLSettingTab {
-	plugin: any;
-	app: any;
+	plugin: ResuperchargedLinks;
+	app: App;
 	activeEditUid: string | null;
 	setControlValue(key: string, value: unknown, silent?: boolean): Promise<void>;
 	update(): void;
-	compilePaneStyles(): void;
+	containerEl: HTMLElement;
 }
 
 /**
- * 🚀 SIRKEL-FRI RAD-FABRIKK: Henter alt den trenger fra grensesnittet uten import-kollisjoner.
+ * 🛠️ INTERN PREFAB-FABRIKK
+ */
+function createDetailRow(
+	cls: string,
+	name: string,
+	desc: string,
+	buildControl: (setting: Setting) => void
+): MyGroupItems {
+	return {
+		render: (setting: Setting) => {
+			setting.settingEl.className = `setting-item ${cls}`;
+			setting.setName(name).setDesc(desc);
+			buildControl(setting);
+		}
+	};
+}
+
+/**
+ * 👑 UTEN REPETISJONER, ANY ELLER UNDEFINED
  */
 export function getRuleDetailItems(
 	tab: ISCLSettingTab, 
@@ -28,13 +44,15 @@ export function getRuleDetailItems(
 	selectors: CSSLink[]
 ): MyGroupItems[] {
 	const rows: MyGroupItems[] = [];
+	const triggerStylesUpdate = () => compilePaneStyles(tab.containerEl, selectors);
 
-	// Match Target Type Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-type");
-		setting.setName("Match Target Type").setDesc("Select target metadata type.");
+	// 1. Match Target Type Row
+	rows.push(createDetailRow("scl-detail-row scl-row-type", "Match Target Type", "Select target metadata type.", (setting) => {
 		setting.addDropdown((d) => {
-			d.addOption("tag", "Tag").addOption("attribute", "Attribute").addOption("path", "Note Path").setValue(selector.type || "tag");
+			d.addOption("tag", "Tag")
+			 .addOption("attribute", "Attribute")
+			 .addOption("path", "Note Path")
+			 .setValue(selector.type || "tag"); // 🛡️ Beskyttelse mot undefined fallbacks
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
 					await tab.setControlValue(`scl_type_${selector.uid}`, v, true); 
@@ -44,11 +62,9 @@ export function getRuleDetailItems(
 		});
 	}));
 
-	// Attribute Key Name Row
+	// 2. Attribute Key Name Row (Kun synlig hvis typen er attribute)
 	if (selector.type === "attribute") {
-		rows.push(row((setting) => {
-			setRowClass(setting, "scl-detail-row scl-row-attrname");
-			setting.setName("Key name (attributes only)").setDesc("Frontmatter key to read.");
+		rows.push(createDetailRow("scl-detail-row scl-row-attrname", "Key name (attributes only)", "Frontmatter key to read.", (setting) => {
 			setting.addText((t) => t.setPlaceholder("status").setValue(selector.name || "").onChange(async (v) => { 
 				await tab.setControlValue(`scl_name_${selector.uid}`, v, true); 
 				tab.update(); 
@@ -56,143 +72,98 @@ export function getRuleDetailItems(
 		}));
 	}
 
-	// Keyword Value Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-value");
-		setting.setName("Value to match").setDesc("Trigger keyword.");
+	// 3. Keyword Value Row
+	rows.push(createDetailRow("scl-detail-row scl-row-value", "Value to match", "Trigger keyword.", (setting) => {
 		setting.addText((t) => t.setPlaceholder("todo").setValue(selector.value || "").onChange(async (v) => { 
 			await tab.setControlValue(`scl_value_${selector.uid}`, v, true); 
 			tab.update(); 
 		}));
 	}));
 
-	// Prepend Icon Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-iconbefore");
-		setting.setName("Prepend Icon").setDesc("Icon to inject before link text.");
+	// 4. Prepend Icon Row
+	rows.push(createDetailRow("scl-detail-row scl-row-iconbefore", "Prepend Icon", "Icon to inject before link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconBefore || "").onChange(async (v) => { 
 			await tab.setControlValue(`scl_iconBefore_${selector.uid}`, v, true); 
-			tab.compilePaneStyles(); 
+			triggerStylesUpdate(); 
 		}));
 	}));
 
-	// Append Icon Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-iconafter");
-		setting.setName("Append Icon").setDesc("Icon to inject after link text.");
+	// 5. Append Icon Row
+	rows.push(createDetailRow("scl-detail-row scl-row-iconafter", "Append Icon", "Icon to inject after link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconAfter || "").onChange(async (v) => { 
 			await tab.setControlValue(`scl_iconAfter_${selector.uid}`, v, true); 
-			tab.compilePaneStyles(); 
+			triggerStylesUpdate(); 
 		}));
 	}));
 
-	// Font Weight Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-weight");
-		setting.setName("Font Weight").setDesc("Choose font weight.");
+	// 6. Font Weight Row
+	rows.push(createDetailRow("scl-detail-row scl-row-weight", "Font Weight", "Choose font weight.", (setting) => {
 		setting.addDropdown((d) => { 
-			d.addOption("normal", "Normal").addOption("lighter", "Lighter").addOption("bold", "Bold").setValue(selector.fontWeight || "normal"); 
+			d.addOption("normal", "Normal")
+			 .addOption("lighter", "Lighter")
+			 .addOption("bold", "Bold")
+			 .setValue(selector.fontWeight || "normal"); 
 			d.onChange(async (v) => { 
-				await tab.setControlValue(`scl_fontWeight_${selector.uid}`, v, true); 
-				tab.compilePaneStyles(); 
+				if (v === "normal" || v === "lighter" || v === "bold") {
+					await tab.setControlValue(`scl_fontWeight_${selector.uid}`, v, true); 
+					triggerStylesUpdate(); 
+				}
 			}); 
 		});
 	}));
 
-	// Font Style / Text Decoration Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-style");
-		setting.setName("Font Style").setDesc("Choose text decoration.");
+	// 7. Font Style / Text Decoration Row
+	rows.push(createDetailRow("scl-detail-row scl-row-style", "Font Style", "Choose text decoration.", (setting) => {
 		setting.addDropdown((d) => { 
-			d.addOption("normal", "Normal").addOption("italic", "Italic").addOption("underline", "Underline").addOption("line-through", "Strikethrough").setValue(selector.fontStyle || "normal"); 
+			d.addOption("normal", "Normal")
+			 .addOption("italic", "Italic")
+			 .addOption("underline", "Underline")
+			 .addOption("line-through", "Strikethrough")
+			 .setValue(selector.fontStyle || "normal"); 
 			d.onChange(async (v) => { 
-				await tab.setControlValue(`scl_fontStyle_${selector.uid}`, v, true); 
-				tab.compilePaneStyles(); 
+				if (v === "normal" || v === "italic" || v === "underline" || v === "line-through") {
+					await tab.setControlValue(`scl_fontStyle_${selector.uid}`, v, true); 
+					triggerStylesUpdate(); 
+				}
 			}); 
 		});
 	}));
 
-	// Light Color Picker Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "mod-toggle scl-color-row scl-text-picker-row scl-row-lightcolor");
-		setting.setName("Light Mode Color").setDesc("Text color for light theme.");
-		buildUnifiedColorRow({ 
-			setting, 
-			plugin: tab.plugin, 
-			selector, 
-			propKey: 'lightColor', 
-			modeName: "Light mode",
-			fallbackColor: "#ffffff", 
-			isBackground: false, 
-			setControlValue: tab.setControlValue.bind(tab), 
-			refreshUI: () => { tab.update(); tab.compilePaneStyles(); } 
-		});
-	}));
+	// Slank parameter-matrise for fargevelgere
+	const colorConfigs = [
+		{ key: 'lightColor', cls: 'scl-row-lightcolor', name: 'Light Mode Color', desc: 'Text color for light theme.', isBg: false, fallback: '#ffffff' },
+		{ key: 'darkColor', cls: 'scl-row-darkcolor', name: 'Dark Mode Color', desc: 'Text color for dark theme.', isBg: false, fallback: '#000000' },
+		{ key: 'lightBgColor', cls: 'scl-row-lightbg', name: 'Light Mode Background', desc: 'Background color for light theme.', isBg: true, fallback: '#ffffff' },
+		{ key: 'darkBgColor', cls: 'scl-row-darkbg', name: 'Dark Mode Background', desc: 'Background color for dark theme.', isBg: true, fallback: '#1e1e1e' }
+	] as const;
 
-	// Dark Color Picker Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "mod-toggle scl-color-row scl-text-picker-row scl-row-darkcolor");
-		setting.setName("Dark Mode Color").setDesc("Text color for dark theme.");
-		buildUnifiedColorRow({ 
-			setting, 
-			plugin: tab.plugin, 
-			selector, 
-			propKey: 'darkColor', 
-			modeName: "Dark mode",
-			fallbackColor: "#000000", 
-			isBackground: false, 
-			setControlValue: tab.setControlValue.bind(tab), 
-			refreshUI: () => { tab.update(); tab.compilePaneStyles(); } 
-		});
-	}));
+	// 8, 9, 10, 11. Generer fargerader med garanterte fallbacks mot undefined
+	for (const c of colorConfigs) {
+		const pickerClass = c.isBg ? "scl-bg-picker-row" : "scl-text-picker-row";
+		rows.push(createDetailRow(`mod-toggle scl-color-row ${pickerClass} ${c.cls}`, c.name, c.desc, (setting) => {
+			buildUnifiedColorRow({ 
+				setting, 
+				plugin: tab.plugin, 
+				selector, 
+				propKey: c.key, 
+				modeName: c.name.replace(" Color", "").replace(" Background", "") + " mode",
+				fallbackColor: c.fallback, 
+				isBackground: c.isBg, 
+				setControlValue: tab.setControlValue.bind(tab), 
+				refreshUI: () => { tab.update(); triggerStylesUpdate(); } 
+			});
+		}));
+	}
 
-	// Light Background Picker Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "mod-toggle scl-color-row scl-bg-picker-row scl-row-lightbg");
-		setting.setName("Light Mode Background").setDesc("Background color for light theme.");
-		buildUnifiedColorRow({ 
-			setting, 
-			plugin: tab.plugin, 
-			selector, 
-			propKey: 'lightBgColor', 
-			modeName: "Light mode",
-			fallbackColor: "#ffffff", 
-			isBackground: true, 
-			setControlValue: tab.setControlValue.bind(tab), 
-			refreshUI: () => { tab.update(); tab.compilePaneStyles(); } 
-		});
-	}));
-
-	// Dark Background Picker Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "mod-toggle scl-color-row scl-bg-picker-row scl-row-darkbg");
-		setting.setName("Dark Mode Background").setDesc("Background color for dark theme.");
-		buildUnifiedColorRow({ 
-			setting, 
-			plugin: tab.plugin, 
-			selector, 
-			propKey: 'darkBgColor', 
-			modeName: "Dark mode",
-			fallbackColor: "#1e1e1e", 
-			isBackground: true, 
-			setControlValue: tab.setControlValue.bind(tab), 
-			refreshUI: () => { tab.update(); tab.compilePaneStyles(); } 
-		});
-	}));
-
-	// Delete Style Row
-	rows.push(row((setting) => {
-		setRowClass(setting, "scl-detail-row scl-row-delete");
-		setting.setName("Delete style").setDesc("Permanently remove this style rule.");
+	// 12. Delete Style Row
+	rows.push(createDetailRow("scl-detail-row scl-row-delete", "Delete style", "Permanently remove this style rule.", (setting) => {
 		setting.addButton((btn) => { 
 			btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { 
 				selectors.splice(index, 1); 
 				if (tab.activeEditUid === selector.uid) tab.update(); 
 				tab.plugin.compileActiveAttributes(); 
 				await tab.plugin.saveSettings(); 
-				
-				// Direkte synkrone oppdateringer
-				tab.compilePaneStyles();
+				triggerStylesUpdate();
 				tab.update(); 
 			}); 
 			btn.buttonEl.addClass("mod-warning"); 

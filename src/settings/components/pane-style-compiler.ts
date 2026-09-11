@@ -32,13 +32,6 @@ export function compilePaneStyles(containerEl: HTMLElement, selectors: CSSLink[]
 		else if (rule.fontStyle === "underline") cssLines.push(`  text-decoration: underline;`);
 		else if (rule.fontStyle === "line-through") cssLines.push(`  text-decoration: line-through;`);
 		cssLines.push(`}`);
-
-		if (rule.iconBefore) {
-			cssLines.push(`${baseSelector}::before { content: "${rule.iconBefore} "; display: inline-block; }`);
-		}
-		if (rule.iconAfter) {
-			cssLines.push(`${baseSelector}::after { content: " ${rule.iconAfter}"; display: inline-block; }`);
-		}
 	}
 
 	styleEl.textContent = cssLines.join("\n");

@@ -1,4 +1,4 @@
-import { processKey, processValue, startsWithToken, endsWithToken, norm } from "../utils/string-utils";
+import { processKey, processValue, norm } from "../utils/string-utils";
 import { findMatchingRule } from "./rule-sanitizer";
 import ResuperchargedLinks from "../main";
 
@@ -104,70 +104,65 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
  * using high-performance inline styles and physical icon node insertion.
  */
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
-	// 1. LIFECYCLE CLEANUP: Fjern utdaterte data-attributter, tilbakestill stiler og slett gamle ikoner
+	// 1. LIFECYCLE CLEANUP: Fjern gamle stiler og ikoner for å starte med blanke ark
 	clearExtraAttributes(link);
 
-	// Hent råtekst (f.eks. "👥menn" eller "male⚕️")
 	const visibleText = (link.textContent || "").trim();
-
-	// 2. CENTRAL LOOKUP MATRIX: Hent den matchende regelen direkte fra innstillingene
 	const matchedRule = findMatchingRule(plugin.settings?.selectors, newProps);
-
+	
+	// 2. VISUELL STYLING (Kjører ALLTID uavhengig av ikoner eller duplikater)
 	if (matchedRule) {
 		const isDark = document.body.classList.contains("theme-dark");
 		const activeColor = isDark ? matchedRule.darkColor : matchedRule.lightColor;
 		const activeBg = isDark ? matchedRule.darkBgColor : matchedRule.lightBgColor;
 
-		// 🛠️ INLINE STYLE APPLICATION
 		if (activeColor) link.style.color = activeColor;
 		if (activeBg && activeBg !== "transparent") link.style.backgroundColor = activeBg;
-		if (matchedRule.fontWeight && matchedRule.fontWeight !== "normal") link.style.fontWeight = matchedRule.fontWeight;
+		
+		if (matchedRule.fontWeight && matchedRule.fontWeight !== "normal") {
+			link.style.fontWeight = matchedRule.fontWeight;
+		}
 		
 		if (matchedRule.fontStyle === "italic") link.style.fontStyle = "italic";
 		else if (matchedRule.fontStyle === "underline") link.style.textDecoration = "underline";
 		else if (matchedRule.fontStyle === "line-through") link.style.textDecoration = "line-through";
 
-		// 🎨 PHYSICAL ICON NODES
+		// 3. ISOLERT IKON-HÅNDTERING (Skreddersydd hemming i fødselen)
 		const iconBefore = (matchedRule.iconBefore || "").trim();
 		const iconAfter = (matchedRule.iconAfter || "").trim();
 
-		// 🔑 BOMB-SIKKER VASK: Vi renser teksten grundig for å sjekke om ikonet allerede ligger i strengen
 		const cleanedText = norm(visibleText);
 		const cleanedIconBefore = norm(iconBefore);
 		const cleanedIconAfter = norm(iconAfter);
 
-		// Hvis filnavnet allerede inneholder ikonet i starten eller slutten, aktiverer vi hoppet!
+		// Sjekk om teksten allerede starter eller slutter med det aktuelle ikonet
 		const skipBefore = !!cleanedIconBefore && cleanedText.startsWith(cleanedIconBefore);
 		let skipAfter = !!cleanedIconAfter && cleanedText.endsWith(cleanedIconAfter);
 
-		// Fallback for sammensatte Unicode-tegn (som medisinske symboler ⚕️) lenger ned i strengen
+		// Fallback for sammensatte Unicode-tegn (f.eks. medisinske symboler ⚕️) lenger ut i strengen
 		if (cleanedIconAfter && !skipAfter && cleanedText.length > 1) {
 			const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedText);
 			if (endsWithEmojiSymbol) skipAfter = true;
 		}
 
-		// Prepend ikon-node (kun hvis filnavnet ikke allerede har det)
+		// Sett inn Ikon Før – kun hvis det ikke er duplikat
 		if (iconBefore && !skipBefore) {
 			const spanBefore = document.createElement("span");
 			spanBefore.className = "scl-inline-icon-before";
 			spanBefore.textContent = iconBefore;
-			spanBefore.style.marginRight = "3px";
-			spanBefore.style.display = "inline-block";
 			link.insertBefore(spanBefore, link.firstChild);
 		}
 
-		// Append ikon-node (kun hvis filnavnet ikke allerede har det)
+		// Sett inn Ikon Etter – kun hvis det ikke er duplikat
 		if (iconAfter && !skipAfter) {
 			const spanAfter = document.createElement("span");
 			spanAfter.className = "scl-inline-icon-after";
 			spanAfter.textContent = iconAfter;
-			spanAfter.style.marginLeft = "3px";
-			spanAfter.style.display = "inline-block";
 			link.appendChild(spanAfter);
 		}
 	}
 
-	// 3. INJECT DATA ATTRIBUTES (For full bakoverkompatibilitet)
+	// 4. INJECT DATA ATTRIBUTES (Sørger for at data-link-* er tilstede for bakoverkompatibilitet)
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey = processKey(key);
 		const attributeName = `data-link-${domKey}`;
@@ -178,6 +173,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
+	// Sikre at kjerneklassen alltid ligger på elementet for stabil DOM-identifikasjon
 	if (!link.classList.contains("data-link-text")) {
 		link.addClass("data-link-text");
 	}

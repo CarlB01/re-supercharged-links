@@ -9,6 +9,7 @@ import { getRuleDetailItems } from "./components/detail-rows-factory"; // 🔑 I
 // Import layout micro-components
 import { createColorCapsule } from "./components/color-capsule";
 import { renderRuleSentence } from "./components/rule-renderer";
+import { compilePaneStyles } from "./components/pane-style-compiler";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -101,37 +102,9 @@ export default class SCLSettingTab extends PluginSettingTab {
   private _generateSnippet() {
     updateVisibleLinks(this.app, this.plugin);
     this.plugin.refreshEditorThemes();
-    this.compilePaneStyles();
-  }
-
-  public compilePaneStyles(): void {
-    const selectors = this.plugin.settings?.selectors || [];
-    const isDark = document.body.classList.contains("theme-dark");
-
-    for (let i = 0; i < selectors.length; i++) {
-      const rule = selectors[i];
-      if (!rule) continue;
-
-      const activeColor = isDark ? rule.darkColor : rule.lightColor;
-      const activeBg = isDark ? rule.darkBgColor : rule.lightBgColor;
-
-      // Finn rad-elementet i DOM-en via data-uid
-      const rowEl = this.containerEl.querySelector(`[data-uid="${rule.uid}"]`) as HTMLElement | null;
-      if (rowEl) {
-        // 🔑 INLINE RUNTIME OVERRIDE FOR UI: 
-        // Vi setter fargen direkte på radens stil. Dette er 100% uovervinnelig!
-        const noteEl = rowEl.querySelector(".data-link-text") as HTMLElement | null;
-        if (noteEl) {
-          if (activeColor) noteEl.style.color = activeColor;
-          if (activeBg && activeBg !== "transparent") noteEl.style.backgroundColor = activeBg;
-          
-          if (rule.fontWeight && rule.fontWeight !== "normal") noteEl.style.fontWeight = rule.fontWeight;
-          if (rule.fontStyle === "italic") noteEl.style.fontStyle = "italic";
-          else if (rule.fontStyle === "underline") noteEl.style.textDecoration = "underline";
-          else if (rule.fontStyle === "line-through") noteEl.style.textDecoration = "line-through";
-        }
-      }
-    }
+    window.requestAnimationFrame(() => {
+      compilePaneStyles(this.containerEl, this.plugin.settings?.selectors || []);
+    });
   }
 
   override getControlValue(key: string): unknown {
@@ -159,16 +132,6 @@ export default class SCLSettingTab extends PluginSettingTab {
     const selectors = this.plugin.settings.selectors || [];
     const filteredSelectors = this.getFilteredSelectors(selectors);
     const existingRuleItems: MyGroupItems[] = [];
-
-    // Rigger opp kontekst-objektet for den eksterne fabrikken
-    const rowsContext = {
-      plugin: this.plugin,
-      activeEditUid: this.activeEditUid,
-      setControlValue: this.setControlValue.bind(this),
-      refreshUI: this.refreshUI.bind(this),
-      compilePaneStyles: this.compilePaneStyles.bind(this),
-      generateSnippet: this._generateSnippet.bind(this)
-    };
 
     filteredSelectors.forEach((selector) => {
       const index = selectors.indexOf(selector);
@@ -283,6 +246,10 @@ export default class SCLSettingTab extends PluginSettingTab {
     renderRuleSentence(setting.nameEl, selector);
     this.renderRuleBadges(setting, selector);
     this.renderReorderGrip(setting, index, selectors);
+
+    window.requestAnimationFrame(() => {
+      compilePaneStyles(this.containerEl, this.plugin.settings?.selectors || []);
+    });
   }
 
   private async moveRule(index: number, direction: number, selectors: CSSLink[]) {
@@ -302,7 +269,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     this.plugin.compileActiveAttributes();
     await this.plugin.saveSettings();
-    await this._generateSnippet();
+    this._generateSnippet();
     this.refreshUI();
 
     if (currentRect && targetRect) {
