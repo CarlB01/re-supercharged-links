@@ -55,6 +55,8 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 * **No Manual External CSS Tweaking:** Because styles are kept as active runtime states in memory instead of being exposed inside a global, readable `.css` file on your hard drive, you can't easily open an external text editor and manually hack the plugin's layout outputs with custom cascading user-snippets. (Custom rules must be built using the dedicated settings UI pane).
 * **Deep Architectural Divergence:** This plugin has moved so far past the original implementation that settings objects are structurally unique. It cannot cleanly read or inherit old legacy data structures from the original plugin without re-configuring rules.
 
+That said, there is a "both of best worlds" path currently being explored (as of 0.0.38). See [integration roadmap](docs/integration-roadmap.md). 
+
 ---
 
 ## ⚙️ Quick Start
