@@ -186,15 +186,15 @@ export class CMViewPlugin {
 			}
 		}
 
-		const matchedRule = findMatchingRule(this.plugin.settings?.selectors, rawAttrs);
+		const matchedProfile = findMatchingRule(this.plugin.settings?.selectors, rawAttrs);
 		const classList: string[] = ["data-link-text"];
 
-		if (matchedRule) {
-			// 🔑 DEKORASJONEN FÅR ALLTID TILDELT SIN UNIKE FARGEREGEL-UID HER
-			classList.push(`scl-rule-${matchedRule.uid}`);
+		if (matchedProfile.hasAnyMatch) {
+			// Tildel den unike fargeregelen til den siste matchende UID-en for stabil reaktivitet
+			classList.push(`scl-rule-${matchedProfile.uid}`);
 
-			const iconBefore = (matchedRule.iconBefore || "").trim();
-			const iconAfter = (matchedRule.iconAfter || "").trim();
+			const iconBefore = matchedProfile.iconBefore;
+			const iconAfter = matchedProfile.iconAfter;
 
 			if (iconBefore) {
 				attributes["data-scl-icon-before"] = iconBefore;
@@ -215,4 +215,5 @@ export class CMViewPlugin {
 
 		return Decoration.mark({ attributes, class: classList.filter(Boolean).join(" ") });
 	}
+
 }

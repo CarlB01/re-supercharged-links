@@ -108,37 +108,39 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
 	clearExtraAttributes(link);
 
-	const visibleText = (link.textContent || "").trim();
-	const matchedRule = findMatchingRule(plugin.settings?.selectors, newProps);
+		const visibleText = (link.textContent || "").trim();
+	const matchedProfile = findMatchingRule(plugin.settings?.selectors, newProps);
 
-	if (matchedRule) {
+	// 2. VISUELL STYLING (Kaster akkumulerte stiler trygt ut i DOM streamen)
+	if (matchedProfile.hasAnyMatch) {
 		const isDark = document.body.classList.contains("theme-dark");
-		const activeColor = isDark ? matchedRule.darkColor : matchedRule.lightColor;
-		const activeBg = isDark ? matchedRule.darkBgColor : matchedRule.lightBgColor;
+		const activeColor = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
+		const activeBg = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
 
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
 		
 		if (activeColor) targetStyles.color = activeColor;
 		if (activeBg && activeBg !== "transparent") targetStyles.backgroundColor = activeBg;
-		if (matchedRule.fontWeight && matchedRule.fontWeight !== "normal") targetStyles.fontWeight = matchedRule.fontWeight;
+		if (matchedProfile.fontWeight && matchedProfile.fontWeight !== "normal") targetStyles.fontWeight = matchedProfile.fontWeight;
 		
-		if (matchedRule.fontStyle === "italic") {
+		if (matchedProfile.fontStyle === "italic") {
 			targetStyles.fontStyle = "italic";
-		} else if (matchedRule.fontStyle === "underline") {
+		} else if (matchedProfile.fontStyle === "underline") {
 			targetStyles.textDecoration = "underline";
-		} else if (matchedRule.fontStyle === "line-through") {
+		} else if (matchedProfile.fontStyle === "line-through") {
 			targetStyles.textDecoration = "line-through";
 		}
 
-		// 🔑 FIKSET (Linje 126-128+): Kalles trygt og direkte på link-elementet
 		link.setCssStyles(targetStyles);
 
-		const iconBefore = (matchedRule.iconBefore || "").trim();
-		const iconAfter = (matchedRule.iconAfter || "").trim();
+		// 3. ISOLERT IKON-HÅNDTERING (Lener seg på de akkumulerte ikoner som overlevde kaskaden)
+		const iconBefore = matchedProfile.iconBefore;
+		const iconAfter = matchedProfile.iconAfter;
 
 		const cleanedText = norm(visibleText);
 		const cleanedIconBefore = norm(iconBefore);
 		const cleanedIconAfter = norm(iconAfter);
+
 
 		const skipBefore = !!cleanedIconBefore && cleanedText.startsWith(cleanedIconBefore);
 		let skipAfter = !!cleanedIconAfter && cleanedText.endsWith(cleanedIconAfter);
