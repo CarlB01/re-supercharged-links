@@ -23,13 +23,11 @@ class IconWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		// 🔑 FIKSET (Linje 28): Bruker activeWindow.document for å unngå både linter-feil og HierarchyRequestError!
-		const span = activeWindow.document.createElement("span");
+		const span = createEl("span");
 		
 		span.addClass(this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after");
 		span.setText(this.icon);
 
-		// Linter-sikret stil-tildeling via prototype
 		if (this.isBefore) {
 			span.setCssStyles({ marginRight: "3px", display: "inline-block" });
 		} else {

@@ -33,7 +33,9 @@ function isOpKey(x: unknown): x is OpKey {
 }
 
 export function sanitizeRule(rule: CSSLink): CSSLink {
-  const out = Object.assign(Object.create(Object.getPrototypeOf(rule)), rule) as CSSLink;
+  const prototypeObject = Object.create(Object.getPrototypeOf(rule)) as unknown;
+  const out = Object.assign(prototypeObject as Record<string, unknown>, rule) as CSSLink;
+  
   let v = (out.value ?? "").trim();
 
   if (isOpKey(v)) {

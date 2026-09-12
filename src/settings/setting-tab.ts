@@ -318,9 +318,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     const editableProps = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
 
     if (selector && typeof prop === "string" && editableProps.includes(prop)) {
-      // 🔑 FIKSET: Vi tildeler verdien via en ren, linter-godkjent Record-proxy.
-      // Dette fjerner "unnecessary assertion" permanent!
-      const ruleProxy: Record<string, unknown> = selector as any;
+      const ruleProxy = selector as unknown as Record<string, unknown>;
       ruleProxy[prop] = value;
 
       const sanitized = sanitizeRule(selector);
@@ -346,7 +344,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const activeBg = isDark ? rule.darkBgColor : rule.lightBgColor;
 
       // Finn Note-kapselen direkte i kontrollpanelet via den unike klassen
-      const noteEl = this.containerEl.querySelector(`.data-link-text.scl-rule-${rule.uid}`) as HTMLElement | null;
+      const noteEl = this.containerEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${rule.uid}`);
       
       if (noteEl) {
         // 1. STYLING: Bygg opp et lovlig stil-objekt fullstendig uten undefined-verdier
