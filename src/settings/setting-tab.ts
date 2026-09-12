@@ -334,7 +334,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     (this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
   }
 
-  public compilePaneStyles(): void {
+    public compilePaneStyles(): void {
     const selectors = this.plugin.settings?.selectors || [];
     const isDark = document.body.classList.contains("theme-dark");
 
@@ -349,7 +349,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const noteEl = this.containerEl.querySelector(`.data-link-text.scl-rule-${rule.uid}`) as HTMLElement | null;
       
       if (noteEl) {
-        // Bygg opp et lovlig stil-objekt fullstendig uten undefined-verdier
+        // 1. STYLING: Bygg opp et lovlig stil-objekt fullstendig uten undefined-verdier
         const targetStyles: Partial<CSSStyleDeclaration> = {
           color: activeColor || "var(--text-normal)",
           backgroundColor: (activeBg && activeBg !== "transparent") ? activeBg : "transparent",
@@ -369,7 +369,33 @@ export default class SCLSettingTab extends PluginSettingTab {
 
         // Appliker stilene 100 % Obsidian-lovlig!
         noteEl.setCssStyles(targetStyles);
+
+        // 2. 🚀 LIVE IKON-GENERERING: Fjern gamle ikoner fra forrige rendering først
+        const oldIcons = noteEl.querySelectorAll(".scl-inline-icon-before, .scl-inline-icon-after");
+        oldIcons.forEach(icon => icon.remove());
+
+        const iconBefore = (rule.iconBefore || "").trim();
+        const iconAfter = (rule.iconAfter || "").trim();
+
+        // Sett inn Prepend Ikon fysisk i minnet hvis det er definert
+        if (iconBefore) {
+          const spanBefore = noteEl.doc.createElement("span");
+          spanBefore.addClass("scl-inline-icon-before");
+          spanBefore.setText(iconBefore);
+          spanBefore.setCssStyles({ marginRight: "3px", display: "inline-block" });
+          noteEl.insertBefore(spanBefore, noteEl.firstChild);
+        }
+
+        // Sett inn Append Ikon fysisk i minnet hvis det er definert
+        if (iconAfter) {
+          const spanAfter = noteEl.doc.createElement("span");
+          spanAfter.addClass("scl-inline-icon-after");
+          spanAfter.setText(iconAfter);
+          spanAfter.setCssStyles({ marginLeft: "3px", display: "inline-block" });
+          noteEl.appendChild(spanAfter);
+        }
       }
     }
   }
+
 }
