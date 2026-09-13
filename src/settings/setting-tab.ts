@@ -28,7 +28,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const target: HTMLElement | null = (e.target as HTMLElement) ?? null;
       if (target === null) return;
       
-      const clickedRow: HTMLElement | null = (target.closest(".scl-clickable-row") as HTMLElement) ?? null;
+      const clickedRow: HTMLElement | null = target.closest(".scl-clickable-row") ?? null;
       if (clickedRow === null || target.closest(".clickable-icon, button, input, select, .scl-bg-capsule, .scl-color-dot")) return;
 
       const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
@@ -372,8 +372,9 @@ export default class SCLSettingTab extends PluginSettingTab {
         const iconAfter: string = (rule.iconAfter ?? "").trim();
 
         if (iconBefore.length > 0) {
-          // 🔑 STRICT PROTOCOL FIX: Unified linter-compliant element instantiation
-          const spanBefore: HTMLElement = noteEl.createEl("span", {
+          // 🔑 THE TERMINATOR FIX: Leverage the element's explicit window context (.win) 
+          // to fully satisfy the linter while keeping node instantiation completely crash-proof.
+          const spanBefore: HTMLElement = noteEl.win.createEl("span", {
             cls: "scl-inline-icon scl-inline-icon-before",
             text: iconBefore
           });
@@ -382,13 +383,14 @@ export default class SCLSettingTab extends PluginSettingTab {
         }
 
         if (iconAfter.length > 0) {
-          // 🔑 STRICT PROTOCOL FIX: Unified linter-compliant element instantiation
-          const spanAfter: HTMLElement = noteEl.createEl("span", {
+          // 🔑 THE TERMINATOR FIX: Leverage the element's explicit window context (.win)
+          // to fully satisfy the linter while keeping node instantiation completely crash-proof.
+          const spanAfter: HTMLElement = noteEl.win.createEl("span", {
             cls: "scl-inline-icon scl-inline-icon-after",
             text: iconAfter
           });
           spanAfter.setCssStyles({ display: "inline-block" });
-          // appendChild happens implicitly, so no extra actions needed
+          noteEl.appendChild(spanAfter);
         }
 
       }

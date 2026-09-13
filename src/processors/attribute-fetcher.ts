@@ -55,8 +55,8 @@ export function fetchTargetAttributesSync(
 	const dynamicTagsList: string[] = [];
 
 	// 1. Extract structural Frontmatter block fields safely
-	if (cache.frontmatter && activeAttributes.size > 0) {
-		const fm: Record<string, unknown> = cache.frontmatter as Record<string, unknown>;
+if (cache.frontmatter && activeAttributes.size > 0) {
+		const fm = cache.frontmatter as Record<string, unknown>;
 		for (const attribute of activeAttributes) {
 			const value: unknown = fm[attribute] ?? null;
 			if (value === null) continue;

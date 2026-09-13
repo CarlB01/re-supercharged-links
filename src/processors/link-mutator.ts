@@ -172,15 +172,16 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconBefore && !skipBefore) {
-			// 🔑 STRICT PROTOCOL FIX: Call createEl directly on the parent link to satisfy the linter
-			const spanBefore: HTMLElement = link.createEl("span", {
+			// 🔑 STRICT PROTOCOL FIX: Call createEl on activeWindow to satisfy the linter 
+			// while safely isolating the node creation to completely banish HierarchyRequestError
+			const spanBefore: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
 			});
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
 			
-			// Move it to the very front of the link stream safely
+			// Establish precise positioning constraints inside the parent link stream
 			const firstChild: ChildNode | null = link.firstChild;
 			if (firstChild !== null) {
 				link.insertBefore(spanBefore, firstChild);
@@ -188,15 +189,16 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconAfter && !skipAfter) {
-			// 🔑 STRICT PROTOCOL FIX: Call createEl directly on the parent link to satisfy the linter
-			const spanAfter: HTMLElement = link.createEl("span", {
+			// 🔑 STRICT PROTOCOL FIX: Call createEl on activeWindow to satisfy the linter
+			// while safely isolating the node creation to completely banish HierarchyRequestError
+			const spanAfter: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
 			});
 			spanAfter.setAttribute("contenteditable", "false");
 			spanAfter.setCssStyles({ display: "inline-block" });
 			
-			// appendChild happens implicitly through createEl, but we ensure placement stability
+			link.appendChild(spanAfter);
 		}
 
 	}
