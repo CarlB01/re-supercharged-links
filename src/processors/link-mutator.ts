@@ -172,27 +172,33 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconBefore && !skipBefore) {
-			const spanBefore: HTMLElement = link.doc.createElement("span");
-			spanBefore.addClass("scl-inline-icon");
-			spanBefore.addClass("scl-inline-icon-before");
+			// 🔑 STRICT PROTOCOL FIX: Call createEl directly on the parent link to satisfy the linter
+			const spanBefore: HTMLElement = link.createEl("span", {
+				cls: "scl-inline-icon scl-inline-icon-before",
+				text: iconBefore
+			});
 			spanBefore.setAttribute("contenteditable", "false");
-			spanBefore.setText(iconBefore);
 			spanBefore.setCssStyles({ display: "inline-block" });
 			
+			// Move it to the very front of the link stream safely
 			const firstChild: ChildNode | null = link.firstChild;
-			link.insertBefore(spanBefore, firstChild);
+			if (firstChild !== null) {
+				link.insertBefore(spanBefore, firstChild);
+			}
 		}
 
 		if (iconAfter && !skipAfter) {
-			const spanAfter: HTMLElement = link.doc.createElement("span");
-			spanAfter.addClass("scl-inline-icon");
-			spanAfter.addClass("scl-inline-icon-after");
+			// 🔑 STRICT PROTOCOL FIX: Call createEl directly on the parent link to satisfy the linter
+			const spanAfter: HTMLElement = link.createEl("span", {
+				cls: "scl-inline-icon scl-inline-icon-after",
+				text: iconAfter
+			});
 			spanAfter.setAttribute("contenteditable", "false");
-			spanAfter.setText(iconAfter);
 			spanAfter.setCssStyles({ display: "inline-block" });
 			
-			link.appendChild(spanAfter);
+			// appendChild happens implicitly through createEl, but we ensure placement stability
 		}
+
 	}
 
 	// === PHASE 1: LEGACY METADATA FOOTPRINT SPECIATION ===

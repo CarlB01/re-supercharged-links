@@ -1,4 +1,4 @@
-import { WorkspaceLeaf } from "obsidian";
+import { App, TFile, WorkspaceLeaf } from "obsidian";
 import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
 import { clearExtraAttributes } from "../processors/link-mutator";
 import { isHtmlElement, buildObserverKey } from "../utils/string-utils";
@@ -69,7 +69,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	}
 
 	// Ecosystem Integration: Intercept popular third-party plugins safely
-	const internalApp: ObsidianAppInternalRegistry = pluginInstance.app as unknown as ObsidianAppInternalRegistry;
+	const internalApp = pluginInstance.app as App & ObsidianAppInternalRegistry;
 	const pluginRegistry: Record<string, unknown> | null = internalApp.plugins?.plugins ?? null;
 	
 	if (pluginRegistry !== null) {
@@ -98,19 +98,26 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
 		if (container === null) continue;
 
+		// 🔑 FAST-TRACK FIX: Run an immediate, synchronous update on the properties panel layout 
+		// the exact microsecond the view layout is initialized, eliminating the 1-second delay
+		const activeFile: TFile | null = pluginInstance.app.workspace.getActiveFile();
+		if (activeFile !== null) {
+			updatePropertiesPane(container, activeFile, pluginInstance.app, pluginInstance);
+		}
+
 		const observer: MutationObserver = new window.MutationObserver((): void => {
-			const activeFile = pluginInstance.app.workspace.getActiveFile();
-			if (activeFile !== null) {
-				updatePropertiesPane(container, activeFile, pluginInstance.app, pluginInstance);
+			const currentFile: TFile | null = pluginInstance.app.workspace.getActiveFile();
+			if (currentFile !== null) {
+				updatePropertiesPane(container, currentFile, pluginInstance.app, pluginInstance);
 			}
 		});
 
 		observer.observe(container, { subtree: true, childList: true, attributes: false });
 		
-		// 🔑 STRENG CONSOLIDATION: Key assembly routed securely via string-utils builder
 		const runtimeKey: string = buildObserverKey("file-properties", i);
 		pluginInstance.observers.push([observer, runtimeKey, ""]);
 	}
+
 }
 
 /**

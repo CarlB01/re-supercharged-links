@@ -7,33 +7,12 @@ import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
 import { startsWithToken, endsWithToken, extractCleanLinkPath, cleanRuleValue, cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/string-utils";
 import { resolveLinkFile } from "./live-preview";
 import { CSSLink } from "../types/css-link";
+import { IconWidget } from "./components/icon-widget";
 
 interface CodeMirrorNodeRef {
 	name: string;
 	from: number;
 	to: number;
-}
-
-/**
- * 🟢 RUNTIME EMOJI WIDGET: Physical DOM factory that renders inline rule icons.
- */
-class IconWidget extends WidgetType {
-	constructor(private readonly icon: string, private readonly isBefore: boolean) {
-		super();
-	}
-
-	public toDOM(): HTMLElement {
-		const span: HTMLElement = createEl("span");
-		span.addClass("scl-inline-icon");
-		span.addClass(this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after");
-		span.setText(this.icon);
-		span.setCssStyles({ display: "inline-block" });
-		return span;
-	}
-
-	public eq(other: IconWidget): boolean {
-		return other.icon === this.icon && other.isBefore === this.isBefore;
-	}
 }
 
 function isCodeMirrorInternalLink(nodeName: string): boolean {

@@ -1,4 +1,11 @@
 /**
+ * Perform a typesafe structural clone of settings blocks without using any-casts.
+ */
+export function cloneSettingsObject<T>(obj: T): T {
+	return JSON.parse(JSON.stringify(obj)) as T;
+}
+
+/**
  * Super-robust normalization for emojis and text strings.
  * Strips emoji variation selectors (U+FE0F) and standardizes formatting.
  */

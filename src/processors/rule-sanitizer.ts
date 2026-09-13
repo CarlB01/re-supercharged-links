@@ -37,8 +37,8 @@ function isOpKey(x: unknown): x is OpKey {
  * Normalizes a rule's internal matching properties without polluting front-facing fields.
  */
 export function sanitizeRule(rule: CSSLink): CSSLink {
-  const prototypeObject: unknown = Object.create(Object.getPrototypeOf(rule));
-  const out: CSSLink = Object.assign(prototypeObject as Record<string, unknown>, rule) as CSSLink;
+  const prototypeObject = Object.create(Object.getPrototypeOf(rule)) as Record<string, unknown>;
+  const out: CSSLink = Object.assign(prototypeObject, rule);
   
   const v: string = (out.value ?? "").trim();
 

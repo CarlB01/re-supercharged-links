@@ -372,22 +372,25 @@ export default class SCLSettingTab extends PluginSettingTab {
         const iconAfter: string = (rule.iconAfter ?? "").trim();
 
         if (iconBefore.length > 0) {
-          const spanBefore: HTMLElement = noteEl.doc.createElement("span");
-          spanBefore.addClass("scl-inline-icon");
-          spanBefore.addClass("scl-inline-icon-before");
-          spanBefore.setText(iconBefore);
+          // 🔑 STRICT PROTOCOL FIX: Unified linter-compliant element instantiation
+          const spanBefore: HTMLElement = noteEl.createEl("span", {
+            cls: "scl-inline-icon scl-inline-icon-before",
+            text: iconBefore
+          });
           spanBefore.setCssStyles({ display: "inline-block" });
           noteEl.insertBefore(spanBefore, noteEl.firstChild);
         }
 
         if (iconAfter.length > 0) {
-          const spanAfter: HTMLElement = noteEl.doc.createElement("span");
-          spanAfter.addClass("scl-inline-icon");
-          spanAfter.addClass("scl-inline-icon-after");
-          spanAfter.setText(iconAfter);
+          // 🔑 STRICT PROTOCOL FIX: Unified linter-compliant element instantiation
+          const spanAfter: HTMLElement = noteEl.createEl("span", {
+            cls: "scl-inline-icon scl-inline-icon-after",
+            text: iconAfter
+          });
           spanAfter.setCssStyles({ display: "inline-block" });
-          noteEl.appendChild(spanAfter);
+          // appendChild happens implicitly, so no extra actions needed
         }
+
       }
     }
   }

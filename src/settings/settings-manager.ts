@@ -2,6 +2,7 @@ import { Plugin } from "obsidian";
 import { SCLSettings, DEFAULT_SETTINGS } from "./settings";
 import { CSSLink } from "../types/css-link";
 import { sanitizeRuleset } from "../processors/rule-sanitizer";
+import { cloneSettingsObject } from "../utils/string-utils";
 
 /**
  * 🔑 CONDUIT PROPERTY DICTIONARY
@@ -31,27 +32,39 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 		return { settings: { ...DEFAULT_SETTINGS }, dataRepaired: false };
 	}
 
-	const loadedData: Record<string, unknown> | null = (await pluginInstance.loadData()) as Record<string, unknown> | null;
-	const dataProxy: Record<string, any> = loadedData ?? {};
+	const loadedData: unknown = await pluginInstance.loadData();
+	const dataProxy: Record<string, unknown> = typeof loadedData === "object" && loadedData !== null 
+		? (loadedData as Record<string, unknown>) 
+		: {};
+	
 	let dataRepaired: boolean = loadedData === null;
 
-	// 1. Force selectors to be an array primitive regardless of configuration state
-	if (!dataProxy.selectors || !Array.isArray(dataProxy.selectors)) {
-		dataProxy.selectors = [];
+	const rawSelectors: unknown = dataProxy["selectors"] ?? null;
+	let selectorsArray: Record<string, unknown>[] = [];
+
+	if (Array.isArray(rawSelectors)) {
+		for (let i: number = 0; i < rawSelectors.length; i++) {
+			const item: unknown = rawSelectors[i] ?? null;
+			if (typeof item === "object" && item !== null) {
+				selectorsArray.push(item as Record<string, unknown>);
+			} else {
+				dataRepaired = true;
+			}
+		}
+	} else {
 		dataRepaired = true;
 	}
 
-	// 2. Perform aggressive sanitization sweep to prune trash values before they hit memory
-	dataProxy.selectors = dataProxy.selectors.map((rawRule: any): any => {
-		if (!rawRule || typeof rawRule !== "object") {
-			dataRepaired = true;
-			return null;
-		}
+	// Clean up explicit blanks and structural defaults from the ingestion matrix
+	const sanitizedSelectors: Record<string, unknown>[] = [];
+	for (let i: number = 0; i < selectorsArray.length; i++) {
+		const rawRule: Record<string, unknown> | null = selectorsArray[i] ?? null;
+		if (rawRule === null) continue;
 
-		const cleanRule: Record<string, any> = { ...rawRule };
+		const cleanRule: Record<string, unknown> = { ...rawRule };
 
 		for (const [key, garbageValue] of Object.entries(GARBAGE_PROPERTIES)) {
-			if (cleanRule[key] === garbageValue) {
+			if (String(cleanRule[key] ?? "") === garbageValue) {
 				delete cleanRule[key];
 				dataRepaired = true;
 			}
@@ -62,14 +75,14 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 			dataRepaired = true;
 		}
 
-		return cleanRule;
-	}).filter((r: any): boolean => r !== null);
+		sanitizedSelectors.push(cleanRule);
+	}
 
-	// 3. Assemble and merge compiled states securely with system defaults
+	dataProxy["selectors"] = sanitizedSelectors;
+
 	const mergedSettings: SCLSettings = Object.assign({}, DEFAULT_SETTINGS, dataProxy);
 	const selectorsList: CSSLink[] = mergedSettings.selectors ?? [];
 	
-	// Deep mathematical structural analysis loop pass (Checks =, *= selectors)
 	const { sanitized, hasChanges } = sanitizeRuleset(selectorsList);
 	mergedSettings.selectors = sanitized;
 
@@ -83,25 +96,27 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 /**
  * 🔑 PRISTINE DATA STORAGE ENGINE
  * Mutates and strips layout configuration models prior to disk serialization.
- * Ensures the disk channel remains completely free of empty fields and layout noise.
  */
 export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings): Promise<void> {
 	const pluginInstance: Plugin | null = plugin ?? null;
 	if (pluginInstance === null) return;
 
-	const settingsClone: SCLSettings = JSON.parse(JSON.stringify(settings));
+	const settingsClone: SCLSettings = cloneSettingsObject(settings);
 	const rawSelectors: CSSLink[] = settingsClone.selectors ?? [];
 
-	settingsClone.selectors = rawSelectors.map((rule: CSSLink): CSSLink => {
-		const cleanRule: Record<string, any> = { ...(rule as unknown as Record<string, any>) };
+	const strippedSelectors: CSSLink[] = [];
+	for (let i: number = 0; i < rawSelectors.length; i++) {
+		const rule: CSSLink | null = rawSelectors[i] ?? null;
+		if (rule === null) continue;
+
+		const cleanRule: Record<string, unknown> = { ...(rule as unknown as Record<string, unknown>) };
 
 		for (const [key, defaultValue] of Object.entries(GARBAGE_PROPERTIES)) {
-			if (cleanRule[key] === defaultValue) {
+			if (String(cleanRule[key] ?? "") === defaultValue) {
 				delete cleanRule[key];
 			}
 		}
 
-		// 🔑 STRICT PROTOCOL: Force-obliterate 'match' unconditionally before writing to data.json
 		if ("match" in cleanRule) {
 			delete cleanRule["match"];
 		}
@@ -110,9 +125,9 @@ export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings
 			delete cleanRule["matchCaseSensitive"];
 		}
 
-		return cleanRule as unknown as CSSLink;
-	});
+		strippedSelectors.push(cleanRule as unknown as CSSLink);
+	}
 
+	settingsClone.selectors = strippedSelectors;
 	await pluginInstance.saveData(settingsClone);
 }
-

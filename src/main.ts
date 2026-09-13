@@ -1,14 +1,13 @@
-import { Plugin, debounce, TFile, Notice } from 'obsidian';
+import { Plugin, debounce, TFile, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { DEFAULT_SETTINGS, SCLSettings } from './settings/settings';
+import { SCLSettings } from './settings/settings';
 import SCLSettingTab from './settings/setting-tab';
 import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
 
 import { updateElLinks, updateVisibleLinks, updateContainer } from "./views/view-updaters";
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
-import { sanitizeRuleset } from './processors/rule-sanitizer';
 import { CSSLink } from './types/css-link';
 
 /**
@@ -134,10 +133,14 @@ export default class ResuperchargedLinks extends Plugin {
 			updateLinksDebounced(_file);
 		}));
 
-		this.registerEvent(this.app.workspace.on("layout-change", debounce(() => {
+		this.registerEvent(this.app.workspace.on("layout-change", (): void => {
+			// 🔑 FAST-TRACK: Initialize observers instantly on layout change so file-properties are painted immediately
 			initViewObservers(this);
+			
+			// Keep the debounce on the heavier asset cache updates to save CPU cycles
 			updateLinksDebounced(null);
-		}, 150, true)));
+		}));
+
 	}
 
 	public onunload(): void {
@@ -196,8 +199,7 @@ export default class ResuperchargedLinks extends Plugin {
 
 	private detectPluginCollisions(): void {
 		try {
-			const internalApp: ObsidianPluginRegistry = this.app as unknown as ObsidianPluginRegistry;
-			const enabledPlugins: Set<string> | null = internalApp.plugins?.enabledPlugins ?? null;
+			const internalApp = this.app as App & ObsidianPluginRegistry;			const enabledPlugins: Set<string> | null = internalApp.plugins?.enabledPlugins ?? null;
 
 			if (enabledPlugins !== null && enabledPlugins.has("supercharged-links")) {
 				new Notice(

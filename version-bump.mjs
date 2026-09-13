@@ -43,4 +43,4 @@ function bumpVersion() {
     console.log(`📌 versions.json oppdatert med "${newVersion}": "${manifest.minAppVersion}"`);
 }
 
-bumpVersion();
+bumpVersion(); 
