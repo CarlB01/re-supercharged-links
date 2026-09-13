@@ -18,44 +18,45 @@ A modern, high-performance, and completely re-architected fork of **Supercharged
 
 Instead of plain internal links, you can style links based on frontmatter/fields so they communicate status, type, priority, source, or category at a glance.
 
-### Typical use cases
-
-- Color links by `status` (e.g. active, waiting, done)
-- Add subtle badges for `type` (project, meeting, person, reference)
-- Highlight links by `priority`, `domain`, or `publishedIn`
-- Keep visual consistency across large vaults without manual formatting
-
 ---
+
 ## ✨ The Architectural Evolution: Original vs. Re-Supercharged
 
-To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive, multi-thousand-note vaults.
+To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive vaults.
 
 ### 📊 Comparative Analysis
 
 | Feature / Core Mechanism | Original Supercharged Links (`mdelobelle/..`) | Re-Supercharged Links (`CarlB01/..`) |
 | :--- | :--- | :--- |
-| **Styling Mechanism** | **Disk Persisted CSS Snippets.** Generates and writes a massive, static `.css` file (`re-supercharged-links-gen.css`) to your local drive every time a settings rule is touched. | **All-In-Memory Runtime.** Eliminates disk manipulation entirely. Styles are compiled and processed directly in-memory, updating UI profiles synchronously. |
-| **DOM Engine Lookup** | **Substring Attribute Scanning ($=, \*=).** Forces the browser's graphics thread to perform deep, heavy sub-string match checks (e.g., `[data-link-tags*="👥gruppe" i]`) continuously on every frame while scrolling. | **O(1) Hash-Table Matching.** Assigns clean, static structural rules (`.scl-rule-${uid}`) during node assembly. The browser performs a point-blank lookup map query instantly. |
-| **Icon Affixes (Emojis)** | **CSS Pseudo-Elements (`::before` / `::after`).** Emojis are injected blindly via text content properties in CSS style rules, creating standard timing lag anomalies. | **Physical HTML Widgets (`<span>`).** Embeds localized, lightweight spans natively inside CodeMirror 6 and Read Mode streams, giving the plugin total program control over the exact node lifecycle. |
-| **Deduplication Handling** | **Prone to Visual Doubling.** If a filename naturally starts or ends with an emoji, the blind CSS selector injects a duplicate emoji anyway, cluttering link paths. | **Foolproof Early Suppression.** The TypeScript pipeline evaluates the raw label string *before* building nodes. If the emoji is already present in the filename text, node generation is cleanly bypassed. |
+| **Styling Mechanism** | **Disk Persisted CSS Snippets.** Writes massive, static `.css` files to disk whenever rules change. | **All-In-Memory Runtime.** Eliminates disk manipulation entirely. Styles compile in-memory and update UI profiles synchronously. |
+| **DOM Engine Lookup** | **Substring Attribute Scanning ($=, \*=).** Forces continuous, heavy substring searches on every frame while scrolling. | **O(1) Hash-Table Matching.** Assigns clean, static rule signatures (`.scl-rule-${uid}`) instantly. Extended by the **Semantic Mirroring Protocol**. |
+| **Icon Affixes (Emojis)** | **CSS Pseudo-Elements (`::before`/`::after`).** Emojis are injected blindly via CSS text properties, causing layout lag anomalies. | **Physical HTML Widgets (`<span>`).** Embeds lightweight, standardized icon spans natively inside CodeMirror 6 and Read Mode streams. |
+| **Ecosystem Integration** | **Native DOM Footprint.** Third-party plugins scan for static string attributes. | **Semantic Mirroring.** Synthesizes in-memory velocity with deterministic semantic class flags (e.g., `.scl-match-tag-him`) for downstream tools. |
+
+---
+
+## ⚙️ The Semantic Mirroring Protocol (v1.1.0+)
+
+With the release of the **Semantic Mirroring Protocol**, SCL delivers the best of both worlds: unprecedented in-memory rendering speed paired with absolute visibility for the Obsidian ecosystem.
+
+1. **Attribute Footprint Speciation:** Regardless of the current layout view, SCL synchronously maintains legacy-compatible metadata footprint parameters (`data-link-path` and `data-link-tags`).
+2. **Contextual Class Inheritance:** SCL processes matching rules chronologically and injects human-readable semantic descriptors (such as `.scl-match-tag-symptom`) additively. Downstream graphical frameworks and custom canvas matrices (like `myBrain`) can read or filter node states effortlessly.
+3. **Standardized Affix Affiliation:** All runtime-injected prefix and postfix icon widgets are bound to a universal structural class (`.scl-inline-icon`), shifting layout, scaling, and alignment boundaries entirely over to clean, declarative CSS.
 
 ---
 
 ## ⚖️ The Honest Trade-offs: Pros and Cons
 
-Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in user experience and speed, it changes how the plugin interacts with the user's setup.
+Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in speed, it changes how the plugin interacts with your system.
 
 ### 🟢 Pros (Why you should use it)
-* **Zero UI Lag or Scrolling Micro-Stutter:** By dropping expensive string-matching CSS queries, large files maintain a fluid, locked 60+ FPS rhythm.
-* **Instant Settings Feedback:** Color choices light up your links inside configuration preview badges in the exact microsecond you release the cursor from the color wheel.
-* **No More Emoji Nightmares:** Edge-case composite Unicode duplication bugs (such as medical or group icons mirroring themselves onto links) are completely eliminated.
-* **Cleaner Workspace Footprint:** No more ghost CSS snippet files lingering on your storage drive or crashing background file-watcher threads during rapid synchronization.
+* **Zero UI Lag or Scrolling Micro-Stutter:** Fluid, locked 60+ FPS rhythm across multi-thousand-note vaults.
+* **Instant Settings Feedback:** Color choices light up preview badges in the exact microsecond you release the cursor.
+* **Agnostic Style Compensation:** Empowers graph/canvas engines to harvest exact inline color configurations using native browser layout calculations (`getComputedStyle`).
+* **Total Crash Immunity:** Equipped with an internal ingestion engine that automatically vends and repairs legacy data nodes on disk, wiping out `TypeError` boot-time crashes permanently.
 
 ### 🔴 Cons (What to be aware of)
-* **No Manual External CSS Tweaking:** Because styles are kept as active runtime states in memory instead of being exposed inside a global, readable `.css` file on your hard drive, you can't easily open an external text editor and manually hack the plugin's layout outputs with custom cascading user-snippets. (Custom rules must be built using the dedicated settings UI pane).
-* **Deep Architectural Divergence:** This plugin has moved so far past the original implementation that settings objects are structurally unique. It cannot cleanly read or inherit old legacy data structures from the original plugin without re-configuring rules.
-
-That said, there is a "both of best worlds" path currently being explored (as of 0.0.38). See [integration roadmap](docs/integration-roadmap.md). 
+* **Deep Architectural Divergence:** Move so far past the original implementation that settings objects are structurally unique. It cannot read legacy data structures from the original plugin without configuring rules anew.
 
 ---
 
@@ -63,18 +64,8 @@ That said, there is a "both of best worlds" path currently being explored (as of
 
 1. Open **Settings → Community plugins** and install **Re-Supercharged Links**.
 2. Navigate to the option pane and create a new selector rule targeting a metadata marker (e.g., `status`).
-3. Assign text weight options, custom icon affixes, and distinct colors for both light and mørk mode.
+3. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
 4. Watch your workspace map itself out visually in real-time!
-
----
-
-## 🖼️ Screenshots
-
-Styles are created and edited directly in the settings UI.
-
-<img src="media/details.png" alt="list view" style="max-width: 100%; width: 400px; height: auto; border-radius: 8px;">
-
-<img src="media/details2.png" alt="details view" style="max-width: 100%; width: 400px; height: auto; border-radius: 8px;">
 
 ---
 
@@ -82,7 +73,7 @@ Styles are created and edited directly in the settings UI.
 
 - Built for Obsidian users who rely on metadata-heavy workflows
 - Works especially well with structured vaults (projects, PARA, Zettelkasten hybrids)
-- Bases and tag chip styling are implemented with scoped observers for safety/performance
+- Scoped observers protect native view leaves, file properties pane, and suggestion containers dynamically
 - Dataview-related enrichment is handled defensively to avoid hard failures
 
 ---
@@ -93,15 +84,4 @@ Deepest respect and gratitude to the original creators and maintainers of **Supe
 
 ---
 
-## 💚 Support
-
-If this plugin improves your workflow:
-
-- ⭐ Star the repo
-- 🐞 Report issues / suggest improvements
-
----
-
 Developed with care by a healthcare worker who relies on metadata-heavy vaults and loves colorful, meaningful links that tell a story at a glance.
-
-License: **MIT**
