@@ -35,7 +35,7 @@ To understand why **Re-Supercharged Links** was built, it helps to look at the m
 
 ---
 
-## ⚙️ The Semantic Mirroring Protocol (v1.1.0+)
+## ⚙️ The Semantic Mirroring Protocol (v0.0.39+)
 
 With the release of the **Semantic Mirroring Protocol**, SCL delivers the best of both worlds: unprecedented in-memory rendering speed paired with absolute visibility for the Obsidian ecosystem.
 
