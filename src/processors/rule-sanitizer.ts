@@ -1,11 +1,12 @@
 import { CSSLink, MatchTypes } from "../types/css-link";
+import { parseSpaceSeparatedTokens, cleanRuleValue, cleanAttributeKey } from "../utils/string-utils";
 
 /**
  * Represents a cleanly merged runtime style profile compiled from cascading user rules.
  * Ensures properties accumulate additively, mimicking native browser CSS behaviors.
  */
 export interface AccumulatedStyleProfile {
-	uid: string; // Tracks the last matching rule's UID for CodeMirror theme class mapping
+	uid: string;
 	lightColor: string;
 	darkColor: string;
 	lightBgColor: string;
@@ -32,11 +33,14 @@ function isOpKey(x: unknown): x is OpKey {
   return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
 }
 
+/**
+ * Normalizes a rule's internal matching properties without polluting front-facing fields.
+ */
 export function sanitizeRule(rule: CSSLink): CSSLink {
-  const prototypeObject = Object.create(Object.getPrototypeOf(rule)) as unknown;
-  const out = Object.assign(prototypeObject as Record<string, unknown>, rule) as CSSLink;
+  const prototypeObject: unknown = Object.create(Object.getPrototypeOf(rule));
+  const out: CSSLink = Object.assign(prototypeObject as Record<string, unknown>, rule) as CSSLink;
   
-  let v = (out.value ?? "").trim();
+  const v: string = (out.value ?? "").trim();
 
   if (isOpKey(v)) {
     out.match = OP_TO_MATCH[v];
@@ -44,10 +48,11 @@ export function sanitizeRule(rule: CSSLink): CSSLink {
     return out;
   }
 
-  const m = v.match(/^((?:=|\*=|\^=|\$=|~=)+)\s*(.*)$/);
-  if (m) {
-    const [, rawOps = "", restRaw = ""] = m;
-    const rest = restRaw.trim();
+  const m: RegExpMatchArray | null = v.match(/^((?:=|\*=|\^=|\$=|~=)+)\s*(.*)$/) ?? null;
+  if (m !== null) {
+    const rawOps: string = m[1] ?? "";
+    const restRaw: string = m[2] ?? "";
+    const rest: string = restRaw.trim();
 
     const lastOp: OpKey =
       rawOps.endsWith("*=") ? "*=" :
@@ -63,26 +68,31 @@ export function sanitizeRule(rule: CSSLink): CSSLink {
   return out;
 }
 
+/**
+ * Validates and normalizes rulesets during boot cycles.
+ */
 export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitized: CSSLink[]; hasChanges: boolean } {
-  if (!Array.isArray(rules)) {
+  if (!rules || !Array.isArray(rules)) {
     return { sanitized: [], hasChanges: false };
   }
 
-  let hasChanges = false;
-  const sanitized = rules.map((originalRule) => {
-    if (!originalRule) return originalRule;
-    const cleanedRule = sanitizeRule(originalRule);
+  let hasChanges: boolean = false;
+  const sanitized: CSSLink[] = [];
+
+  for (let i: number = 0; i < rules.length; i++) {
+    const originalRule: CSSLink | null = rules[i] ?? null;
+    if (originalRule === null) continue;
+
+    const cleanedRule: CSSLink = sanitizeRule(originalRule);
     
     if (
       cleanedRule.match !== originalRule.match ||
-      cleanedRule.value !== originalRule.value ||
-      cleanedRule.type !== originalRule.type ||
-      cleanedRule.name !== originalRule.name
+      cleanedRule.value !== originalRule.value
     ) {
       hasChanges = true;
     }
-    return cleanedRule;
-  });
+    sanitized.push(cleanedRule);
+  }
 
   return { sanitized, hasChanges };
 }
@@ -92,42 +102,34 @@ interface IconMatchResult {
   iconAfter: string;
 }
 
-/**
- * Iterates through active user style rules to find the first selector matching 
- * the resolved file attributes. 
- */
 export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): IconMatchResult {
   const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
   if (!selectors || !Array.isArray(selectors)) return result;
 
-  for (let i = 0; i < selectors.length; i++) {
-    const selector = selectors[i];
-    if (!selector) continue;
+  for (let i: number = 0; i < selectors.length; i++) {
+    const selector: CSSLink | null = selectors[i] ?? null;
+    if (selector === null) continue;
 
-    let isMatch = false;
-    const ruleValue = (selector.value || "").toLowerCase();
+    let isMatch: boolean = false;
+    const ruleValue: string = cleanRuleValue(selector.value);
 
     if (selector.type === "tag" && resolvedAttrs["tags"]) {
-      if (resolvedAttrs["tags"].toLowerCase().includes(ruleValue)) isMatch = true;
+      const cleanFileTags: string[] = parseSpaceSeparatedTokens(resolvedAttrs["tags"]);
+      if (cleanFileTags.includes(ruleValue)) isMatch = true;
     } else if (selector.type === "path" && resolvedAttrs["path"]) {
-      if (resolvedAttrs["path"].toLowerCase().includes(ruleValue)) isMatch = true;
+      const cleanPath: string = (resolvedAttrs["path"] ?? "").toLowerCase().trim();
+      if (cleanPath.includes(ruleValue)) isMatch = true;
     } else if (selector.type === "attribute") {
-      const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
-      if (cleanKey && resolvedAttrs[cleanKey] && resolvedAttrs[cleanKey].toLowerCase().includes(ruleValue)) isMatch = true;
+      const cleanKey: string = cleanAttributeKey(selector.name);
+      if (cleanKey.length > 0 && resolvedAttrs[cleanKey]) {
+        const cleanAttrVal: string = (resolvedAttrs[cleanKey] ?? "").toLowerCase().trim();
+        if (cleanAttrVal.includes(ruleValue)) isMatch = true;
+      }
     }
 
     if (isMatch) {
-      const hasIconBefore = "iconBefore" in selector || "iconbefore" in selector;
-      const hasIconAfter = "iconAfter" in selector || "iconafter" in selector;
-
-      if (hasIconBefore) {
-        const lookup = selector as unknown as Record<string, string>;
-        result.iconBefore = (lookup["iconBefore"] || lookup["iconbefore"] || "").trim();
-      }
-      if (hasIconAfter) {
-        const lookup = selector as unknown as Record<string, string>;
-        result.iconAfter = (lookup["iconAfter"] || lookup["iconafter"] || "").trim();
-      }
+      result.iconBefore = (selector.iconBefore ?? "").trim();
+      result.iconAfter = (selector.iconAfter ?? "").trim();
       break;
     }
   }
@@ -136,12 +138,10 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
 }
 
 /**
- * Iterates through all active user style rules chronologically to compile an additive,
- * cascading style profile. Newer matching rules overwrite conflicting properties,
- * while leaving non-conflicting historical attributes intact.
+ * Iterates through all active user style rules chronologically to compile an additive, cascading style profile.
+ * STRICT PROTOCOL: Enforces locked, predictable matching blueprints fully integrated with our unified tokens manager.
  */
 export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): AccumulatedStyleProfile {
-	// Initialize a blank baseline profile with default fallback tokens
 	const profile: AccumulatedStyleProfile = {
 		uid: "",
 		lightColor: "",
@@ -157,57 +157,55 @@ export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs
 
 	if (!selectors || !Array.isArray(selectors)) return profile;
 
-	for (let i = 0; i < selectors.length; i++) {
-		const selector = selectors[i];
-		if (!selector) continue;
+	for (let i: number = 0; i < selectors.length; i++) {
+		const selector: CSSLink | null = selectors[i] ?? null;
+		if (selector === null) continue;
 
-		let isMatch = false;
-		const ruleValue = (selector.value || "").toLowerCase().trim().replace(/^#/, "");
-		if (!ruleValue) continue;
+		let isMatch: boolean = false;
+		const ruleValue: string = cleanRuleValue(selector.value);
+		if (ruleValue.length === 0) continue;
 
-		// 1. STRATEGY: Tag scanning
+		// 1. LOCKED TAG PROTOCOL: High-performance exact lookup in space-separated array tokens
 		if (selector.type === "tag") {
-			const rawTags = resolvedAttrs["tags"] || resolvedAttrs["data-link-tags"] || "";
-			const cleanFileTags = rawTags.toLowerCase().replace(/#/g, "").trim();
+			const rawTags: string = resolvedAttrs["tags"] ?? resolvedAttrs["data-link-tags"] ?? "";
+			const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
 			if (cleanFileTags.includes(ruleValue)) isMatch = true;
 		} 
-		// 2. STRATEGY: Path scanning
+		// 2. LOCKED PATH PROTOCOL: High-performance partial string route indexing
 		else if (selector.type === "path") {
-			const rawPath = resolvedAttrs["path"] || resolvedAttrs["data-link-path"] || "";
-			const cleanPath = rawPath.toLowerCase().trim();
+			const rawPath: string = resolvedAttrs["path"] ?? resolvedAttrs["data-link-path"] ?? "";
+			const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
 			if (cleanPath.includes(ruleValue)) isMatch = true;
 		}
-		// 3. STRATEGY: Attribute scanning
+		// 3. LOCKED ATTRIBUTE PROTOCOL: Strict exact value mapping matching
 		else if (selector.type === "attribute") {
-			const cleanKey = selector.name ? selector.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
-			if (cleanKey) {
-				const rawAttrVal = resolvedAttrs[cleanKey] || resolvedAttrs[`data-link-${cleanKey}`] || "";
-				const cleanAttrVal = rawAttrVal.toLowerCase().trim();
-				if (cleanAttrVal.includes(ruleValue)) isMatch = true;
+			const cleanKey: string = cleanAttributeKey(selector.name);
+			if (cleanKey.length > 0) {
+				const rawAttrVal: string = resolvedAttrs[cleanKey] ?? resolvedAttrs[`data-link-${cleanKey}`] ?? "";
+				const cleanAttrVal: string = (rawAttrVal ?? "").toLowerCase().trim();
+				if (cleanAttrVal === ruleValue) isMatch = true;
 			}
 		}
 
-		// 🔑 KASKADE-MAGIEN: Hvis regelen matcher, smelter vi egenskapene positivt sammen!
-		if (isMatch) {
+		if (isMatch) {    
 			profile.hasAnyMatch = true;
-			profile.uid = selector.uid; // Always map the final ruling UID for active theme weight
+			profile.uid = selector.uid ?? "";
 
-			// Kun overskriv tekstfarger dersom den nye regelen faktisk har definert en farge
 			if (selector.lightColor && selector.lightColor !== "#aa0000") profile.lightColor = selector.lightColor;
 			if (selector.darkColor && selector.darkColor !== "#ff5555") profile.darkColor = selector.darkColor;
 
-			// Kun overskriv bakgrunn dersom den ikke er transparent
 			if (selector.lightBgColor && selector.lightBgColor !== "transparent") profile.lightBgColor = selector.lightBgColor;
 			if (selector.darkBgColor && selector.darkBgColor !== "transparent") profile.darkBgColor = selector.darkBgColor;
 
-			// Typografiske overskrivinger (sjekker mot standardverdier)
 			if (selector.fontWeight && selector.fontWeight !== "normal") profile.fontWeight = selector.fontWeight;
-			if (selector.fontStyle && selector.fontStyle !== "normal") profile.fontStyle = selector.fontStyle;
+			
+			const targetFontStyle: string = selector.fontStyle ?? "normal";
+			if (targetFontStyle !== "normal") {
+				profile.fontStyle = targetFontStyle as "normal" | "italic" | "underline" | "line-through";
+			}
 
-			// 🚀 POSITIV IKON-AKKUMULERING: Hvis den nye regelen har et ikon, oppdaterer vi.
-			// Hvis den nye regelen IKKE har et ikon, overlever det gamle ikonet fra forrige regel!
-			if ((selector.iconBefore || "").trim()) profile.iconBefore = selector.iconBefore.trim();
-			if ((selector.iconAfter || "").trim()) profile.iconAfter = selector.iconAfter.trim();
+			if ((selector.iconBefore ?? "").trim().length > 0) profile.iconBefore = selector.iconBefore.trim();
+			if ((selector.iconAfter ?? "").trim().length > 0) profile.iconAfter = selector.iconAfter.trim();
 		}
 	}
 

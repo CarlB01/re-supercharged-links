@@ -3,25 +3,26 @@ export type SelectorTypes = 'attribute' | 'tag' | 'path';
 
 /**
  * 🚀 UNIFIED ENGINE DATA MODEL
- * Represents a single, clean user-defined styling rule blueprint.
+ * Represents a single, structurally isolated user-defined styling rule blueprint.
+ * Strictly avoids internal undefined leaks by anchoring initial states to concrete fallbacks.
  */
 export class CSSLink {
-    uid: string;
-    type: SelectorTypes;
-    name: string;
-    value: string;
-    match: MatchTypes;
-    matchCaseSensitive: boolean;
+    public uid: string;
+    public type: SelectorTypes;
+    public name: string;
+    public value: string;
+    public match: MatchTypes;
+    public matchCaseSensitive: boolean;
     
     // Core styling token definitions
-    iconBefore: string;
-    iconAfter: string;
-    fontWeight: "normal" | "lighter" | "bold";
-    fontStyle: "normal" | "italic" | "underline" | "line-through";
-    lightColor: string;
-    darkColor: string;
-    lightBgColor: string;
-    darkBgColor: string;
+    public iconBefore: string;
+    public iconAfter: string;
+    public fontWeight: "normal" | "lighter" | "bold";
+    public fontStyle: "normal" | "italic" | "underline" | "line-through";
+    public lightColor: string;
+    public darkColor: string;
+    public lightBgColor: string;
+    public darkBgColor: string;
 
     constructor() {
         this.type = 'tag';
@@ -50,9 +51,10 @@ export class CSSLink {
 
     /**
      * Helper to assemble a lightweight, secure component hash id.
+     * Enforces strict primitive string assembly with no structural variance.
      */
     private generateId(): string {
-        const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+        const s4 = (): string => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
         return `${s4()}${s4()}-${s4()}`;
     }
 }

@@ -4,9 +4,9 @@ import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from "@
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
-import { findMatchingRule } from "../processors/rule-sanitizer";
-import { startsWithToken, endsWithToken, norm } from "../utils/string-utils";
-import { extractCleanLinkPath, resolveLinkFile } from "./live-preview";
+import { startsWithToken, endsWithToken, extractCleanLinkPath, cleanRuleValue, cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/string-utils";
+import { resolveLinkFile } from "./live-preview";
+import { CSSLink } from "../types/css-link";
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -15,40 +15,36 @@ interface CodeMirrorNodeRef {
 }
 
 /**
- * 🟢 RUNTIME EMOJI WIDGET: Physical DOM factory that eradicates icon duplicates.
+ * 🟢 RUNTIME EMOJI WIDGET: Physical DOM factory that renders inline rule icons.
  */
 class IconWidget extends WidgetType {
 	constructor(private readonly icon: string, private readonly isBefore: boolean) {
 		super();
 	}
 
-	toDOM(): HTMLElement {
-		const span = createEl("span");
-		
+	public toDOM(): HTMLElement {
+		const span: HTMLElement = createEl("span");
+		span.addClass("scl-inline-icon");
 		span.addClass(this.isBefore ? "scl-inline-icon-before" : "scl-inline-icon-after");
 		span.setText(this.icon);
-
-		if (this.isBefore) {
-			span.setCssStyles({ marginRight: "3px", display: "inline-block" });
-		} else {
-			span.setCssStyles({ marginLeft: "3px", display: "inline-block" });
-		}
-
+		span.setCssStyles({ display: "inline-block" });
 		return span;
 	}
 
-
-	eq(other: IconWidget): boolean {
+	public eq(other: IconWidget): boolean {
 		return other.icon === this.icon && other.isBefore === this.isBefore;
 	}
 }
 
-/**
- * 🔑 THE BREAKTHROUGH DETECTOR: Direct node.name checking.
- */
 function isCodeMirrorInternalLink(nodeName: string): boolean {
-	const name = (nodeName || "").toLowerCase();
-	return name.includes("link") || name.includes("hashtag") || name.includes("url") || name === "underline";
+	const name: string = (nodeName ?? "").toLowerCase();
+	return (
+		name.includes("link") || 
+		name.includes("hashtag") || 
+		name.includes("url") || 
+		name === "underline" ||
+		name.includes("hmd-internal-link")
+	);
 }
 
 interface IterationState {
@@ -56,17 +52,12 @@ interface IterationState {
 	activeFileBasename: string;
 	from: number;
 	to: number;
-	currentActiveAttributes: Record<string, string>;
-	currentActiveClasses: string;
 }
 
-/**
- * 🚀 DECOUPLED CODE MIRROR ENGINE: Flat, high-performance view processor.
- */
 export class CMViewPlugin {
-	decorations: DecorationSet;
-	app: App;
-	plugin: ResuperchargedLinks;
+	public decorations: DecorationSet;
+	public app: App;
+	public plugin: ResuperchargedLinks;
 
 	constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
 		this.app = app;
@@ -74,28 +65,26 @@ export class CMViewPlugin {
 		this.decorations = this.buildDecorations(view);
 	}
 
-	update(update: ViewUpdate): void {
+	public update(update: ViewUpdate): void {
 		if (update.docChanged || update.viewportChanged) {
 			this.decorations = this.buildDecorations(update.view);
 		}
 	}
 
-	destroy(): void {}
+	public destroy(): void {}
 
-	buildDecorations(view: EditorView, updateFrom = -1, updateTo = -1): DecorationSet {
-		const builder = new RangeSetBuilder<Decoration>();
+	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
+		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
 		if (!this.plugin.settings.enableEditor) return builder.finish();
 
-		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!mdView || !mdView.file) return builder.finish();
+		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView) ?? null;
+		if (mdView === null || mdView.file === null) return builder.finish();
 
 		const state: IterationState = {
 			builder,
 			activeFileBasename: mdView.file.basename,
 			from: 0,
-			to: 0,
-			currentActiveAttributes: {},
-			currentActiveClasses: ""
+			to: 0
 		};
 
 		for (const { from, to } of view.visibleRanges) {
@@ -107,7 +96,7 @@ export class CMViewPlugin {
 			syntaxTree(view.state).iterate({
 				from,
 				to,
-				enter: (node) => {
+				enter: (node: CodeMirrorNodeRef): void => {
 					this.processNodeToken(view, node, state, updateFrom, updateTo);
 				}
 			});
@@ -116,13 +105,6 @@ export class CMViewPlugin {
 		return builder.finish();
 	}
 
-	/**
-	 * 🔑 THE GOLDEN SUBROUTINE: Processes nodes cleanly based on the stable node.name contract.
-	 * 🛠️ FIKSET: Farger og stiler tildeles ALLTID, uavhengig av om ikonet skjules!
-	 */
-	/**
-	 * 🔑 THE GOLDEN SUBROUTINE: Processes nodes cleanly based on the stable node.name contract.
-	 */
 	private processNodeToken(
 		view: EditorView, 
 		node: CodeMirrorNodeRef, 
@@ -133,85 +115,131 @@ export class CMViewPlugin {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
 		if (isCodeMirrorInternalLink(node.name)) {
-			const rawLinkText = view.state.doc.sliceString(node.from, node.to);
-			const linkText = extractCleanLinkPath(rawLinkText);
+			const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
+			const linkText: string = extractCleanLinkPath(rawLinkText);
 			
-			// Fallback-beskyttelse: Hvis vi er midt i en endring og teksten er tom, hopper vi trygt over
-			const activeText = linkText || state.activeFileBasename;
+			if (linkText.length === 0) return;
 
-			const file = resolveLinkFile(this.app, activeText, state.activeFileBasename, node.name.toLowerCase().includes("url"));
-			if (!file) return;
+			const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, node.name.toLowerCase().includes("url")) ?? null;
+			if (file === null) return;
 
-			const linkLabel = view.state.doc.sliceString(node.from, node.to).trim();
-			const deco = this.processLinkDecoration(file, linkLabel);
+			if (file.basename === state.activeFileBasename && !rawLinkText.includes(state.activeFileBasename)) {
+				return;
+			}
 
-			// 🔑 SIKRET UTPAKKING: Vi forteller linteren nøyaktig hvordan spec-objektet ser ut via en ukjent mellomlanding
-			const specProxy = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec || {};
-			
-			state.currentActiveAttributes = specProxy.attributes || {};
-			state.currentActiveClasses = specProxy.class || "";
+			const linkLabel: string = view.state.doc.sliceString(node.from, node.to).trim();
+			const deco: Decoration = this.processLinkDecoration(file, linkLabel);
+
+			const specProxy: { attributes?: Record<string, string>; class?: string } = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec ?? {};
+			const currentActiveAttributes: Record<string, string> = specProxy.attributes ?? {};
+			const currentActiveClasses: string = specProxy.class ?? "";
 
 			if (node.from >= state.from && node.to <= state.to) {
-				const attrs = state.currentActiveAttributes;
-				const iconBefore = attrs["data-scl-icon-before"] || "";
-				const iconAfter = attrs["data-scl-icon-after"] || "";
+				const iconBefore: string = currentActiveAttributes["data-scl-icon-before"] ?? "";
+				const iconAfter: string = currentActiveAttributes["data-scl-icon-after"] ?? "";
 
-				const skipBefore = state.currentActiveClasses.includes("scl-hide-before");
-				const skipAfter = state.currentActiveClasses.includes("scl-hide-after");
+				const skipBefore: boolean = currentActiveClasses.includes("scl-hide-before");
+				const skipAfter: boolean = currentActiveClasses.includes("scl-hide-after");
 
-				if (iconBefore && !skipBefore) {
+				if (iconBefore.length > 0 && !skipBefore) {
 					state.builder.add(node.from, node.from, Decoration.widget({ widget: new IconWidget(iconBefore, true), side: -1 }));
 				}
 
-				// 🚀 TVINGER FRAM FARGER: Denne linjen fargelegger lenken din i minnet uansett!
 				state.builder.add(node.from, node.to, deco);
 
-				if (iconAfter && !skipAfter) {
+				if (iconAfter.length > 0 && !skipAfter) {
 					state.builder.add(node.to, node.to, Decoration.widget({ widget: new IconWidget(iconAfter, false), side: 1 }));
 				}
 			}
 		}
 	}
 
-
-	processLinkDecoration(file: TFile, linkLabel: string): Decoration {
-		const rawAttrs = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+		const rawAttrs: Record<string, string> = fetchTargetAttributesSync(this.app, this.plugin, file, true);
 		const attributes: Record<string, string> = {};
 		
 		for (const key in rawAttrs) {
-			if (Object.prototype.hasOwnProperty.call(rawAttrs, key) && rawAttrs[key] !== undefined) {
-				attributes[`data-link-${key}`] = rawAttrs[key];
+			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
+				const val: string | undefined = rawAttrs[key];
+				if (val !== undefined) {
+					attributes[`data-link-${key}`] = val;
+				}
 			}
 		}
 
-		const matchedProfile = findMatchingRule(this.plugin.settings?.selectors, rawAttrs);
+		const selectorsConfig: CSSLink[] = this.plugin.settings?.selectors ?? [];
 		const classList: string[] = ["data-link-text"];
+		
+		let activeIconBefore: string = "";
+		let activeIconAfter: string = "";
 
-		if (matchedProfile.hasAnyMatch) {
-			// Tildel den unike fargeregelen til den siste matchende UID-en for stabil reaktivitet
-			classList.push(`scl-rule-${matchedProfile.uid}`);
+		for (let i: number = 0; i < selectorsConfig.length; i++) {
+			const selector: CSSLink | null = selectorsConfig[i] ?? null;
+			if (selector === null) continue;
 
-			const iconBefore = matchedProfile.iconBefore;
-			const iconAfter = matchedProfile.iconAfter;
+			let isMatch: boolean = false;
+			// 🔑 DECOUPLED STAGES: Use the consolidated text cleaners
+			const ruleValue: string = cleanRuleValue(selector.value);
+			if (ruleValue.length === 0) continue;
 
-			if (iconBefore) {
-				attributes["data-scl-icon-before"] = iconBefore;
-				if (startsWithToken(linkLabel, iconBefore)) classList.push("scl-hide-before");
+			if (selector.type === "tag") {
+				const rawTags: string = rawAttrs["tags"] ?? rawAttrs["data-link-tags"] ?? "";
+				const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
+				if (cleanFileTags.includes(ruleValue)) isMatch = true;
+			} 
+			else if (selector.type === "path") {
+				const rawPath: string = rawAttrs["path"] ?? rawAttrs["data-link-path"] ?? "";
+				const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
+				if (cleanPath.includes(ruleValue)) isMatch = true;
+			}
+			else if (selector.type === "attribute") {
+				const cleanKey: string = cleanAttributeKey(selector.name);
+				if (cleanKey.length > 0) {
+					const rawAttrVal: string = rawAttrs[cleanKey] ?? rawAttrs[`data-link-${cleanKey}`] ?? "";
+					const cleanAttrVal: string = (rawAttrVal ?? "").toLowerCase().trim();
+					if (cleanAttrVal === ruleValue) isMatch = true;
+				}
 			}
 
-			if (iconAfter) {
-				attributes["data-scl-icon-after"] = iconAfter;
-				if (endsWithToken(linkLabel, iconAfter)) classList.push("scl-hide-after");
-			}
+			if (isMatch) {
+				const uid: string = selector.uid ?? "";
+				if (uid.length > 0) {
+					classList.push(`scl-rule-${uid}`);
+				}
 
-			if (iconAfter && !classList.includes("scl-hide-after") && linkLabel.length > 1) {
-				const cleanedLabel = norm(linkLabel);
-				const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedLabel);
-				if (endsWithEmojiSymbol) classList.push("scl-hide-after");
+				if ((selector.iconBefore ?? "").trim().length > 0) {
+					activeIconBefore = (selector.iconBefore ?? "").trim();
+				}
+				if ((selector.iconAfter ?? "").trim().length > 0) {
+					activeIconAfter = (selector.iconAfter ?? "").trim();
+				}
 			}
 		}
 
-		return Decoration.mark({ attributes, class: classList.filter(Boolean).join(" ") });
-	}
+		if (activeIconBefore.length > 0) {
+			attributes["data-scl-icon-before"] = activeIconBefore;
+			if (startsWithToken(linkLabel, activeIconBefore)) {
+				classList.push("scl-hide-before");
+			}
+		}
 
+		if (activeIconAfter.length > 0) {
+			attributes["data-scl-icon-after"] = activeIconAfter;
+			if (endsWithToken(linkLabel, activeIconAfter)) {
+				classList.push("scl-hide-after");
+			}
+		}
+
+		// 🔑 DECOUPLED STAGES: Use the clean space-separated parser for semantic chips injection
+		const rawTagsField: string = rawAttrs["tags"] ?? "";
+		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
+		for (let j: number = 0; j < tagsArray.length; j++) {
+			const cleanTag: string | null = tagsArray[j] ?? null;
+			if (cleanTag !== null && cleanTag.length > 0) {
+				classList.push(`scl-match-tag-${cleanTag}`);
+			}
+		}
+
+		return Decoration.mark({ attributes, class: classList.filter((c: string): boolean => c.length > 0).join(" ") });
+	}
 }

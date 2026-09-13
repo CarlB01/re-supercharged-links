@@ -2,6 +2,7 @@ import { Setting, SettingDefinitionItem, App } from "obsidian";
 import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
 import ResuperchargedLinks from "../../main";
+import { cleanAttributeKey } from "../../utils/string-utils";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -15,9 +16,6 @@ export interface ISCLSettingTab {
 	compilePaneStyles(): void; 
 }
 
-/**
- * 🛠️ INTERN PREFAB-FABRIKK
- */
 function createDetailRow(
 	cls: string,
 	name: string,
@@ -48,7 +46,7 @@ export function getRuleDetailItems(
 			d.addOption("tag", "Tag")
 			 .addOption("attribute", "Attribute")
 			 .addOption("path", "Note Path")
-			 .setValue(selector.type || "tag"); // 🛡️ Beskyttelse mot undefined fallbacks
+			 .setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
 					await tab.setControlValue(`scl_type_${selector.uid}`, v, true); 
@@ -69,12 +67,26 @@ export function getRuleDetailItems(
 	}
 
 	// 3. Keyword Value Row
+	const currentType: string = selector.type ?? "tag";
+	const placeholderValue: string = (() => {
+		if (currentType === "tag") return "todo";
+		if (currentType === "attribute") return "active-value";
+		if (currentType === "path") return "folder/note-name";
+		return "keyword";
+	})();
+
 	rows.push(createDetailRow("scl-detail-row scl-row-value", "Value to match", "Trigger keyword.", (setting) => {
-		setting.addText((t) => t.setPlaceholder("todo").setValue(selector.value || "").onChange(async (v) => { 
-			await tab.setControlValue(`scl_value_${selector.uid}`, v, true); 
-			tab.update(); 
-		}));
+		setting.addText((t) => t
+			// 🔑 DYNAMIC UI PROTOCOL: Placeholder aligns perfectly with the active selector type matrix
+			.setPlaceholder(placeholderValue)
+			.setValue(selector.value || "")
+			.onChange(async (v: string) => { 
+				await tab.setControlValue(`scl_value_${selector.uid}`, v, true); 
+				tab.update(); 
+			})
+		);
 	}));
+
 
 	// 4. Prepend Icon Row
 	rows.push(createDetailRow("scl-detail-row scl-row-iconbefore", "Prepend Icon", "Icon to inject before link text.", (setting) => {
@@ -125,7 +137,6 @@ export function getRuleDetailItems(
 		});
 	}));
 
-	// Slank parameter-matrise for fargevelgere
 	const colorConfigs = [
 		{ key: 'lightColor', cls: 'scl-row-lightcolor', name: 'Light Mode Color', desc: 'Text color for light theme.', isBg: false, fallback: '#ffffff' },
 		{ key: 'darkColor', cls: 'scl-row-darkcolor', name: 'Dark Mode Color', desc: 'Text color for dark theme.', isBg: false, fallback: '#000000' },
@@ -133,7 +144,6 @@ export function getRuleDetailItems(
 		{ key: 'darkBgColor', cls: 'scl-row-darkbg', name: 'Dark Mode Background', desc: 'Background color for dark theme.', isBg: true, fallback: '#1e1e1e' }
 	] as const;
 
-	// 8, 9, 10, 11. Generer fargerader med garanterte fallbacks mot undefined
 	for (const c of colorConfigs) {
 		const pickerClass = c.isBg ? "scl-bg-picker-row" : "scl-text-picker-row";
 		rows.push(createDetailRow(`mod-toggle scl-color-row ${pickerClass} ${c.cls}`, c.name, c.desc, (setting) => {

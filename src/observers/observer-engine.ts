@@ -1,8 +1,7 @@
-
-// Import core workflows and mutators from our re-architected system
+import { WorkspaceLeaf } from "obsidian";
 import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
 import { clearExtraAttributes } from "../processors/link-mutator";
-import { isHtmlElement } from "../utils/string-utils";
+import { isHtmlElement, buildObserverKey } from "../utils/string-utils";
 import ResuperchargedLinks from "../main";
 
 interface ObsidianAppInternalRegistry {
@@ -11,18 +10,19 @@ interface ObsidianAppInternalRegistry {
 	};
 }
 
-// Thread-safe map to keep track of debounced animation frame animation handles per container
-const scheduledContainerUpdates = new WeakMap<HTMLElement, number>();
+const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTMLElement, number>();
 
 /**
  * Schedules a high-performance DOM update bound to the browser's repaint cycle.
  * Prevents layout thrashing by collapsing multiple rapid mutations into a single frame.
  */
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
-	const prev = scheduledContainerUpdates.get(container);
-	if (prev !== undefined) cancelAnimationFrame(prev);
+	const prev: number | undefined = scheduledContainerUpdates.get(container);
+	if (prev !== undefined) {
+		cancelAnimationFrame(prev);
+	}
 
-	const id = window.requestAnimationFrame(() => {
+	const id: number = window.requestAnimationFrame((): void => {
 		scheduledContainerUpdates.delete(container);
 		fn();
 	});
@@ -32,68 +32,85 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 /**
  * RE-ARCHITECTED OBSERVATION CONTROLLER: 
  * Safely provisions isolated trackers across all registered active pane layouts.
+ * STRICT PROTOCOL: Enforces structural loops over array indices to fully banish implicit undefined bugs.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
+	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
+	if (pluginInstance === null) return;
+
 	// Disconnect existing lifecycles to prevent memory leaks during reload/layout changes
-	if (plugin.observers) {
-		plugin.observers.forEach(([observer]) => observer.disconnect());
+	const activeObservers: [MutationObserver, string, string][] = pluginInstance.observers ?? [];
+	for (let i: number = 0; i < activeObservers.length; i++) {
+		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
+		if (entry !== null) {
+			entry[0].disconnect();
+		}
 	}
-	plugin.observers = [];
+	pluginInstance.observers = [];
 
 	// Register core Obsidian native leaf views
-	registerViewType("backlink", plugin, ".tree-item-inner", true);
-	registerViewType("outgoing-link", plugin, ".tree-item-inner", true);
-	registerViewType("search", plugin, ".tree-item-inner");
-	registerViewType("starred", plugin, ".nav-file-title-content");
-	registerViewType("file-explorer", plugin, ".nav-file-title-content");
-	registerViewType("recent-files", plugin, ".nav-file-title-content");
-	registerViewType("bookmarks", plugin, ".tree-item-inner", false, true);
-	registerViewType("file-properties", plugin, "div.internal-link > .multi-select-pill-content");
+	registerViewType("backlink", pluginInstance, ".tree-item-inner", true);
+	registerViewType("outgoing-link", pluginInstance, ".tree-item-inner", true);
+	registerViewType("search", pluginInstance, ".tree-item-inner");
+	registerViewType("starred", pluginInstance, ".nav-file-title-content");
+	registerViewType("file-explorer", pluginInstance, ".nav-file-title-content");
+	registerViewType("recent-files", pluginInstance, ".nav-file-title-content");
+	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
+	registerViewType("file-properties", pluginInstance, "div.internal-link > .multi-select-pill-content");
 
 	// Obsidian Bases Third-Party Compatibility
-	if (plugin.settings.enableBases) {
-		registerViewType("bases", plugin, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
+	if (pluginInstance.settings.enableBases) {
+		registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
 		registerViewType(
 			"markdown",
-			plugin,
+			pluginInstance,
 			".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]"
 		);
 	}
 
 	// Ecosystem Integration: Intercept popular third-party plugins safely
-	const internalApp = plugin.app as unknown as ObsidianAppInternalRegistry;
-	const pluginRegistry = internalApp.plugins?.plugins;
-	if (pluginRegistry?.breadcrumbs) {
-		registerViewType("bc-matrix-view", plugin, "span.internal-link");
-		registerViewType("BC-ducks", plugin, ".internal-link");
-		registerViewType("bc-tree-view", plugin, "span.internal-link");
-		registerViewType("markdown", plugin, ".BC-page-views span.internal-link, .BC-codeblock-tree span.internal-link, .nodes a.internal-link");
-	}
-	if (pluginRegistry?.["folder-notes"]) {
-		registerViewType("file-explorer", plugin, ".has-folder-note .tree-item-inner");
-	}
-	if (pluginRegistry?.["similar-notes"]) {
-		registerViewType("markdown", plugin, ".similar-notes-pane .tree-item-inner", true);
-	}
-	if (pluginRegistry?.["notebook-navigator"]) {
-		registerViewType("notebook-navigator", plugin, "span.nn-shortcut-label");
-		registerViewType("notebook-navigator", plugin, "div.nn-file-name");
+	const internalApp: ObsidianAppInternalRegistry = pluginInstance.app as unknown as ObsidianAppInternalRegistry;
+	const pluginRegistry: Record<string, unknown> | null = internalApp.plugins?.plugins ?? null;
+	
+	if (pluginRegistry !== null) {
+		if (pluginRegistry["breadcrumbs"]) {
+			registerViewType("bc-matrix-view", pluginInstance, "span.internal-link");
+			registerViewType("BC-ducks", pluginInstance, ".internal-link");
+			registerViewType("bc-tree-view", pluginInstance, "span.internal-link");
+			registerViewType("markdown", pluginInstance, ".BC-page-views span.internal-link, .BC-codeblock-tree span.internal-link, .nodes a.internal-link");
+		}
+		if (pluginRegistry["folder-notes"]) {
+			registerViewType("file-explorer", pluginInstance, ".has-folder-note .tree-item-inner");
+		}
+		if (pluginRegistry["similar-notes"]) {
+			registerViewType("markdown", pluginInstance, ".similar-notes-pane .tree-item-inner", true);
+		}
+		if (pluginRegistry["notebook-navigator"]) {
+			registerViewType("notebook-navigator", pluginInstance, "span.nn-shortcut-label");
+			registerViewType("notebook-navigator", pluginInstance, "div.nn-file-name");
+		}
 	}
 
 	// Special Handler: Setup isolated listener for the Native File Metadata Properties Panel
-	const propertyLeaves = plugin.app.workspace.getLeavesOfType("file-properties");
-	propertyLeaves.forEach((leaf, idx) => {
-		const container = leaf?.view?.containerEl;
-		if (!container) return;
+	const propertyLeaves: WorkspaceLeaf[] = pluginInstance.app.workspace.getLeavesOfType("file-properties") ?? [];
+	for (let i: number = 0; i < propertyLeaves.length; i++) {
+		const leaf: WorkspaceLeaf | null = propertyLeaves[i] ?? null;
+		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
+		if (container === null) continue;
 
-		const observer = new window.MutationObserver(() => {
-			const activeFile = plugin.app.workspace.getActiveFile();
-			if (activeFile) updatePropertiesPane(container, activeFile, plugin.app, plugin);
+		const observer: MutationObserver = new window.MutationObserver((): void => {
+			const activeFile = pluginInstance.app.workspace.getActiveFile();
+			if (activeFile !== null) {
+				updatePropertiesPane(container, activeFile, pluginInstance.app, pluginInstance);
+			}
 		});
 
 		observer.observe(container, { subtree: true, childList: true, attributes: false });
-		plugin.observers.push([observer, `file-properties-${idx}`, ""]);
-	});
+		
+		// 🔑 STRENG CONSOLIDATION: Key assembly routed securely via string-utils builder
+		const runtimeKey: string = buildObserverKey("file-properties", i);
+		pluginInstance.observers.push([observer, runtimeKey, ""]);
+	}
 }
 
 /**
@@ -106,17 +123,21 @@ export function registerViewType(
 	updateDynamic = false,
 	filterCollapsible = false
 ): void {
-	const leaves = plugin.app.workspace.getLeavesOfType(viewTypeName);
-	leaves.forEach((leaf, idx) => {
-		const container = leaf?.view?.containerEl;
-		if (!container) return;
+	const leaves: WorkspaceLeaf[] = plugin.app.workspace.getLeavesOfType(viewTypeName) ?? [];
+	for (let i: number = 0; i < leaves.length; i++) {
+		const leaf: WorkspaceLeaf | null = leaves[i] ?? null;
+		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
+		if (container === null) continue;
+
+		// 🔑 STRENG CONSOLIDATION: Multi-window trace keys standardized via utils
+		const uniqueViewKey: string = buildObserverKey(viewTypeName, i);
 
 		if (updateDynamic) {
-			watchContainerDynamic(`${viewTypeName}-${idx}`, container, plugin, selector);
+			watchContainerDynamic(uniqueViewKey, container, plugin, selector);
 		} else {
-			watchContainer(`${viewTypeName}-${idx}`, container, plugin, selector, filterCollapsible);
+			watchContainer(uniqueViewKey, container, plugin, selector, filterCollapsible);
 		}
-	});
+	}
 }
 
 /**
@@ -124,21 +145,20 @@ export function registerViewType(
  * Listens to document injections to style the Quick Switcher, Omnisearch, and Link Suggestor popups.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
-	const config = { subtree: false, childList: true, attributes: false };
+	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
 
-	const observer = new window.MutationObserver(records => {
-		for (let i = 0; i < records.length; i++) {
-			const mutation = records[i];
-			if (!mutation || mutation.type !== "childList") continue;
+	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+		for (let i: number = 0; i < records.length; i++) {
+			const mutation: MutationRecord | null = records[i] ?? null;
+			if (mutation === null || mutation.type !== "childList") continue;
 
 			// Handle elements injected into the DOM core layout
-			mutation.addedNodes.forEach(node => {
+			mutation.addedNodes.forEach((node: Node): void => {
 				if (isHtmlElement(node)) {
-					const list = node.classList;
+					const list: DOMTokenList = node.classList;
 					
-					// Safe structural mapping via classList to prevent substring mismatch bugs
-					const isModal = list.contains("modal-container") && plugin.settings.enableQuickSwitcher;
-					const isSuggest = list.contains("suggestion-container") && plugin.settings.enableSuggestor;
+					const isModal: boolean = list.contains("modal-container") && plugin.settings.enableQuickSwitcher;
+					const isSuggest: boolean = list.contains("suggestion-container") && plugin.settings.enableSuggestor;
 
 					if (isModal || isSuggest) {
 						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
@@ -168,20 +188,21 @@ function watchContainer(
 	selector: string,
 	filterCollapsible = false
 ): void {
-	const observer = new window.MutationObserver((records) => {
-		// Performance Gold: Short-circuit frame invocation if mutations don't change child arrays
-		const hasRelevantMutation = records.some(
-			(m) => m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)
+	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+		const hasRelevantMutation: boolean = records.some(
+			(m: MutationRecord): boolean => m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)
 		);
 		if (!hasRelevantMutation) return;
 
-		scheduleContainerUpdate(container, () => {
+		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector, filterCollapsible);
 		});
 	});
 
 	observer.observe(container, { subtree: true, childList: true, attributes: false });
-	if (viewType) plugin.observers.push([observer, viewType, selector]);
+	if (viewType !== null) {
+		plugin.observers.push([observer, viewType, selector]);
+	}
 }
 
 /**
@@ -196,26 +217,25 @@ function watchContainerDynamic(
 ): void {
 	if (!plugin.settings.enableBacklinks) return;
 
-	const observer = new window.MutationObserver((records) => {
+	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		let shouldRun = false;
 
-		for (let i = 0; i < records.length; i++) {
-			const mutation = records[i];
-			if (!mutation || mutation.type !== "childList" || mutation.addedNodes.length === 0) continue;
+		for (let i: number = 0; i < records.length; i++) {
+			const mutation: MutationRecord | null = records[i] ?? null;
+			if (mutation === null || mutation.type !== "childList" || mutation.addedNodes.length === 0) continue;
 
-			// Check if the added nodes match the required target structural class
-			mutation.addedNodes.forEach((node) => {
-				if ((isHtmlElement(node)) && node.classList.contains(parentClass)) {
+			mutation.addedNodes.forEach((node: Node): void => {
+				if (isHtmlElement(node) && node.classList.contains(parentClass)) {
 					shouldRun = true;
 				}
 			});
 
-			if (shouldRun) break; // Escape loop early if condition is met
+			if (shouldRun) break; 
 		}
 
 		if (!shouldRun) return;
 
-		scheduleContainerUpdate(container, () => {
+		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector);
 		});
 	});
@@ -228,11 +248,23 @@ function watchContainerDynamic(
  * Tears down all global tracking loops to ensure zero background leaks during plugin unload cycles.
  */
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
-	if (plugin.observers) {
-		plugin.observers.forEach(([observer]) => observer.disconnect());
+	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
+	for (let i: number = 0; i < activeObservers.length; i++) {
+		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
+		if (entry !== null) {
+			const observer: MutationObserver | null = entry[0] ?? null;
+			if (observer !== null) {
+				observer.disconnect();
+			}
+		}
 	}
-	if (plugin.modalObservers) {
-		plugin.modalObservers.forEach(observer => observer.disconnect());
+
+	const modalObservers: MutationObserver[] = plugin.modalObservers ?? [];
+	for (let i: number = 0; i < modalObservers.length; i++) {
+		const observer: MutationObserver | null = modalObservers[i] ?? null;
+		if (observer !== null) {
+			observer.disconnect();
+		}
 	}
 }
 
@@ -240,17 +272,30 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
  * Resets the DOM state completely when the plugin is deactivated by the user.
  */
 export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
-	if (!plugin.observers) return;
+	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
+	for (let i: number = 0; i < activeObservers.length; i++) {
+		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
+		if (entry === null) continue;
 
-	plugin.observers.forEach(([_, type, ownClass]) => {
-		const leaves = plugin.app.workspace.getLeavesOfType(type);
-		leaves.forEach(leaf => {
-			if (leaf?.view?.containerEl && ownClass) {
-				const nodes = leaf.view.containerEl.findAll(ownClass);
-				nodes.forEach(node => {
-					if (isHtmlElement(node)) clearExtraAttributes(node);
-				});
+		const type: string = entry[1] ?? "";
+		const ownClass: string = entry[2] ?? "";
+
+		if (type.length === 0 || ownClass.length === 0) continue;
+
+		const leaves: WorkspaceLeaf[] = plugin.app.workspace.getLeavesOfType(type) ?? [];
+		for (let j: number = 0; j < leaves.length; j++) {
+			const leaf: WorkspaceLeaf | null = leaves[j] ?? null;
+			if (leaf !== null && leaf.view?.containerEl) {
+				// 🔑 STRICT PROTOCOL FIX: Narrow datatype down to a native array to match Obsidian's return contract perfectly
+				const nodes: HTMLElement[] = leaf.view.containerEl.findAll(ownClass) ?? [];
+				for (let k: number = 0; k < nodes.length; k++) {
+					const node: HTMLElement | null = nodes[k] ?? null;
+					if (node !== null && isHtmlElement(node)) {
+						clearExtraAttributes(node);
+					}
+				}
 			}
-		});
-	});
+		}
+	}
 }
+

@@ -34,7 +34,7 @@
       margin-right: 12px;
     }
 
-    /* Elegant farge-rektangel med luft i mellom */
+    /* Elegant color layout capsule with structural padding spacing */
     .scl-bg-capsule {
       display: flex;
       align-items: center;
@@ -62,7 +62,7 @@
       }
     }
 
-    /* Tydelig sirkel inni rektangelet */
+    /* Distinct interior dot container matrix */
     .scl-color-dot {
       display: inline-block;
       width: 14px;
@@ -76,7 +76,7 @@
       background-color: var(--scl-dot-color);
     }
 
-    /* NOTE-KAPSELEN: Nøyaktig kopi av rektangelet med stram luft */
+    /* Primary link node preview layout context */
     .data-link-text {
       display: inline-flex;
       align-items: center;
@@ -313,18 +313,30 @@
    100% Obsidian compliant - completely removed all !important flags!
    ========================================================================= */
 
-/* Fysiske inline-ikoner for Read Mode og Live Preview puster pent i mappen */
+/* Phase 3 Core Architecture: Standardized alignment wrapper configuration */
+.data-link-text {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Universal structural selector targeting all injected affix modules */
+.scl-inline-icon {
+  font-size: 0.85em;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Clean spatial boundaries isolated to direction tags (No fixed absolute metrics) */
 .scl-inline-icon-before { 
-  margin-right: 3px; 
   display: inline-block; 
 }
 
 .scl-inline-icon-after { 
-  margin-left: 3px; 
   display: inline-block; 
 }
 
-/* Vekt og stiler vinner over Obsidian core ved å binde klassene sammen */
+/* Typography override hooks mapped directly to baseline structural classes */
 .data-link-text.scl-weight-bold, 
 .data-link-text.scl-weight-bold .cm-underline,
 .cm-underline.scl-weight-bold { 

@@ -1,30 +1,34 @@
-// 🔑 SIKRET: Ingen import av setCssStyles her
-import { processKey, processValue, norm } from "../utils/string-utils";
+import { cleanAttributeKey, parseSpaceSeparatedTokens, norm, processValue } from "../utils/string-utils";
 import { findMatchingRule } from "./rule-sanitizer";
 import ResuperchargedLinks from "../main";
+import { CSSLink } from "../types/css-link";
 
 /**
  * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.
+ * Strips obsolete semantic matching flags and standardized icon components to prevent layout memory leaks.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
-	const attrs = link.attributes;
-	for (let i = attrs.length - 1; i >= 0; i--) {
-		const attr = attrs[i];
-		if (attr && attr.name.includes("data-link")) {
+	const attrs: NamedNodeMap = link.attributes;
+	for (let i: number = attrs.length - 1; i >= 0; i--) {
+		const attr: Attr | null = attrs[i] ?? null;
+		if (attr !== null && attr.name.includes("data-link")) {
 			link.removeAttribute(attr.name);
 		}
 	}
 	
-	// Fjern eventuelle inline-ikoner fra tidligere renderinger trygt
-	const oldIcons = link.querySelectorAll(".scl-inline-icon-before, .scl-inline-icon-after");
-	for (let i = 0; i < oldIcons.length; i++) {
-		const iconEl = oldIcons[i];
-		if (iconEl) {
+	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
+	for (let i: number = 0; i < oldIcons.length; i++) {
+		const iconEl: HTMLElement | null = oldIcons[i] ?? null;
+		if (iconEl !== null) {
 			iconEl.remove();
 		}
 	}
 
-	// 🔑 FIKSET (Linje 27-31): Kalles direkte på elementet via Obsidians innebygde prototype!
+	const classesToRemove: string[] = Array.from(link.classList).filter((cls: string): boolean => cls.startsWith("scl-match-") || cls.startsWith("scl-rule-"));
+	for (const cls of classesToRemove) {
+		link.classList.remove(cls);
+	}
+
 	link.setCssStyles({
 		color: "",
 		backgroundColor: "",
@@ -38,16 +42,19 @@ export function clearExtraAttributes(link: HTMLElement): void {
  * Extracts and normalizes tag cache tokens directly from layout elements safely.
  */
 export function extractTagTokensFromElement(el: HTMLElement): string[] {
-	const candidates = [
-		el.getAttribute("data-tag"),
-		el.getAttribute("data-tags"),
-		el.getAttribute("href"),
-		el.textContent
-	].filter((v): v is string => typeof v === "string" && v.length > 0);
+	const hrefAttr: string | null = el.getAttribute("href");
+	const textContent: string | null = el.textContent;
+
+	const candidates: string[] = [
+		el.getAttribute("data-tag") ?? "",
+		el.getAttribute("data-tags") ?? "",
+		hrefAttr ?? "",
+		textContent ?? ""
+	].filter((v: string): boolean => v.length > 0);
 
 	const out: string[] = [];
 	for (const raw of candidates) {
-		const parts = raw.trim().split(/\s+/).map(p => p.trim()).filter(Boolean);
+		const parts: string[] = parseSpaceSeparatedTokens(raw);
 		for (let token of parts) {
 			token = (() => {
 				try {
@@ -56,11 +63,11 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 					return token;
 				}
 			})();
-			const hashIdx = token.lastIndexOf("#");
+			const hashIdx: number = token.lastIndexOf("#");
 			if (hashIdx > 0 && (token.startsWith("http") || token.startsWith("/"))) {
 				token = token.slice(hashIdx);
 			}
-			const normalized = norm(token);
+			const normalized: string | null = norm(token);
 			if (normalized) {
 				out.push(`#${normalized.replace(/^#/, "")}`);
 			}
@@ -75,15 +82,15 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLinks): void {
 	if (!plugin.settings.enableTagChips) return;
 
-	const tagNodes = container.querySelectorAll("a.tag");
-	for (let i = 0; i < tagNodes.length; i++) {
-		const n = tagNodes[i];
-		if (typeof n === "object" && n !== null && (n as Node).nodeType === 1) {
-			const htmlEl = n as HTMLElement;
-			const tokens = extractTagTokensFromElement(htmlEl);
-			if (!tokens || tokens.length === 0) continue;
+	const tagNodes: NodeListOf<Element> = container.querySelectorAll("a.tag");
+	for (let i: number = 0; i < tagNodes.length; i++) {
+		const n: Element | null = tagNodes[i] ?? null;
+		if (n !== null && n.nodeType === 1) {
+			const htmlEl: HTMLElement = n as HTMLElement;
+			const tokens: string[] = extractTagTokensFromElement(htmlEl);
+			if (tokens.length === 0) continue;
 
-			let tagString = "";
+			let tagString: string = "";
 			for (const t of tokens) {
 				if (!t) continue;
 				tagString += (tagString ? " " : "") + t;
@@ -103,19 +110,19 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 }
 
 /**
- * 🚀 ALL-IN RUNTIME READ MODE ENGINE: Mutates link elements directly in the DOM stream
+ * 🚀 ALL-IN RUNTIME READ MODE ENGINE: Mutates link elements directly in the DOM stream.
  */
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
 	clearExtraAttributes(link);
 
-		const visibleText = (link.textContent || "").trim();
-	const matchedProfile = findMatchingRule(plugin.settings?.selectors, newProps);
+	const visibleText: string = (link.textContent ?? "").trim();
+	const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
+	const matchedProfile = findMatchingRule(selectorsConfig, newProps);
 
-	// 2. VISUELL STYLING (Kaster akkumulerte stiler trygt ut i DOM streamen)
 	if (matchedProfile.hasAnyMatch) {
-		const isDark = document.body.classList.contains("theme-dark");
-		const activeColor = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
-		const activeBg = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		const activeColor: string | null = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
+		const activeBg: string | null = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
 
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
 		
@@ -133,53 +140,68 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 		link.setCssStyles(targetStyles);
 
-		// 3. ISOLERT IKON-HÅNDTERING (Lener seg på de akkumulerte ikoner som overlevde kaskaden)
-		const iconBefore = matchedProfile.iconBefore;
-		const iconAfter = matchedProfile.iconAfter;
+		// === PHASE 2: SEMANTIC INTEROPERABILITY MATCHING ===
+		const ruleUid: string | null = matchedProfile.uid;
+		if (ruleUid !== null) {
+			link.addClass(`scl-rule-${ruleUid}`);
+			
+			const rawTags: string = newProps["tags"] ?? "";
+			const tagsArray: string[] = parseSpaceSeparatedTokens(rawTags);
+			for (let j: number = 0; j < tagsArray.length; j++) {
+				const cleanTag: string | null = tagsArray[j] ?? null;
+				if (cleanTag !== null && cleanTag.length > 0) {
+					link.addClass(`scl-match-tag-${cleanTag}`);
+				}
+			}
+		}
 
-		const cleanedText = norm(visibleText);
-		const cleanedIconBefore = norm(iconBefore);
-		const cleanedIconAfter = norm(iconAfter);
+		// === PHASE 3: INJECTED ICON CONTAINER STANDARDIZATION ===
+		const iconBefore: string | null = matchedProfile.iconBefore;
+		const iconAfter: string | null = matchedProfile.iconAfter;
 
+		const cleanedText: string | null = norm(visibleText);
+		const cleanedIconBefore: string | null = norm(iconBefore ?? "");
+		const cleanedIconAfter: string | null = norm(iconAfter ?? "");
 
-		const skipBefore = !!cleanedIconBefore && cleanedText.startsWith(cleanedIconBefore);
-		let skipAfter = !!cleanedIconAfter && cleanedText.endsWith(cleanedIconAfter);
+		const skipBefore: boolean = !!cleanedIconBefore && (cleanedText ?? "").startsWith(cleanedIconBefore);
+		let skipAfter: boolean = !!cleanedIconAfter && (cleanedText ?? "").endsWith(cleanedIconAfter);
 
-		if (cleanedIconAfter && !skipAfter && cleanedText.length > 1) {
-			const endsWithEmojiSymbol = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedText);
+		if (cleanedIconAfter && !skipAfter && (cleanedText ?? "").length > 1) {
+			const endsWithEmojiSymbol: boolean = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedText ?? "");
 			if (endsWithEmojiSymbol) skipAfter = true;
 		}
 
-if (iconBefore && !skipBefore) {
-			// 🔑 FIKSET (Linje 153): Bruker link.doc.createElement for å omgå linteren uten å krasje!
-			const spanBefore = link.doc.createElement("span");
+		if (iconBefore && !skipBefore) {
+			const spanBefore: HTMLElement = link.doc.createElement("span");
+			spanBefore.addClass("scl-inline-icon");
 			spanBefore.addClass("scl-inline-icon-before");
+			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setText(iconBefore);
+			spanBefore.setCssStyles({ display: "inline-block" });
 			
-			spanBefore.setCssStyles({ marginRight: "3px", display: "inline-block" });
-			
-			link.insertBefore(spanBefore, link.firstChild);
+			const firstChild: ChildNode | null = link.firstChild;
+			link.insertBefore(spanBefore, firstChild);
 		}
 
-		// Sett inn Ikon Etter – kun hvis det ikke er duplikat
 		if (iconAfter && !skipAfter) {
-			// 🔑 FIKSET (Linje 164): Samme her!
-			const spanAfter = link.doc.createElement("span");
+			const spanAfter: HTMLElement = link.doc.createElement("span");
+			spanAfter.addClass("scl-inline-icon");
 			spanAfter.addClass("scl-inline-icon-after");
+			spanAfter.setAttribute("contenteditable", "false");
 			spanAfter.setText(iconAfter);
-			
-			spanAfter.setCssStyles({ marginLeft: "3px", display: "inline-block" });
+			spanAfter.setCssStyles({ display: "inline-block" });
 			
 			link.appendChild(spanAfter);
 		}
 	}
 
+	// === PHASE 1: LEGACY METADATA FOOTPRINT SPECIATION ===
 	for (const [key, propValue] of Object.entries(newProps)) {
-		const domKey = processKey(key);
-		const attributeName = `data-link-${domKey}`;
-		const newValue = processValue(key, propValue);
+		const domKey: string = cleanAttributeKey(key);
+		const attributeName: string = `data-link-${domKey}`;
+		const newValue: string | null = processValue(key, propValue);
 
-		if (newValue) {
+		if (newValue !== null) {
 			link.setAttribute(attributeName, newValue);
 		}
 	}

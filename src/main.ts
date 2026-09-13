@@ -1,13 +1,15 @@
 import { Plugin, debounce, TFile, Notice } from 'obsidian';
 import { Prec } from "@codemirror/state";
-import { EditorView } from "@codemirror/view"; // 🔑 Ny import
+import { EditorView } from "@codemirror/view";
 import { DEFAULT_SETTINGS, SCLSettings } from './settings/settings';
 import SCLSettingTab from './settings/setting-tab';
+import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
 
 import { updateElLinks, updateVisibleLinks, updateContainer } from "./views/view-updaters";
-import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview'; // 🔑 Oppdaterte importer
+import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { sanitizeRuleset } from './processors/rule-sanitizer';
+import { CSSLink } from './types/css-link';
 
 /**
  * Structural contract defining Obsidian's internal CSS registry endpoints.
@@ -39,25 +41,27 @@ interface ObsidianMarkdownViewWithCM {
 }
 
 export default class ResuperchargedLinks extends Plugin {
-	declare settings: SCLSettings;
-	declare settingTab: SCLSettingTab;
-	declare observers: [MutationObserver, string, string][];
-	declare modalObservers: MutationObserver[];
-	declare attrCycleCache: Map<string, Record<string, string>>;
-	activeAttributesSet: Set<string> = new Set();
+	declare public settings: SCLSettings;
+	public settingTab!: SCLSettingTab;
+	public observers!: [MutationObserver, string, string][];
+	public modalObservers!: MutationObserver[];
+	public attrCycleCache!: Map<string, Record<string, string>>;
+	public activeAttributesSet: Set<string> = new Set();
 
-	clearAttrCycleCache(): void {
-		this.attrCycleCache.clear();
+	public clearAttrCycleCache(): void {
+		const cache: Map<string, Record<string, string>> | null = this.attrCycleCache ?? null;
+		if (cache !== null) {
+			cache.clear();
+		}
 	}
 
-	refreshEditorThemes(): void {
+	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			// Mellomlander og sjekker instansen trygt via den lukkede kontrakten vår
-			const internalLeaf = leaf as unknown as ObsidianMarkdownViewWithCM;
-			const cm = internalLeaf.view?.editor?.cm;
+			const internalLeaf: ObsidianMarkdownViewWithCM = leaf as unknown as ObsidianMarkdownViewWithCM;
+			const cm: EditorView | null = internalLeaf.view?.editor?.cm ?? null;
 			
-			if (cm && typeof cm.dispatch === "function") {
+			if (cm !== null && typeof cm.dispatch === "function") {
 				cm.dispatch({
 					effects: themeCompartment.reconfigure(currentTheme)
 				});
@@ -65,7 +69,7 @@ export default class ResuperchargedLinks extends Plugin {
 		});
 	}
 
-	async onload(): Promise<void> {
+	public async onload(): Promise<void> {
 		this.observers = [];
 		this.modalObservers = [];
 		this.attrCycleCache = new Map();
@@ -76,22 +80,25 @@ export default class ResuperchargedLinks extends Plugin {
 		// Check for environmental runtime collisions with the legacy plugin
 		this.detectPluginCollisions();
 		
+		// 🔑 STRICT PROTOCOL FIX: Enforce sequential data resolution BEFORE initializing UI tabs
 		await this.loadSettings();
 		this.compileActiveAttributes();
-		this.addSettingTab(new SCLSettingTab(this.app, this));
+		
+		// Wire the configuration tab safely now that states are hydrated
+		this.settingTab = new SCLSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
-		this.registerMarkdownPostProcessor((el, ctx) => {
+		this.registerMarkdownPostProcessor((el: HTMLElement, ctx) => {
 			updateElLinks(this.app, this, el, ctx);
 		});
 
 		const updateLinksDebounced = debounce((_file: TFile | null) => {
 			this.clearAttrCycleCache();
 			updateVisibleLinks(this.app, this);
-			
-			// 🔑 Tving frem sanntidsfarger i editoren under oppdateringer
 			this.refreshEditorThemes();
 
-			this.observers.forEach(([_, type, ownClass]) => {
+			const activeObservers: [MutationObserver, string, string][] = this.observers ?? [];
+			activeObservers.forEach(([_, type, ownClass]) => {
 				const leaves = this.app.workspace.getLeavesOfType(type);
 				leaves.forEach(leaf => {
 					if (leaf?.view?.containerEl) {
@@ -101,13 +108,12 @@ export default class ResuperchargedLinks extends Plugin {
 			});
 		}, 300, true);
 
-		// 🔑 REGISTRERING VIA PORTEN: Vi pakker inn det opprinnelige temaet i Compartment-porten vår
 		const viewPluginInstance = buildCMViewPlugin(this.app, this);
 		const initialTheme = createRuntimeEditorTheme(this);
 		
 		this.registerEditorExtension([
 			Prec.lowest(viewPluginInstance),
-			themeCompartment.of(initialTheme) // Åpner porten for sanntids farge-injeksjon!
+			themeCompartment.of(initialTheme)
 		]);
 
 		this.app.workspace.onLayoutReady(() => {
@@ -115,7 +121,7 @@ export default class ResuperchargedLinks extends Plugin {
 			initViewObservers(this);
 			initModalObservers(this, document);
 			updateVisibleLinks(this.app, this);
-			this.refreshEditorThemes(); // 🔑 Sikrer farger under oppstart
+			this.refreshEditorThemes();
 		});
 
 		this.registerEvent(this.app.workspace.on("window-open", (window) => {
@@ -124,7 +130,7 @@ export default class ResuperchargedLinks extends Plugin {
 			}
 		}));
 
-		this.registerEvent(this.app.metadataCache.on('changed', (_file) => {
+		this.registerEvent(this.app.metadataCache.on('changed', (_file: TFile) => {
 			updateLinksDebounced(_file);
 		}));
 
@@ -134,15 +140,16 @@ export default class ResuperchargedLinks extends Plugin {
 		}, 150, true)));
 	}
 
-	onunload(): void {
+	public onunload(): void {
 		disconnectAllObservers(this);
 		removeStylingFromViews(this);
 	}
 
-	compileActiveAttributes(): void {
+	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
-		if (this.settings?.selectors && Array.isArray(this.settings.selectors)) {
-			this.settings.selectors.forEach(selector => {
+		const selectorsProxy: CSSLink[] = this.settings?.selectors ?? [];
+		if (Array.isArray(selectorsProxy)) {
+			selectorsProxy.forEach((selector) => {
 				if (selector?.type === 'attribute' && selector.name) {
 					this.activeAttributesSet.add(selector.name);
 				}
@@ -150,71 +157,59 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	async loadSettings(): Promise<void> {
-		const loadedData = (await this.loadData()) as Record<string, unknown> | null;
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData || {});
-		const { sanitized, hasChanges } = sanitizeRuleset(this.settings.selectors);
-		if (hasChanges) {
-			this.settings.selectors = sanitized;
+	public async loadSettings(): Promise<void> {
+		// 🚀 ARCHITECTURAL DECOUPLING: Delegate ingestion, vasking and translation paths to the manager
+		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
+		this.settings = settings;
+
+		// Force write back clean structure instantly if corrupted nodes were healed during ingestion
+		if (dataRepaired) {
 			await this.saveSettings();
 		}
 	}
 
-	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+	public async saveSettings(): Promise<void> {
+		// 🚀 ARCHITECTURAL DECOUPLING: Delegate output stripping and serialization to the manager
+		await saveStrippedSettings(this, this.settings);
 	}
 	
-	/**
-	 * Scans the local directory initialization trees on boot to look for outdated, 
-	 * disk-persisted CSS stylesheets generated by legacy versions (< v0.0.32).
-	 * Bypasses linter constraints by replacing background console streams with native notice notifications.
-	 */
 	private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
 			const adapter = this.app.vault.adapter;
 			const configDir = this.app.vault.configDir;
 			const snippetPath = `${configDir}/snippets/re-supercharged-links-gen.css`;
 
-			const fileExists = await adapter.exists(snippetPath);
+			const fileExists: boolean = await adapter.exists(snippetPath);
 			if (fileExists) {
 				await adapter.remove(snippetPath);
 				
-				const internalApp = this.app as unknown as ObsidianAppWithCustomCss;
+				const internalApp: ObsidianAppWithCustomCss = this.app as unknown as ObsidianAppWithCustomCss;
 				if (internalApp.customCss && typeof internalApp.customCss.reloadCustomCss === "function") {
 					await internalApp.customCss.reloadCustomCss();
 				}
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown file system violation";
+			const errorMessage: string = error instanceof Error ? error.message : "Unknown file system violation";
 			new Notice(`Re-Supercharged Links: Failed to purge legacy snippet file (${errorMessage})`);
 		}
 	}
 
-		/**
-	 * Scans the active community plugin manifest on startup to detect if the original
-	 * legacy "supercharged-links" plugin is enabled simultaneously.
-	 * Dispatches a native layout notice warning to prevent rendering thread collisions.
-	 */
 	private detectPluginCollisions(): void {
 		try {
-			const internalApp = this.app as unknown as ObsidianPluginRegistry;
-			const enabledPlugins = internalApp.plugins?.enabledPlugins;
+			const internalApp: ObsidianPluginRegistry = this.app as unknown as ObsidianPluginRegistry;
+			const enabledPlugins: Set<string> | null = internalApp.plugins?.enabledPlugins ?? null;
 
-			// Verify if the legacy plugin's unique identifier exists in the active set
-			if (enabledPlugins && enabledPlugins.has("supercharged-links")) {
+			if (enabledPlugins !== null && enabledPlugins.has("supercharged-links")) {
 				new Notice(
 					"⚠️ Re-Supercharged Links Warning:\n" +
 					"The original 'Supercharged Links' plugin is currently enabled. " +
 					"Please disable it to prevent styling conflicts and layout lag.",
-					10000 // Display the notice for 10 seconds so the user catches it
+					10000
 				);
 			}
 		} catch (error) {
-			// 🔑 FIXED: Consume the error interface actively to satisfy strict static analysis constraints.
-			// This prevents empty block warnings while keeping the diagnostic pass silent on system failures.
-			const violation = error instanceof Error ? error.name : "RegistryAccessViolation";
-			void violation; // Mark the token as explicitly ignored without dropping compilation flags
+			const violation: string = error instanceof Error ? error.name : "RegistryAccessViolation";
+			void violation;
 		}
 	}
-
 }
