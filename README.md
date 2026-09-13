@@ -1,12 +1,10 @@
 # Re-Supercharged Links
 
-[![Obsidian Plugin](https://img.shields.io/badge/Obsidian-Plugin-%23483699.svg?logo=obsidian&logoColor=white)](https://obsidian.md)
-[![Obsidian Community Plugin](https://img.shields.io/badge/Obsidian-Community%20Plugin-7C3AED?logo=obsidian&logoColor=white)](https://obsidian.md/plugins)
-[![Release](https://img.shields.io/github/v/release/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/releases)
-[![myBrain Integration](https://img.shields.io/badge/myBrain-Integration-00C853?logo=icloud&logoColor=white)](https://github.com/CarlB01/myBrain)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CarlB01/re-supercharged-links/blob/master/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/CarlB01/re-supercharged-links/total)](https://github.com/CarlB01/re-supercharged-links/releases)
-[![Stars](https://img.shields.io/github/stars/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/stargazers)
+[![Obsidian Plugin](https://shields.io)](https://obsidian.md)
+[![Obsidian Community Plugin](https://shields.io)](https://obsidian.md)
+[![Release](https://shields.io)](https://github.com)
+[![myBrain Integration](https://shields.io)](https://github.com)
+[![License: MIT](https://shields.io)](https://github.com)
 
 A modern, high-performance, and completely re-architected fork of **Supercharged Links** for Obsidian. Rebuilt from the ground up for instantaneous rendering, zero layout thrashing, and an ultra-light memory footprint.
 
@@ -20,8 +18,10 @@ Instead of plain internal links, you can style links based on frontmatter/fields
 
 ---
 
+
 ## ✨ The Architectural Evolution: Original vs. Re-Supercharged
 
+To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive vaults.
 To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive vaults.
 
 ### 📊 Comparative Analysis
@@ -48,14 +48,20 @@ With the release of the **Semantic Mirroring Protocol**, SCL delivers the best o
 ## ⚖️ The Honest Trade-offs: Pros and Cons
 
 Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in speed, it changes how the plugin interacts with your system.
+Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in speed, it changes how the plugin interacts with your system.
 
 ### 🟢 Pros (Why you should use it)
 * **Zero UI Lag or Scrolling Micro-Stutter:** Fluid, locked 60+ FPS rhythm across multi-thousand-note vaults.
 * **Instant Settings Feedback:** Color choices light up preview badges in the exact microsecond you release the cursor.
 * **Agnostic Style Compensation:** Empowers graph/canvas engines to harvest exact inline color configurations using native browser layout calculations (`getComputedStyle`).
 * **Total Crash Immunity:** Equipped with an internal ingestion engine that automatically vends and repairs legacy data nodes on disk, wiping out `TypeError` boot-time crashes permanently.
+* **Zero UI Lag or Scrolling Micro-Stutter:** Fluid, locked 60+ FPS rhythm across multi-thousand-note vaults.
+* **Instant Settings Feedback:** Color choices light up preview badges in the exact microsecond you release the cursor.
+* **Agnostic Style Compensation:** Empowers graph/canvas engines to harvest exact inline color configurations using native browser layout calculations (`getComputedStyle`).
+* **Total Crash Immunity:** Equipped with an internal ingestion engine that automatically vends and repairs legacy data nodes on disk, wiping out `TypeError` boot-time crashes permanently.
 
 ### 🔴 Cons (What to be aware of)
+* **Deep Architectural Divergence:** Move so far past the original implementation that settings objects are structurally unique. It cannot read legacy data structures from the original plugin without configuring rules anew.
 * **Deep Architectural Divergence:** Move so far past the original implementation that settings objects are structurally unique. It cannot read legacy data structures from the original plugin without configuring rules anew.
 
 ---
@@ -65,6 +71,7 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 1. Open **Settings → Community plugins** and install **Re-Supercharged Links**.
 2. Navigate to the option pane and create a new selector rule targeting a metadata marker (e.g., `status`).
 3. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
+3. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
 4. Watch your workspace map itself out visually in real-time!
 
 ---
@@ -73,6 +80,7 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 
 - Built for Obsidian users who rely on metadata-heavy workflows
 - Works especially well with structured vaults (projects, PARA, Zettelkasten hybrids)
+- Scoped observers protect native view leaves, file properties pane, and suggestion containers dynamically
 - Scoped observers protect native view leaves, file properties pane, and suggestion containers dynamically
 - Dataview-related enrichment is handled defensively to avoid hard failures
 
