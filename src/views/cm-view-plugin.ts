@@ -1,6 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
-import { Decoration, DecorationSet, EditorView, ViewUpdate, WidgetType } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
@@ -26,11 +26,13 @@ function isCodeMirrorInternalLink(nodeName: string): boolean {
 	);
 }
 
+// 🔑 ARCHITECTURAL INTERFACE: Extend the iteration state to hold a flat transaction memory array
 interface IterationState {
 	builder: RangeSetBuilder<Decoration>;
 	activeFileBasename: string;
 	from: number;
 	to: number;
+	collectedDecos: { from: number; to: number; value: Decoration }[];
 }
 
 export class CMViewPlugin {
@@ -63,7 +65,8 @@ export class CMViewPlugin {
 			builder,
 			activeFileBasename: mdView.file.basename,
 			from: 0,
-			to: 0
+			to: 0,
+			collectedDecos: [] // ⚡ Initialize the transaction buffer array
 		};
 
 		for (const { from, to } of view.visibleRanges) {
@@ -81,6 +84,29 @@ export class CMViewPlugin {
 			});
 		}
 
+		// 🔑 PRODUCTION-READY SORTING ROUTINE: Order all collected nodes strictly ascending by index position
+		state.collectedDecos.sort((a, b) => {
+			if (a.from !== b.from) return a.from - b.from;
+			
+			// If position markers match precisely, sort widgets by CodeMirror's structural layout side priority constants
+			const aSide = (a.value.spec as { side?: number })?.side ?? 0;
+			const bSide = (b.value.spec as { side?: number })?.side ?? 0;
+			return aSide - bSide;
+		});
+
+		// ⚡ SAFE TRANSACTIONAL FLUSH: Commit the pre-sorted array sequentially into CodeMirror's native tree builder
+		for (let i = 0; i < state.collectedDecos.length; i++) {
+			const item = state.collectedDecos[i];
+			if (item !== undefined && item !== null) {
+				try {
+					builder.add(item.from, item.to, item.value);
+				} catch {
+					// Fallback containment enclosure to trap volatile syntax transitions silently without crashing the workspace
+					continue;
+				}
+			}
+		}
+
 		return builder.finish();
 	}
 
@@ -93,21 +119,70 @@ export class CMViewPlugin {
 	): void {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
+		const nodeNameLower: string = node.name.toLowerCase();
+		
+		// 🔑 ARCHITECTURAL PROTOCOL: Completely bypass syntax formatting bracket wrappers
+		if (nodeNameLower.includes("formatting-link")) {
+			return;
+		}
+
 		if (isCodeMirrorInternalLink(node.name)) {
-			const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
-			const linkText: string = extractCleanLinkPath(rawLinkText);
+			let rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
+			let linkText: string = extractCleanLinkPath(rawLinkText);
 			
+			// 🔑 FRAGMENT IDENTIFICATION MATRIX: Isolate each independent token node structural element cleanly
+			const isExpandedPathNode: boolean = nodeNameLower.includes("has-alias");
+			const isPipeNode: boolean = nodeNameLower === "cm-link-alias-pipe" || nodeNameLower.includes("pipe");
+			const isAliasNode: boolean = nodeNameLower === "cm-link-alias" || nodeNameLower.includes("link-alias");
+			const isStandardLinkNoAlias: boolean = nodeNameLower.includes("link") && !nodeNameLower.includes("alias") && !isPipeNode;
+
+			// Determine if the formatting markup expression is hidden based on immediate adjacent node visibility bounds
+			const isCollapsedCombined: boolean = nodeNameLower.includes("hmd-internal-link_link-has-alias") || nodeNameLower.includes("hmd-internal-link_link-alias");
+			const isCollapsed: boolean = isCollapsedCombined || (isAliasNode && view.state.doc.sliceString(node.from - 1, node.from) !== "|");
+
+			// 🔑 LINK TEXT RECONSTRUCTION: If evaluating an isolated fragment, pull structural text from the line string matrix
+			const isFragment: boolean = isPipeNode || isAliasNode || isCollapsedCombined;
+			if (isFragment || linkText.length === 0 || !this.app.metadataCache.getFirstLinkpathDest(linkText, state.activeFileBasename)) {
+				try {
+					const currentLine = view.state.doc.lineAt(node.from);
+					const lineText: string = currentLine.text;
+					const positionInLine: number = node.from - currentLine.from;
+					
+					const wikiLinkRegex: RegExp = /\[\[([^\]]+)\]\]/g;
+					let match: RegExpExecArray | null = null;
+					
+					while ((match = wikiLinkRegex.exec(lineText)) !== null) {
+						const startIdx: number = match.index;
+						const endIdx: number = wikiLinkRegex.lastIndex;
+						
+						if (positionInLine >= startIdx && positionInLine <= endIdx) {
+							const fullMatchedLink: string = match[0] ?? "";
+							const resolvedPath: string = extractCleanLinkPath(fullMatchedLink);
+							
+							if (resolvedPath.length > 0) {
+								linkText = resolvedPath;
+								rawLinkText = fullMatchedLink;
+							}
+							break;
+						}
+					}
+				} catch {
+					return;
+				}
+			}
+
 			if (linkText.length === 0) return;
 
-			const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, node.name.toLowerCase().includes("url")) ?? null;
+			const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, nodeNameLower.includes("url")) ?? null;
 			if (file === null) return;
 
-			if (file.basename === state.activeFileBasename && !rawLinkText.includes(state.activeFileBasename)) {
+			if (file.basename === state.activeFileBasename && !rawLinkText.includes(state.activeFileBasename) && !isFragment) {
 				return;
 			}
 
-			const linkLabel: string = view.state.doc.sliceString(node.from, node.to).trim();
-			const deco: Decoration = this.processLinkDecoration(file, linkLabel);
+			// 🔑 ARCHITECTURAL FIX: Use the file's basename as the ground truth for styling lookups.
+			// This guarantees that rules (colors, weights, decoration flags) apply symmetrically to all shards.
+			const deco: Decoration = this.processLinkDecoration(file, file.basename);
 
 			const specProxy: { attributes?: Record<string, string>; class?: string } = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec ?? {};
 			const currentActiveAttributes: Record<string, string> = specProxy.attributes ?? {};
@@ -120,14 +195,32 @@ export class CMViewPlugin {
 				const skipBefore: boolean = currentActiveClasses.includes("scl-hide-before");
 				const skipAfter: boolean = currentActiveClasses.includes("scl-hide-after");
 
-				if (iconBefore.length > 0 && !skipBefore) {
-					state.builder.add(node.from, node.from, Decoration.widget({ widget: new IconWidget(iconBefore, true), side: -1 }));
+				// 🔑 STRICT WORK-SPLITTING RULESET: Prevent layout shifting and duplicate icon compilation
+				// 1. Prepend icons belong exclusively to the initial boundary marker token
+				const canDrawBefore: boolean = isStandardLinkNoAlias || isExpandedPathNode || (isCollapsedCombined && !isAliasNode);
+				if (iconBefore.length > 0 && !skipBefore && canDrawBefore) {
+					state.collectedDecos.push({ 
+						from: node.from, 
+						to: node.from, 
+						value: Decoration.widget({ widget: new IconWidget(iconBefore, true), side: -1 }) 
+					});
 				}
 
-				state.builder.add(node.from, node.to, deco);
+				// Always apply style decoration mappings across every token fragment to guarantee absolute color uniformity
+				state.collectedDecos.push({ 
+					from: node.from, 
+					to: node.to, 
+					value: deco 
+				});
 
-				if (iconAfter.length > 0 && !skipAfter) {
-					state.builder.add(node.to, node.to, Decoration.widget({ widget: new IconWidget(iconAfter, false), side: 1 }));
+				// 2. Append icons belong exclusively to the absolute trailing boundary marker token
+				const canDrawAfter: boolean = isStandardLinkNoAlias || isAliasNode || isCollapsedCombined;
+				if (iconAfter.length > 0 && !skipAfter && canDrawAfter) {
+					state.collectedDecos.push({ 
+						from: node.to, 
+						to: node.to, 
+						value: Decoration.widget({ widget: new IconWidget(iconAfter, false), side: 1 }) 
+					});
 				}
 			}
 		}
@@ -157,7 +250,6 @@ export class CMViewPlugin {
 			if (selector === null) continue;
 
 			let isMatch: boolean = false;
-			// 🔑 DECOUPLED STAGES: Use the consolidated text cleaners
 			const ruleValue: string = cleanRuleValue(selector.value);
 			if (ruleValue.length === 0) continue;
 
@@ -166,6 +258,7 @@ export class CMViewPlugin {
 				const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
 				if (cleanFileTags.includes(ruleValue)) isMatch = true;
 			} 
+			// ⚡ HIGH-PERFORMANCE ROUTE INDEXING: Map path strings perfectly using the unified tokens manager
 			else if (selector.type === "path") {
 				const rawPath: string = rawAttrs["path"] ?? rawAttrs["data-link-path"] ?? "";
 				const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
@@ -209,13 +302,14 @@ export class CMViewPlugin {
 			}
 		}
 
-		// 🔑 DECOUPLED STAGES: Use the clean space-separated parser for semantic chips injection
+		// 🔑 SEMANTIC CHIP CLASS INJECTION: Safely strip hash characters exclusively for valid class list naming architectures
 		const rawTagsField: string = rawAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
 		for (let j: number = 0; j < tagsArray.length; j++) {
 			const cleanTag: string | null = tagsArray[j] ?? null;
 			if (cleanTag !== null && cleanTag.length > 0) {
-				classList.push(`scl-match-tag-${cleanTag}`);
+				const safeClassName: string = cleanTag.replace(/^#/, "");
+				classList.push(`scl-match-tag-${safeClassName}`);
 			}
 		}
 

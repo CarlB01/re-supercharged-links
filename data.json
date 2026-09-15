@@ -78,7 +78,8 @@
       "type": "tag",
       "value": "lege",
       "iconAfter": "⚕️",
-      "lightColor": "#b97cd0"
+      "lightColor": "#b97cd0",
+      "fontStyle": "line-through"
     },
     {
       "uid": "73ad-813f",
@@ -102,7 +103,8 @@
     },
     {
       "uid": "6f7c5abf-7394",
-      "type": "path"
+      "type": "tag",
+      "value": "hallo"
     }
   ],
   "targetAttributes": []

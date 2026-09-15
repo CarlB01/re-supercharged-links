@@ -1,10 +1,6 @@
 import { CSSLink, MatchTypes } from "../types/css-link";
 import { parseSpaceSeparatedTokens, cleanRuleValue, cleanAttributeKey } from "../utils/string-utils";
 
-/**
- * Represents a cleanly merged runtime style profile compiled from cascading user rules.
- * Ensures properties accumulate additively, mimicking native browser CSS behaviors.
- */
 export interface AccumulatedStyleProfile {
 	uid: string;
 	lightColor: string;
@@ -29,52 +25,37 @@ const OP_TO_MATCH: Record<OpKey, MatchTypes> = {
 };
 
 function isOpKey(x: unknown): x is OpKey {
-  if (typeof x !== "string") return false;
-  return x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=";
+  return typeof x === "string" && (x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=");
 }
+
 
 /**
  * Normalizes a rule's internal matching properties without polluting front-facing fields.
+ * 🔑 USER-LAYER IMMUNITY: Strips leading hashes and preserves clean text strings for the UI fields.
  */
 export function sanitizeRule(rule: CSSLink): CSSLink {
-	// 🔑 STRICT PROTOCOL FIX: Safely extract and type-guard the prototype to eradicate 'any' typed arguments
 	const rawProto: unknown = Object.getPrototypeOf(rule);
 	const validProto: object = typeof rawProto === "object" && rawProto !== null ? rawProto : Object.prototype;
 	
 	const prototypeObject: Record<string, unknown> = Object.create(validProto) as Record<string, unknown>;
 	const out: CSSLink = Object.assign(prototypeObject, rule);
 	
-	const v: string = (out.value ?? "").trim();
+	// 🔑 CLEAN DATA LAYER: Strip any accidental leading '#' to ensure memory stays strictly clean
+	if (out.type === "tag" && typeof out.value === "string" && out.value.length > 0) {
+		out.value = out.value.trim().replace(/^#/, "");
+	}
 
-  if (isOpKey(v)) {
-    out.match = OP_TO_MATCH[v];
-    out.value = "";
-    return out;
-  }
+	// Lock the exact match types seamlessly based on the rule type mapping
+	if (out.type === "tag" || out.type === "attribute") {
+		out.match = "exact";
+	} else if (out.type === "path") {
+		out.match = "contains";
+	}
 
-  const m: RegExpMatchArray | null = v.match(/^((?:=|\*=|\^=|\$=|~=)+)\s*(.*)$/) ?? null;
-  if (m !== null) {
-    const rawOps: string = m[1] ?? "";
-    const restRaw: string = m[2] ?? "";
-    const rest: string = restRaw.trim();
-
-    const lastOp: OpKey =
-      rawOps.endsWith("*=") ? "*=" :
-      rawOps.endsWith("^=") ? "^=" :
-      rawOps.endsWith("$=") ? "$=" :
-      rawOps.endsWith("~=") ? "~=" :
-      "=";
-
-    out.match = OP_TO_MATCH[lastOp];
-    out.value = rest;
-  }
-
-  return out;
+	return out;
 }
 
-/**
- * Validates and normalizes rulesets during boot cycles.
- */
+
 export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitized: CSSLink[]; hasChanges: boolean } {
   if (!rules || !Array.isArray(rules)) {
     return { sanitized: [], hasChanges: false };
@@ -117,6 +98,7 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
     let isMatch: boolean = false;
     const ruleValue: string = cleanRuleValue(selector.value);
 
+    // ⚡ LYNRAST MATCHER: Fordi cachen og reglene begge er garantert å ha '#'
     if (selector.type === "tag" && resolvedAttrs["tags"]) {
       const cleanFileTags: string[] = parseSpaceSeparatedTokens(resolvedAttrs["tags"]);
       if (cleanFileTags.includes(ruleValue)) isMatch = true;
@@ -141,10 +123,6 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
   return result;
 }
 
-/**
- * Iterates through all active user style rules chronologically to compile an additive, cascading style profile.
- * STRICT PROTOCOL: Enforces locked, predictable matching blueprints fully integrated with our unified tokens manager.
- */
 export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): AccumulatedStyleProfile {
 	const profile: AccumulatedStyleProfile = {
 		uid: "",
@@ -169,19 +147,17 @@ export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs
 		const ruleValue: string = cleanRuleValue(selector.value);
 		if (ruleValue.length === 0) continue;
 
-		// 1. LOCKED TAG PROTOCOL: High-performance exact lookup in space-separated array tokens
+		// ⚡ ZERO-OVERHEAD EXPLICIT LOOKUP: Ren matrise-lookbehind uten manipulasjon
 		if (selector.type === "tag") {
 			const rawTags: string = resolvedAttrs["tags"] ?? resolvedAttrs["data-link-tags"] ?? "";
 			const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
 			if (cleanFileTags.includes(ruleValue)) isMatch = true;
 		} 
-		// 2. LOCKED PATH PROTOCOL: High-performance partial string route indexing
 		else if (selector.type === "path") {
 			const rawPath: string = resolvedAttrs["path"] ?? resolvedAttrs["data-link-path"] ?? "";
 			const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
 			if (cleanPath.includes(ruleValue)) isMatch = true;
 		}
-		// 3. LOCKED ATTRIBUTE PROTOCOL: Strict exact value mapping matching
 		else if (selector.type === "attribute") {
 			const cleanKey: string = cleanAttributeKey(selector.name);
 			if (cleanKey.length > 0) {

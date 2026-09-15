@@ -118,7 +118,6 @@ export default class SCLSettingTab extends PluginSettingTab {
     if (coreKeys.includes(key)) return (settings as unknown as Record<string, unknown>)[key];
 
     if (key.startsWith("scl_")) {
-      // 🔑 MOVED TO UTILS: Safe property control decoding block
       const { prop, uid } = parseControlValueKey(key);
       const selectors: CSSLink[] = settings.selectors ?? [];
       const selector: CSSLink | null = selectors.find((s: CSSLink): boolean => s.uid === uid) ?? null;
@@ -316,12 +315,20 @@ export default class SCLSettingTab extends PluginSettingTab {
 
   private handleRuleFieldUpdate(key: string, value: unknown): void {
     const { prop, uid } = parseControlValueKey(key);
-    const selector: CSSLink | null = this.plugin.settings.selectors.find((s: CSSLink): boolean => s.uid === uid) ?? null;
+    const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
+    const selector: CSSLink | null = selectors.find((s: CSSLink): boolean => s.uid === uid) ?? null;
     const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
 
     if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
       const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
-      ruleProxy[prop] = value;
+      
+      // 🔑 CLEAN INPUT GUARD: Strip any accidental leading '#' from tag rules in the UI layer
+      let cleanValue = value;
+      if (prop === "value" && typeof value === "string" && selector.type === "tag") {
+        cleanValue = value.trim().replace(/^#/, "");
+      }
+      
+      ruleProxy[prop] = cleanValue;
 
       const sanitized: CSSLink = sanitizeRule(selector);
       selector.match = sanitized.match;
@@ -365,34 +372,17 @@ export default class SCLSettingTab extends PluginSettingTab {
 
         noteEl.setCssStyles(targetStyles);
 
-        const oldIcons: NodeListOf<Element> = noteEl.querySelectorAll(".scl-inline-icon");
-        oldIcons.forEach((icon: Element): void => icon.remove());
-
-        const iconBefore: string = (rule.iconBefore ?? "").trim();
-        const iconAfter: string = (rule.iconAfter ?? "").trim();
-
-        if (iconBefore.length > 0) {
-          // 🔑 THE TERMINATOR FIX: Leverage the element's explicit window context (.win) 
-          // to fully satisfy the linter while keeping node instantiation completely crash-proof.
-          const spanBefore: HTMLElement = noteEl.win.createEl("span", {
-            cls: "scl-inline-icon scl-inline-icon-before",
-            text: iconBefore
-          });
-          spanBefore.setCssStyles({ display: "inline-block" });
-          noteEl.insertBefore(spanBefore, noteEl.firstChild);
+        if ((rule.iconBefore ?? "").trim().length > 0) {
+          noteEl.setAttribute("data-link-icon-before", rule.iconBefore.trim());
+        } else {
+          noteEl.removeAttribute("data-link-icon-before");
         }
 
-        if (iconAfter.length > 0) {
-          // 🔑 THE TERMINATOR FIX: Leverage the element's explicit window context (.win)
-          // to fully satisfy the linter while keeping node instantiation completely crash-proof.
-          const spanAfter: HTMLElement = noteEl.win.createEl("span", {
-            cls: "scl-inline-icon scl-inline-icon-after",
-            text: iconAfter
-          });
-          spanAfter.setCssStyles({ display: "inline-block" });
-          noteEl.appendChild(spanAfter);
+        if ((rule.iconAfter ?? "").trim().length > 0) {
+          noteEl.setAttribute("data-link-icon-after", rule.iconAfter.trim());
+        } else {
+          noteEl.removeAttribute("data-link-icon-after");
         }
-
       }
     }
   }

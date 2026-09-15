@@ -23,6 +23,7 @@ export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void 
 
 /**
  * Assembles human-readable configuration descriptive strings alongside dynamic inline markup.
+ * 🔑 CONTEXTUAL HASH ENFORCER: Guarantees exactly one '#' character is rendered for visual tags.
  */
 export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void {
   const valText: string = selector.value || "empty";
@@ -30,7 +31,10 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void
   if (selector.type === "tag") {
     renderPreviewNote(nameEl, selector);
     nameEl.appendText(" has tag ");
-    nameEl.createEl("a", { cls: "tag", text: `#${valText}` });
+    
+    // Clean any legacy double hash artifacts during real-time visual assembly
+    const cleanDisplayTag: string = valText.trim().replace(/^#/, "");
+    nameEl.createEl("a", { cls: "tag", text: `#${cleanDisplayTag}` });
     return;
   }
 
@@ -48,3 +52,4 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void
   nameEl.appendText(" path matches ");
   nameEl.createEl("b", { text: valText });
 }
+

@@ -8,7 +8,7 @@ import { cloneSettingsObject } from "../utils/string-utils";
  * 🔑 CONDUIT PROPERTY DICTIONARY
  * Dictionary of strict implicit parameters that under no circumstance belong on the disk layer.
  */
-const GARBAGE_PROPERTIES: Record<string, string> = {
+const GARBAGE_PROPERTIES: Record<string, unknown | unknown[]> = {
 	name: "",
 	value: "",
 	iconBefore: "",
@@ -18,13 +18,15 @@ const GARBAGE_PROPERTIES: Record<string, string> = {
 	lightColor: "",
 	darkColor: "",
 	lightBgColor: "transparent",
-	darkBgColor: "transparent"
+	darkBgColor: "transparent",
+	selectText: [true, false],
+	selectAppend: [true, false],
+	selectPrepend: [true, false],
+	selectBackground: [true, false]
 };
 
 /**
  * 🚀 RUNTIME INGESTION CLEANER
- * Safely reads raw storage structures from disk and purges stale/empty/corrupted nodes.
- * Guarantees a fully hydrated, crash-immune object schema before core engines can evaluate fields.
  */
 export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ settings: SCLSettings; dataRepaired: boolean }> {
 	const pluginInstance: Plugin | null = plugin ?? null;
@@ -55,7 +57,6 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 		dataRepaired = true;
 	}
 
-	// Clean up explicit blanks and structural defaults from the ingestion matrix
 	const sanitizedSelectors: Record<string, unknown>[] = [];
 	for (let i: number = 0; i < selectorsArray.length; i++) {
 		const rawRule: Record<string, unknown> | null = selectorsArray[i] ?? null;
@@ -63,10 +64,17 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 
 		const cleanRule: Record<string, unknown> = { ...rawRule };
 
-		for (const [key, garbageValue] of Object.entries(GARBAGE_PROPERTIES)) {
-			if (String(cleanRule[key] ?? "") === garbageValue) {
-				delete cleanRule[key];
-				dataRepaired = true;
+		for (const [key, garbageTarget] of Object.entries(GARBAGE_PROPERTIES)) {
+			if (cleanRule[key] !== undefined) {
+				const currentValue = cleanRule[key];
+				const isGarbage = Array.isArray(garbageTarget)
+					? garbageTarget.includes(currentValue)
+					: String(currentValue ?? "") === String(garbageTarget);
+
+				if (isGarbage) {
+					delete cleanRule[key];
+					dataRepaired = true;
+				}
 			}
 		}
 
@@ -95,7 +103,6 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 
 /**
  * 🔑 PRISTINE DATA STORAGE ENGINE
- * Mutates and strips layout configuration models prior to disk serialization.
  */
 export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings): Promise<void> {
 	const pluginInstance: Plugin | null = plugin ?? null;
@@ -111,9 +118,16 @@ export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings
 
 		const cleanRule: Record<string, unknown> = { ...(rule as unknown as Record<string, unknown>) };
 
-		for (const [key, defaultValue] of Object.entries(GARBAGE_PROPERTIES)) {
-			if (String(cleanRule[key] ?? "") === defaultValue) {
-				delete cleanRule[key];
+		for (const [key, garbageTarget] of Object.entries(GARBAGE_PROPERTIES)) {
+			if (cleanRule[key] !== undefined) {
+				const currentValue = cleanRule[key];
+				const isGarbage = Array.isArray(garbageTarget)
+					? garbageTarget.includes(currentValue)
+					: String(currentValue ?? "") === String(garbageTarget);
+
+				if (isGarbage) {
+					delete cleanRule[key];
+				}
 			}
 		}
 

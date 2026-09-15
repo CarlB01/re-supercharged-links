@@ -56,7 +56,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("file-explorer", pluginInstance, ".nav-file-title-content");
 	registerViewType("recent-files", pluginInstance, ".nav-file-title-content");
 	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
-	registerViewType("file-properties", pluginInstance, "div.internal-link > .multi-select-pill-content");
+	registerViewType("file-properties", pluginInstance, "div.internal-link.multi-select-pill-content");
 
 	// Obsidian Bases Third-Party Compatibility
 	if (pluginInstance.settings.enableBases) {
