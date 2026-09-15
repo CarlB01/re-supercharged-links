@@ -1,3 +1,5 @@
+// Data collection and caching module
+
 import { App, getAllTags, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/string-utils";
@@ -65,7 +67,6 @@ export function fetchTargetAttributesSync(
 				const frontmatterTags: string[] = parseSpaceSeparatedTokens(String(value));
 				for (let j: number = 0; j < frontmatterTags.length; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
-					// ⚡ Keep the text token strictly clean here to feed fast index matching engines
 					if (t !== null && t.length > 0) {
 						dynamicTagsList.push(t);
 					}
@@ -76,18 +77,16 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	// 2. Map standard indexed tag cache tokens seamlessly
-	if (settings.targetTags) {
-		const allTags: string[] = getAllTags(cache) ?? [];
-		for (let j: number = 0; j < allTags.length; j++) {
-			const rawTagNode: string | null = allTags[j] ?? null;
-			if (rawTagNode !== null) {
-				const cacheTags: string[] = parseSpaceSeparatedTokens(rawTagNode);
-				for (let k: number = 0; k < cacheTags.length; k++) {
-					const cleanCacheTag: string | null = cacheTags[k] ?? null;
-					if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
-						dynamicTagsList.push(cleanCacheTag);
-					}
+	// 2. Map standard indexed tag cache tokens seamlessly (Now default O(N) execution route)
+	const allTags: string[] = getAllTags(cache) ?? [];
+	for (let j: number = 0; j < allTags.length; j++) {
+		const rawTagNode: string | null = allTags[j] ?? null;
+		if (rawTagNode !== null) {
+			const cacheTags: string[] = parseSpaceSeparatedTokens(rawTagNode);
+			for (let k: number = 0; k < cacheTags.length; k++) {
+				const cleanCacheTag: string | null = cacheTags[k] ?? null;
+				if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
+					dynamicTagsList.push(cleanCacheTag);
 				}
 			}
 		}

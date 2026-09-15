@@ -7,6 +7,7 @@ import { cloneSettingsObject } from "../utils/string-utils";
 /**
  * 🔑 CONDUIT PROPERTY DICTIONARY
  * Dictionary of strict implicit parameters that under no circumstance belong on the disk layer.
+ * ⚡ AUTO-SCRUB MATRICES: Old structural view toggles are mapped here to be purged from disk on boot.
  */
 const GARBAGE_PROPERTIES: Record<string, string | boolean | unknown[]> = {
 	name: "",
@@ -22,8 +23,20 @@ const GARBAGE_PROPERTIES: Record<string, string | boolean | unknown[]> = {
 	selectText: [true, false],
 	selectAppend: [true, false],
 	selectPrepend: [true, false],
-	selectBackground: [true, false]
+	selectBackground: [true, false],
+	enableEditor: [true, false],
+	enableTabHeader: [true, false],
+	enableFileList: [true, false],
+	enableBacklinks: [true, false],
+	enableQuickSwitcher: [true, false],
+	enableSuggestor: [true, false],
+	enableBases: [true, false],
+	// ⚡ BANISHED OVAL KEYS: Scrub out the last legacy advanced switches from configuration states
+	activateSnippet: [true, false],
+	targetTags: [true, false]
 };
+
+
 
 
 /**

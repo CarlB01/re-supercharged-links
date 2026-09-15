@@ -1,3 +1,6 @@
+// editor-decorations:
+// transactions-buffer + sorting before flushing in one pass
+
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
@@ -56,7 +59,8 @@ export class CMViewPlugin {
 
 	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
 		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
-		if (!this.plugin.settings.enableEditor) return builder.finish();
+		// 🔑 UNIVERSAL PROTOCOL: Live Preview editor extensions now run automatically out of the box,
+		// completely free of legacy configuration switches.
 
 		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView) ?? null;
 		if (mdView === null || mdView.file === null) return builder.finish();
@@ -66,8 +70,9 @@ export class CMViewPlugin {
 			activeFileBasename: mdView.file.basename,
 			from: 0,
 			to: 0,
-			collectedDecos: [] // ⚡ Initialize the transaction buffer array
+			collectedDecos: []
 		};
+
 
 		for (const { from, to } of view.visibleRanges) {
 			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
@@ -302,8 +307,15 @@ export class CMViewPlugin {
 		}
 
 		// 🔑 SEMANTIC CHIP CLASS INJECTION: Safely strip hash characters exclusively for valid class list naming architectures
+		// === PHASE 4: MYBRAIN INTEROPERABILITY INJECTION ===
 		const rawTagsField: string = rawAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
+		
+		if (tagsArray.length > 0) {
+			// 🔑 THE MYBRAIN CONTRACT CONDUIT: Force clean hash-prefixes into CodeMirror's active mark spec attributes
+			attributes["data-link-tags"] = tagsArray.map((t: string): string => t.startsWith("#") ? t : `#${t}`).join(" ");
+		}
+
 		for (let j: number = 0; j < tagsArray.length; j++) {
 			const cleanTag: string | null = tagsArray[j] ?? null;
 			if (cleanTag !== null && cleanTag.length > 0) {

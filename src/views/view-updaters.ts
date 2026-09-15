@@ -30,20 +30,19 @@ function getNestedChild(root: Element | null | undefined, path: number[]): Eleme
 export function updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
 	if (!container || typeof container.findAll !== "function") return;
 	
-	const dataType = container.getAttribute("data-type");
-	if (!plugin.settings.enableBacklinks && dataType !== "file-explorer") return;
-	if (!plugin.settings.enableFileList && dataType === "file-explorer") return;
-
 	if (plugin.settings.enableTagChips) {
 		tagChipStyles(container, plugin);
 	}
 
+	// 🔑 UNIVERSAL PROTOCOL: Standardized index scanning now flows completely uninterrupted.
+	// All legacy configuration guards have been fully purged from this traversal path.
 	const nodes = container.findAll(selector);
-	if (nodes.length === 0) return;
+	const nodesCount = nodes.length;
+	if (nodesCount === 0) return;
 
-	for (let i = 0; i < nodes.length; i++) {
+	for (let i = 0; i < nodesCount; i++) {
 		const node = nodes[i];
-		if (isHtmlElement(node)) {
+		if (node !== undefined && node !== null && isHtmlElement(node)) {
 			updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
 		}
 	}
@@ -196,11 +195,9 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		}
 
 		if (tabHeader) {
-			if (settings.enableTabHeader) {
-				updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
-			} else {
-				clearExtraAttributes(tabHeader);
-			}
+			// 🔑 UNIVERSAL PROTOCOL: Tab headers are now styled automatically and natively out of the box,
+			// completely free of legacy configuration switches.
+			updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
 		}
 
 		cachedFile?.links?.forEach((link) => {

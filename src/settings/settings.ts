@@ -1,31 +1,13 @@
 import { CSSLink } from "../types/css-link";
 
 export interface SCLSettings {
-	targetTags: boolean;
-	getFromInlineField: boolean;
-	activateSnippet: boolean;
-	enableEditor: boolean;
-	enableTabHeader: boolean;
-	enableFileList: boolean;
-	enableBacklinks: boolean;
-	enableQuickSwitcher: boolean;
-	enableSuggestor: boolean;
-	enableBases: boolean;
-	enableTagChips: boolean; // ny
-	selectors: CSSLink[];
+	getFromInlineField: boolean; // Om Dataview inline-field skal leses
+	enableTagChips: boolean;     // Stilering av a.tag-brikker
+	selectors: CSSLink[];        // Brukerens stilregler
 }
 
 export const DEFAULT_SETTINGS: SCLSettings = {
-	targetTags: true,
 	getFromInlineField: false,
-	enableTabHeader: true,
-	activateSnippet: true,
-	enableEditor: true,
-	enableFileList: true,
-	enableBacklinks: true,
-	enableQuickSwitcher: true,
-	enableSuggestor: true,
-	enableBases: true,
 	enableTagChips: true,
 	selectors: []
-}
+};

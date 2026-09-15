@@ -1,14 +1,5 @@
 {
-  "targetTags": true,
   "getFromInlineField": false,
-  "enableTabHeader": true,
-  "activateSnippet": true,
-  "enableEditor": true,
-  "enableFileList": true,
-  "enableBacklinks": true,
-  "enableQuickSwitcher": true,
-  "enableSuggestor": true,
-  "enableBases": true,
   "enableTagChips": true,
   "selectors": [
     {
@@ -110,5 +101,14 @@
       "lightColor": "#1a8c18"
     }
   ],
+  "targetTags": true,
+  "activateSnippet": true,
+  "enableTabHeader": true,
+  "enableEditor": true,
+  "enableFileList": true,
+  "enableBacklinks": true,
+  "enableQuickSwitcher": true,
+  "enableSuggestor": true,
+  "enableBases": true,
   "targetAttributes": []
 }

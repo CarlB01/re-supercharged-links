@@ -114,7 +114,9 @@ export default class SCLSettingTab extends PluginSettingTab {
   override getControlValue(key: string): unknown {
     if (key === "scl_rules_search") return this.rulesSearchQuery;
     const settings: ResuperchargedLinks["settings"] = this.plugin.settings;
-    const coreKeys: string[] = ["targetTags", "enableTagChips", "getFromInlineField", "activateSnippet", "enableEditor", "enableTabHeader", "enableFileList", "enableBacklinks", "enableQuickSwitcher", "enableSuggestor", "enableBases"];
+    
+    // ⚡ STRIPPED CORE KEYS: Retained only the actual functional toggles
+    const coreKeys: string[] = ["enableTagChips", "getFromInlineField"];
     if (coreKeys.includes(key)) return (settings as unknown as Record<string, unknown>)[key];
 
     if (key.startsWith("scl_")) {
@@ -186,6 +188,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       }]
     });
 
+    // ⚡ CONSOLIDATED GENERAL CONFIGURATION: Pure data source triggers remaining
     definitions.push({
       type: "group",
       heading: "Advanced Settings Overview",
@@ -196,36 +199,9 @@ export default class SCLSettingTab extends PluginSettingTab {
         items: [
           {
             type: "group",
-            heading: "General",
+            heading: "General Configurations",
             items: [
-              { name: "Parse all tags in file", desc: "Read tags from frontmatter and inline.", control: { type: "toggle", key: "targetTags" } },
               { name: "Style tag chips (a.tag)", desc: "Apply Supercharged styles to tag chips in supported views.", control: { type: "toggle", key: "enableTagChips" } },
-              { name: "Automatically activate CSS snippet", desc: "Enable generated snippet.", control: { type: "toggle", key: "activateSnippet" } }
-            ]
-          },
-          {
-            type: "group",
-            heading: "Where to Supercharge",
-            items: [
-              { name: "Enable in Editor", desc: "Live Preview support.", control: { type: "toggle", key: "enableEditor" } },
-              { name: "Enable in Tab Headers", desc: "Apply styling in tab titles.", control: { type: "toggle", key: "enableTabHeader" } },
-              { name: "Enable in Plugins & Panels", desc: "Apply styling in backlinks/panels.", control: { type: "toggle", key: "enableBacklinks" } }
-            ]
-          },
-          {
-            type: "group",
-            heading: "Display Panels",
-            items: [
-              { name: "Activate in File Browser", desc: "Apply styling in file explorer.", control: { type: "toggle", key: "enableFileList" } },
-              { name: "Activate in Quick Switcher", desc: "Apply styling in quick switcher.", control: { type: "toggle", key: "enableQuickSwitcher" } },
-              { name: "Activate in Link Autocompleter", desc: "Apply styling in [[ suggestions.", control: { type: "toggle", key: "enableSuggestor" } },
-              { name: "Activate in Bases", desc: "Apply styling to internal links in Bases tables/views.", control: { type: "toggle", key: "enableBases" } }
-            ]
-          },
-          {
-            type: "group",
-            heading: "Experimental Data Sources",
-            items: [
               { name: "Read inline fields", desc: "Enable Dataview inline field parsing.", control: { type: "toggle", key: "getFromInlineField" } }
             ]
           }

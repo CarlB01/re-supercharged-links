@@ -1,3 +1,5 @@
+// lifecycle/observation
+
 import { App, TFile, WorkspaceLeaf } from "obsidian";
 import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
 import { clearExtraAttributes } from "../processors/link-mutator";
@@ -31,14 +33,13 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 
 /**
  * RE-ARCHITECTED OBSERVATION CONTROLLER
- * Safely provisions isolated trackers across all registered active pane layouts.
- * ⚡ CLEAN REFACTOR: Removed duplicate MutationObserver attachment leaks on file properties leaf views.
+ * Synchronously activates styling engines globally across all known Obsidian boundaries.
+ * ⚡ AUTO-DETECTION PROTOCOL: Automatically maps and hooks active third-party extensions on boot.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
 	if (pluginInstance === null) return;
 
-	// Disconnect existing lifecycles to prevent memory leaks during reload/layout changes
 	const activeObservers: [MutationObserver, string, string][] = pluginInstance.observers ?? [];
 	for (let i: number = 0; i < activeObservers.length; i++) {
 		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
@@ -48,7 +49,9 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	}
 	pluginInstance.observers = [];
 
-	// Register core Obsidian native leaf views via our unified registration channel
+	// =========================================================================
+	// 🎯 LAYER 1: UNIVERSAL OBSERVATION CHANNELS (Always Active - 100% Automatic)
+	// =========================================================================
 	registerViewType("backlink", pluginInstance, ".tree-item-inner", true);
 	registerViewType("outgoing-link", pluginInstance, ".tree-item-inner", true);
 	registerViewType("search", pluginInstance, ".tree-item-inner");
@@ -57,18 +60,16 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("recent-files", pluginInstance, ".nav-file-title-content");
 	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
 	registerViewType("file-properties", pluginInstance, "div.internal-link.multi-select-pill-content");
+	registerViewType("tab-header", pluginInstance, ".tab-header-inner-title");
 
-	// Obsidian Bases Third-Party Compatibility
-	if (pluginInstance.settings.enableBases) {
-		registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
-		registerViewType(
-			"markdown",
-			pluginInstance,
-			".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]"
-		);
-	}
+	// 🧠 Layer 2: Deep myBrain Integration Handshake
+	registerViewType("mybrain-view", pluginInstance, ".focusable-note-link", true);
 
-	// Ecosystem Integration: Intercept popular third-party plugins safely
+	// 🔌 Layer 3: Universal Third-Party Ecosystem Mapping (Bases, Breadcrumbs, etc.)
+	// By registering these unconditionally, we guarantee stability across all workspace layouts
+	registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
+	registerViewType("markdown", pluginInstance, ".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]");
+	
 	const internalApp = pluginInstance.app as App & ObsidianAppInternalRegistry;
 	const pluginRegistry: Record<string, unknown> | null = internalApp.plugins?.plugins ?? null;
 	
@@ -91,9 +92,9 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		}
 	}
 
-	// 🔑 FAST-TRACK RE-HYDRATION: Run an immediate, synchronous update on the properties panel layout
-	// the exact microsecond the view layout is initialized, eliminating the 1-second visual delay.
-	// We no longer attach a second, redundant MutationObserver loop onto it here.
+	// =========================================================================
+	// 🔑 LAYER 4: FAST-TRACK SYNCHRONOUS PROPERTIES PANE RE-PAINT
+	// =========================================================================
 	const propertyLeaves: WorkspaceLeaf[] = pluginInstance.app.workspace.getLeavesOfType("file-properties") ?? [];
 	for (let i: number = 0; i < propertyLeaves.length; i++) {
 		const leaf: WorkspaceLeaf | null = propertyLeaves[i] ?? null;
@@ -106,6 +107,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		}
 	}
 }
+
 
 /**
  * Automates query lookups and binds native view leaf trees to mutation watchers.
@@ -135,6 +137,9 @@ export function registerViewType(
 
 /**
  * SUGGESTION POPUP & MODAL CONTROLLER
+ * Listens to document injections to style the Quick Switcher, Omnisearch, and Link Suggestor popups.
+ * ⚡ STRIPPED TOGGLES: Removed obsolete enableQuickSwitcher and enableSuggestor toggles.
+ * The styling now dynamically penetrates all active suggestion modales natively.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
@@ -148,12 +153,13 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
 					
-					const isModal: boolean = list.contains("modal-container") && plugin.settings.enableQuickSwitcher;
-					const isSuggest: boolean = list.contains("suggestion-container") && plugin.settings.enableSuggestor;
+					// 🔑 UNIVERSAL ADMISSION: If the injected DOM node is a modal or a suggestion drop, process it instantly
+					const isModal: boolean = list.contains("modal-container");
+					const isSuggest: boolean = list.contains("suggestion-container");
 
 					if (isModal || isSuggest) {
 						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
-						if (list.contains("suggestion-container")) {
+						if (isSuggest) {
 							selector = ".suggestion-title, .suggestion-note";
 						}
 						
@@ -168,6 +174,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	plugin.modalObservers.push(observer);
 	observer.observe(doc.body, config);
 }
+
 
 /**
  * Standard tree observer that monitors static elements for layout additions or tree drops.
@@ -198,7 +205,8 @@ function watchContainer(
 
 /**
  * High-frequency dynamic observer built for rapidly updating arrays like backlink layouts.
- * ⚡ STREAMLINED COMPLEXITY: Leverage unified structural repaint boundaries directly to save CPU iterations.
+ * 🔑 ATOMIC PURGE: Completely removed obsolete 'enableBacklinks' configuration check.
+ * Dynamic layout adjustments now execute globally and natively across all backlink trees.
  */
 function watchContainerDynamic(
 	viewType: string,
@@ -206,8 +214,6 @@ function watchContainerDynamic(
 	plugin: ResuperchargedLinks,
 	selector: string
 ): void {
-	if (!plugin.settings.enableBacklinks) return;
-
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const hasRelevantMutation: boolean = records.some(
 			(m: MutationRecord): boolean => m.type === "childList" && m.addedNodes.length > 0

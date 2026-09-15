@@ -1,3 +1,4 @@
+// DOM-changes
 import { cleanAttributeKey, parseSpaceSeparatedTokens, norm, processValue } from "../utils/string-utils";
 import { findMatchingRule } from "./rule-sanitizer";
 import ResuperchargedLinks from "../main";
@@ -6,6 +7,7 @@ import { CSSLink } from "../types/css-link";
 /**
  * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.
  * Strips obsolete semantic matching flags and standardized icon components to prevent layout memory leaks.
+ * ⚡ PURGED OVERHEAD: Completely removed all internal .scl-rule-[UID] tracking loops from Read Mode cleanup routines.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
 	const attrs: NamedNodeMap = link.attributes;
@@ -40,7 +42,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 
 /**
  * Extracts and normalizes tag cache tokens directly from layout elements safely.
- * ⚡ STRIPPED OVERHEAD: Leverage clean parseSpaceSeparatedTokens directly to bypass manual URI decoding.
  */
 export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
@@ -55,7 +56,6 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 
 	const out: string[] = [];
 	for (const raw of candidates) {
-		// parseSpaceSeparatedTokens already strips active hash marks and breaks words down natively
 		const parts: string[] = parseSpaceSeparatedTokens(raw);
 		for (let i = 0; i < parts.length; i++) {
 			const token: string | null = parts[i] ?? null;
@@ -69,7 +69,6 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 
 /**
  * Extends Supercharged styling frameworks safely to active tag chip nodes inside view containers.
- * ⚡ CLEAN SYNCHRONIZATION: Enforces exactly one '#' prefix on the target DOM attribute layout.
  */
 export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLinks): void {
 	if (!plugin.settings.enableTagChips) return;
@@ -82,7 +81,6 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 			const tokens: string[] = extractTagTokensFromElement(htmlEl);
 			if (tokens.length === 0) continue;
 
-			// Map clean memory tokens directly into unified space-separated hash tags for the DOM layer
 			const tagString: string = tokens.map((t: string): string => `#${t}`).join(" ");
 
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
@@ -97,6 +95,8 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 
 /**
  * 🚀 ALL-IN RUNTIME READ MODE ENGINE: Mutates link elements directly in the DOM stream.
+ * ⚡ ATOMIC PURGE EXECUTED: All internal in-house rule-UID classes have been fully stripped from this output.
+ * Downstream plugins (myBrain) map notes exclusively via standardized, explicit data-attributes.
  */
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
 	clearExtraAttributes(link);
@@ -127,19 +127,15 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		link.setCssStyles(targetStyles);
 
 		// === PHASE 2: SEMANTIC INTEROPERABILITY MATCHING ===
-		const ruleUid: string | null = matchedProfile.uid;
-		if (ruleUid !== null) {
-			link.addClass(`scl-rule-${ruleUid}`);
-			
-			const rawTags: string = newProps["tags"] ?? "";
-			const tagsArray: string[] = parseSpaceSeparatedTokens(rawTags);
-			for (let j: number = 0; j < tagsArray.length; j++) {
-				const cleanTag: string | null = tagsArray[j] ?? null;
-				if (cleanTag !== null && cleanTag.length > 0) {
-					// Enforce clean CSS classes completely free of hash tokens
-					const safeClassName: string = cleanTag.replace(/^#/, "");
-					link.addClass(`scl-match-tag-${safeClassName}`);
-				}
+		// ⚡ REFACTORED: The private .scl-rule-[UID] class injection is completely dropped here!
+		// We exclusively append the standardized human-readable tag classes for external mapping utilities.
+		const rawTags: string = newProps["tags"] ?? "";
+		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTags);
+		for (let j: number = 0; j < tagsArray.length; j++) {
+			const cleanTag: string | null = tagsArray[j] ?? null;
+			if (cleanTag !== null && cleanTag.length > 0) {
+				const safeClassName: string = cleanTag.replace(/^#/, "");
+				link.addClass(`scl-match-tag-${safeClassName}`);
 			}
 		}
 
@@ -183,6 +179,12 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			
 			link.appendChild(spanAfter);
 		}
+
+		// 🔑 EXTRA EXPLICIT EXPORT FOR READ MODE: Hydrate attributes so myBrain captures style states symmetrically
+		if (activeColor) link.setAttribute("data-link-color", activeColor);
+		if (activeBg && activeBg !== "transparent") link.setAttribute("data-link-bg", activeBg);
+		if (matchedProfile.fontWeight && matchedProfile.fontWeight !== "normal") link.setAttribute("data-link-weight", matchedProfile.fontWeight);
+		if (matchedProfile.fontStyle && matchedProfile.fontStyle !== "normal") link.setAttribute("data-link-style", matchedProfile.fontStyle);
 	}
 
 	// === PHASE 1: LEGACY METADATA FOOTPRINT SPECIATION ===
@@ -191,10 +193,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		const attributeName: string = `data-link-${domKey}`;
 		let newValue: string | null = processValue(key, propValue);
 
-		// 🔑 EMBEDDED FOOTPRINT INTEROPERABILITY: Synchronously append hash-prefixes onto the final data-attribute
 		if (domKey === "tags" && newValue !== null) {
 			const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-			newValue = cleanTokens.map((t: string): string => `#${t}`).join(" ");
+			newValue = cleanTokens.map((t: string): string => t.startsWith("#") ? t : `#${t}`).join(" ");
 		}
 
 		if (newValue !== null) {
