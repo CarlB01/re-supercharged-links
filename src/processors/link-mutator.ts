@@ -40,6 +40,7 @@ export function clearExtraAttributes(link: HTMLElement): void {
 
 /**
  * Extracts and normalizes tag cache tokens directly from layout elements safely.
+ * ⚡ STRIPPED OVERHEAD: Leverage clean parseSpaceSeparatedTokens directly to bypass manual URI decoding.
  */
 export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
@@ -54,22 +55,12 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 
 	const out: string[] = [];
 	for (const raw of candidates) {
+		// parseSpaceSeparatedTokens already strips active hash marks and breaks words down natively
 		const parts: string[] = parseSpaceSeparatedTokens(raw);
-		for (let token of parts) {
-			token = (() => {
-				try {
-					return decodeURIComponent(token);
-				} catch {
-					return token;
-				}
-			})();
-			const hashIdx: number = token.lastIndexOf("#");
-			if (hashIdx > 0 && (token.startsWith("http") || token.startsWith("/"))) {
-				token = token.slice(hashIdx);
-			}
-			const normalized: string | null = norm(token);
-			if (normalized) {
-				out.push(`#${normalized.replace(/^#/, "")}`);
+		for (let i = 0; i < parts.length; i++) {
+			const token: string | null = parts[i] ?? null;
+			if (token !== null && token.length > 0) {
+				out.push(token);
 			}
 		}
 	}
@@ -78,6 +69,7 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 
 /**
  * Extends Supercharged styling frameworks safely to active tag chip nodes inside view containers.
+ * ⚡ CLEAN SYNCHRONIZATION: Enforces exactly one '#' prefix on the target DOM attribute layout.
  */
 export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLinks): void {
 	if (!plugin.settings.enableTagChips) return;
@@ -90,14 +82,8 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 			const tokens: string[] = extractTagTokensFromElement(htmlEl);
 			if (tokens.length === 0) continue;
 
-			let tagString: string = "";
-			for (const t of tokens) {
-				if (!t) continue;
-				tagString += (tagString ? " " : "") + t;
-				if (t.startsWith("#") && t.length > 1) {
-					tagString += " " + t.slice(1);
-				}
-			}
+			// Map clean memory tokens directly into unified space-separated hash tags for the DOM layer
+			const tagString: string = tokens.map((t: string): string => `#${t}`).join(" ");
 
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
 				htmlEl.setAttribute("data-link-tags", tagString);
@@ -150,7 +136,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			for (let j: number = 0; j < tagsArray.length; j++) {
 				const cleanTag: string | null = tagsArray[j] ?? null;
 				if (cleanTag !== null && cleanTag.length > 0) {
-					link.addClass(`scl-match-tag-${cleanTag}`);
+					// Enforce clean CSS classes completely free of hash tokens
+					const safeClassName: string = cleanTag.replace(/^#/, "");
+					link.addClass(`scl-match-tag-${safeClassName}`);
 				}
 			}
 		}
@@ -172,8 +160,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconBefore && !skipBefore) {
-			// 🔑 STRICT PROTOCOL FIX: Call createEl on activeWindow to satisfy the linter 
-			// while safely isolating the node creation to completely banish HierarchyRequestError
 			const spanBefore: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
@@ -181,7 +167,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
 			
-			// Establish precise positioning constraints inside the parent link stream
 			const firstChild: ChildNode | null = link.firstChild;
 			if (firstChild !== null) {
 				link.insertBefore(spanBefore, firstChild);
@@ -189,8 +174,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconAfter && !skipAfter) {
-			// 🔑 STRICT PROTOCOL FIX: Call createEl on activeWindow to satisfy the linter
-			// while safely isolating the node creation to completely banish HierarchyRequestError
 			const spanAfter: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
@@ -200,14 +183,19 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			
 			link.appendChild(spanAfter);
 		}
-
 	}
 
 	// === PHASE 1: LEGACY METADATA FOOTPRINT SPECIATION ===
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey: string = cleanAttributeKey(key);
 		const attributeName: string = `data-link-${domKey}`;
-		const newValue: string | null = processValue(key, propValue);
+		let newValue: string | null = processValue(key, propValue);
+
+		// 🔑 EMBEDDED FOOTPRINT INTEROPERABILITY: Synchronously append hash-prefixes onto the final data-attribute
+		if (domKey === "tags" && newValue !== null) {
+			const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
+			newValue = cleanTokens.map((t: string): string => `#${t}`).join(" ");
+		}
 
 		if (newValue !== null) {
 			link.setAttribute(attributeName, newValue);

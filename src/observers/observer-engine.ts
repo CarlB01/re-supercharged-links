@@ -30,9 +30,9 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 }
 
 /**
- * RE-ARCHITECTED OBSERVATION CONTROLLER: 
+ * RE-ARCHITECTED OBSERVATION CONTROLLER
  * Safely provisions isolated trackers across all registered active pane layouts.
- * STRICT PROTOCOL: Enforces structural loops over array indices to fully banish implicit undefined bugs.
+ * ⚡ CLEAN REFACTOR: Removed duplicate MutationObserver attachment leaks on file properties leaf views.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
@@ -48,7 +48,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	}
 	pluginInstance.observers = [];
 
-	// Register core Obsidian native leaf views
+	// Register core Obsidian native leaf views via our unified registration channel
 	registerViewType("backlink", pluginInstance, ".tree-item-inner", true);
 	registerViewType("outgoing-link", pluginInstance, ".tree-item-inner", true);
 	registerViewType("search", pluginInstance, ".tree-item-inner");
@@ -91,33 +91,20 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 		}
 	}
 
-	// Special Handler: Setup isolated listener for the Native File Metadata Properties Panel
+	// 🔑 FAST-TRACK RE-HYDRATION: Run an immediate, synchronous update on the properties panel layout
+	// the exact microsecond the view layout is initialized, eliminating the 1-second visual delay.
+	// We no longer attach a second, redundant MutationObserver loop onto it here.
 	const propertyLeaves: WorkspaceLeaf[] = pluginInstance.app.workspace.getLeavesOfType("file-properties") ?? [];
 	for (let i: number = 0; i < propertyLeaves.length; i++) {
 		const leaf: WorkspaceLeaf | null = propertyLeaves[i] ?? null;
 		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
 		if (container === null) continue;
 
-		// 🔑 FAST-TRACK FIX: Run an immediate, synchronous update on the properties panel layout 
-		// the exact microsecond the view layout is initialized, eliminating the 1-second delay
 		const activeFile: TFile | null = pluginInstance.app.workspace.getActiveFile();
 		if (activeFile !== null) {
 			updatePropertiesPane(container, activeFile, pluginInstance.app, pluginInstance);
 		}
-
-		const observer: MutationObserver = new window.MutationObserver((): void => {
-			const currentFile: TFile | null = pluginInstance.app.workspace.getActiveFile();
-			if (currentFile !== null) {
-				updatePropertiesPane(container, currentFile, pluginInstance.app, pluginInstance);
-			}
-		});
-
-		observer.observe(container, { subtree: true, childList: true, attributes: false });
-		
-		const runtimeKey: string = buildObserverKey("file-properties", i);
-		pluginInstance.observers.push([observer, runtimeKey, ""]);
 	}
-
 }
 
 /**
@@ -136,7 +123,6 @@ export function registerViewType(
 		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
 		if (container === null) continue;
 
-		// 🔑 STRENG CONSOLIDATION: Multi-window trace keys standardized via utils
 		const uniqueViewKey: string = buildObserverKey(viewTypeName, i);
 
 		if (updateDynamic) {
@@ -149,7 +135,6 @@ export function registerViewType(
 
 /**
  * SUGGESTION POPUP & MODAL CONTROLLER
- * Listens to document injections to style the Quick Switcher, Omnisearch, and Link Suggestor popups.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
@@ -159,7 +144,6 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 			const mutation: MutationRecord | null = records[i] ?? null;
 			if (mutation === null || mutation.type !== "childList") continue;
 
-			// Handle elements injected into the DOM core layout
 			mutation.addedNodes.forEach((node: Node): void => {
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
@@ -214,33 +198,21 @@ function watchContainer(
 
 /**
  * High-frequency dynamic observer built for rapidly updating arrays like backlink layouts.
+ * ⚡ STREAMLINED COMPLEXITY: Leverage unified structural repaint boundaries directly to save CPU iterations.
  */
 function watchContainerDynamic(
 	viewType: string,
 	container: HTMLElement,
 	plugin: ResuperchargedLinks,
-	selector: string,
-	parentClass = "tree-item"
+	selector: string
 ): void {
 	if (!plugin.settings.enableBacklinks) return;
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
-		let shouldRun = false;
-
-		for (let i: number = 0; i < records.length; i++) {
-			const mutation: MutationRecord | null = records[i] ?? null;
-			if (mutation === null || mutation.type !== "childList" || mutation.addedNodes.length === 0) continue;
-
-			mutation.addedNodes.forEach((node: Node): void => {
-				if (isHtmlElement(node) && node.classList.contains(parentClass)) {
-					shouldRun = true;
-				}
-			});
-
-			if (shouldRun) break; 
-		}
-
-		if (!shouldRun) return;
+		const hasRelevantMutation: boolean = records.some(
+			(m: MutationRecord): boolean => m.type === "childList" && m.addedNodes.length > 0
+		);
+		if (!hasRelevantMutation) return;
 
 		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector);
@@ -293,7 +265,6 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 		for (let j: number = 0; j < leaves.length; j++) {
 			const leaf: WorkspaceLeaf | null = leaves[j] ?? null;
 			if (leaf !== null && leaf.view?.containerEl) {
-				// 🔑 STRICT PROTOCOL FIX: Narrow datatype down to a native array to match Obsidian's return contract perfectly
 				const nodes: HTMLElement[] = leaf.view.containerEl.findAll(ownClass) ?? [];
 				for (let k: number = 0; k < nodes.length; k++) {
 					const node: HTMLElement | null = nodes[k] ?? null;
@@ -305,4 +276,3 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 		}
 	}
 }
-

@@ -104,7 +104,10 @@
     {
       "uid": "6f7c5abf-7394",
       "type": "tag",
-      "value": "hallo"
+      "value": "klinikk",
+      "iconBefore": "🏥",
+      "lightBgColor": "#dad8d8",
+      "lightColor": "#1a8c18"
     }
   ],
   "targetAttributes": []

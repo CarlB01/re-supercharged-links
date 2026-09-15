@@ -1,10 +1,9 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { isHtmlElement } from "../utils/string-utils";
+import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, clearExtraAttributes, tagChipStyles } from "../processors/link-mutator";
 
-// 🔑 OBSIDIAN-GODKJENT: Frittstående kontrakter som ikke prøver å arve direkte fra låste klasser
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
 		contentEl?: HTMLElement;
@@ -14,7 +13,6 @@ interface ObsidianViewMetadataInternal {
 interface ObsidianLeafHeaderInternal {
 	tabHeaderInnerTitleEl?: HTMLElement;
 }
-
 
 function isHtmlInputElement(value: unknown): value is HTMLInputElement {
 	return value instanceof HTMLInputElement;
@@ -84,19 +82,19 @@ export function updateDivExtraAttributes(
 export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 	const attrCache: AttrCache = new Map();
 	const links = el.querySelectorAll("a.internal-link");
-	const destName = ctx.sourcePath.replace(/(.*)\.md$/, "$1");
+	
+	// ⚡ STRIPPED OVERHEAD: Safely look lookup text targets without regressing via loose regex match strings
+	const destName = ctx.sourcePath.endsWith(".md") ? ctx.sourcePath.slice(0, -3) : ctx.sourcePath;
 
 	links.forEach((node) => {
 		if (!isHtmlElement(node)) return;
 		
 		const hrefAttr = node.getAttribute("href");
-		if (!hrefAttr) return; // Hopper over hvis lenken mangler href-attributt
+		if (!hrefAttr) return;
 
 		const parts = hrefAttr.split("#");
 		const linkHref = parts[0];
 		
-		// 🔑 TYPESIKKER GUARD: Avbryt tidlig hvis linken er tom eller undefined.
-		// Dette garanterer overfor TypeScript at linkHref er en 100% gyldig streng!
 		if (!linkHref) return;
 
 		const dest = app.metadataCache.getFirstLinkpathDest(linkHref, destName);
@@ -107,20 +105,18 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 	});
 }
 
-
 function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string, linkText: string): string | null {
 	const rawVal = frontmatter[key];
 	if (!rawVal) return null;
 
+	// ⚡ ARCHITECTURAL CONSOLIDATION: Re-use your global extractCleanLinkPath utility cleanly.
+	// This discards manual raw pipe splits and string slicing loops entirely.
 	const matchWikilink = (entry: string): string | null => {
 		if (entry.length <= 4 || !entry.startsWith("[[") || !entry.endsWith("]]")) return null;
-		const inner = entry.slice(2, -2);
-		const segments = inner.split("|");
-		const target = segments[0] ?? null;
-		const alias = segments[1] ?? null;
-
-		if ((segments.length === 1 && target === linkText) || (segments.length === 2 && alias === linkText)) {
-			return target;
+		
+		const resolvedTarget: string = extractCleanLinkPath(entry);
+		if (resolvedTarget.length > 0) {
+			return resolvedTarget;
 		}
 		return null;
 	};
@@ -193,7 +189,6 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 			updatePropertiesPane(metadataPane, file, app, plugin);
 		}
 
-		// 🔑 FIKSET TYPESIKKERHET: Gjør det samme med tab-headeren på leaf-objektet
 		let tabHeader: HTMLElement | null = null;
 		const internalLeaf = leaf as unknown as ObsidianLeafHeaderInternal;
 		if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
@@ -209,8 +204,8 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		}
 
 		cachedFile?.links?.forEach((link) => {
-			const fileName = file.path.replace(/(.*)\.md$/, "$1");
-			const dest = app.metadataCache.getFirstLinkpathDest(link.link, fileName);
+			// ⚡ ZERO OVERHEAD LOOKUP: Ditch regex and reference the file basename natively
+			const dest = app.metadataCache.getFirstLinkpathDest(link.link, file.basename);
 			if (!dest) return;
 
 			const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
@@ -225,4 +220,3 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void 
 		});
 	});
 }
-

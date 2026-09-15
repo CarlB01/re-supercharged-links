@@ -31,8 +31,7 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 /**
  * 🚀 REACTIVE IN-MEMORY THEME GENERATOR
  * Dynamically compiles system rules into an active CodeMirror theme instance.
- * Synchronously bridges backgrounds across isolated text markings and adjacent layout widgets (Phase 3).
- * STRICT PROTOCOL: Only emits active, explicit modifications. Defaults are completely ignored.
+ * ⚡ STRIPPED OVERHEAD: Streamlined dictionary engine loop removes redundant color fallback verification checks.
  */
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
 	const themeSpec: Record<string, Record<string, string>> = {};
@@ -56,29 +55,24 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension
 		const uid: string = rule.uid ?? "";
 		if (uid.length === 0) continue; 
 
-		// 🔑 STRICT PROTOCOL: Temporary style bucket for the current link rule
 		const ruleStyles: Record<string, string> = {};
 
-		// 1. Text Color: Only emit if a valid custom color is present
 		const textSelection: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-		if (textSelection.length > 0 && textSelection !== "#aa0000" && textSelection !== "#ff5555") {
+		if (textSelection.length > 0) {
 			ruleStyles["color"] = textSelection;
 		}
 
-		// 2. Background Color: Only emit and track if it's an actual color modification
 		const bgSelection: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
 		const hasActiveBg: boolean = bgSelection.length > 0 && bgSelection !== "transparent";
 		if (hasActiveBg) {
 			ruleStyles["background-color"] = bgSelection;
 		}
 
-		// 3. Font Weight: Only emit if it breaks away from standard text weights
 		const fontWeight: string = rule.fontWeight ?? "normal";
 		if (fontWeight !== "normal") {
 			ruleStyles["font-weight"] = fontWeight;
 		}
 
-		// 4. Font Style & Decorations: Only emit explicit changes
 		const fontStyle: string = rule.fontStyle ?? "normal";
 		if (fontStyle === "italic") {
 			ruleStyles["font-style"] = "italic";
@@ -88,13 +82,10 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension
 			ruleStyles["text-decoration"] = "line-through";
 		}
 
-		// 🚀 THE BREAKTHROUGH: Only compile the link selectors if we actually have active modifications!
 		if (Object.keys(ruleStyles).length > 0) {
 			const targetSelector: string = `& .data-link-text.scl-rule-${uid}, & .cm-underline.scl-rule-${uid}`;
 			themeSpec[targetSelector] = ruleStyles;
 
-			// === PHASE 3: EDIT MODE WIDGET BACKGROUND HARMONIZATION ===
-			// Only inject adjacent icon background rules if the link text itself has a background
 			if (hasActiveBg) {
 				const adjacentIconSelector: string = `& .scl-rule-${uid} ~ .scl-inline-icon, & .scl-inline-icon:has(+ .cm-hmd-internal-link .scl-rule-${uid})`;
 				themeSpec[adjacentIconSelector] = {

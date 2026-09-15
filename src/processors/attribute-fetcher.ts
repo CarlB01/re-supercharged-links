@@ -34,7 +34,7 @@ function getDataviewApi(app: App): DataviewAPI | null {
 
 /**
  * Gathers and compiles all targeted user metadata attributes synchronously from a document instance.
- * STRICT PROTOCOL: Zero implicit indices or overlapping loop counters to isolate execution threads completely.
+ * ⚡ STRIPPED OVERHEAD: Collects entirely clean text tokens without generating redundant '#' markers.
  */
 export function fetchTargetAttributesSync(
 	app: App,
@@ -55,7 +55,7 @@ export function fetchTargetAttributesSync(
 	const dynamicTagsList: string[] = [];
 
 	// 1. Extract structural Frontmatter block fields safely
-if (cache.frontmatter && activeAttributes.size > 0) {
+	if (cache.frontmatter && activeAttributes.size > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		for (const attribute of activeAttributes) {
 			const value: unknown = fm[attribute] ?? null;
@@ -65,7 +65,10 @@ if (cache.frontmatter && activeAttributes.size > 0) {
 				const frontmatterTags: string[] = parseSpaceSeparatedTokens(String(value));
 				for (let j: number = 0; j < frontmatterTags.length; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
-					if (t !== null) dynamicTagsList.push(t);
+					// ⚡ Keep the text token strictly clean here to feed fast index matching engines
+					if (t !== null && t.length > 0) {
+						dynamicTagsList.push(t);
+					}
 				}
 			} else {
 				newProps[attribute] = String(value);
@@ -80,10 +83,9 @@ if (cache.frontmatter && activeAttributes.size > 0) {
 			const rawTagNode: string | null = allTags[j] ?? null;
 			if (rawTagNode !== null) {
 				const cacheTags: string[] = parseSpaceSeparatedTokens(rawTagNode);
-				// 🔑 STRICT PROTOCOL FIX: Explicit iterator isolation ('k') maps limits perfectly to 'cacheTags'
 				for (let k: number = 0; k < cacheTags.length; k++) {
 					const cleanCacheTag: string | null = cacheTags[k] ?? null;
-					if (cleanCacheTag !== null) {
+					if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
 						dynamicTagsList.push(cleanCacheTag);
 					}
 				}

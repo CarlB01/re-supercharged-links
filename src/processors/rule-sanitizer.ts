@@ -1,4 +1,4 @@
-import { CSSLink, MatchTypes } from "../types/css-link";
+import { CSSLink } from "../types/css-link";
 import { parseSpaceSeparatedTokens, cleanRuleValue, cleanAttributeKey } from "../utils/string-utils";
 
 export interface AccumulatedStyleProfile {
@@ -13,21 +13,6 @@ export interface AccumulatedStyleProfile {
 	iconAfter: string;
 	hasAnyMatch: boolean;
 }
-
-type OpKey = "=" | "*=" | "^=" | "$=" | "~=";
-
-const OP_TO_MATCH: Record<OpKey, MatchTypes> = {
-  "=": "exact",
-  "*=": "contains",
-  "^=": "startswith",
-  "$=": "endswith",
-  "~=": "whiteSpace",
-};
-
-function isOpKey(x: unknown): x is OpKey {
-  return typeof x === "string" && (x === "=" || x === "*=" || x === "^=" || x === "$=" || x === "~=");
-}
-
 
 /**
  * Normalizes a rule's internal matching properties without polluting front-facing fields.
