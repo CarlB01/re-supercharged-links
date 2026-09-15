@@ -14,13 +14,13 @@ A modern, high-performance, and completely re-architected fork of **Supercharged
 
 ## 🚀 What's New in v1.0.5
 
-Version 1.0.5 marks the completion of a core architectural framework, featuring a massive data-layer modernization that results in a significant reduction in runtime rendering overhead:
+Version 1.0.5 introduces a massive, underlying performance overhaul. We have completely cleaned and re-wired how data flows through the plugin, resulting in **lightning-fast link styling and an incredibly smooth workspace experience**:
 
-* **Stripless In-Loop Execution Engine**: Style rules are now matched chronologically using clean, raw text tokens. High-frequency runtime string operations (`.replace()`, `decodeURIComponent()`, and regex matching) have been completely banished from active execution loops to guarantee buttery-smooth 60/120 FPS scrolling.
-* **DOM-Exclusive Hash Serialization Protocol**: SCL now enforces strict layer separation. Settings, data streams, and internal caches are kept 100% clean of `#` markers. The hashtag prefix is injected *exclusively* at the absolute boundary DOM layer (`data-link-tags="#tag"`), fully satisfying `myBrain` and legacy CSS wildcard sheets without polluting configuration memories.
-* **Transactional Array-Buffer Stream**: Replaced immediate CodeMirror injections with a flat transaction memory buffer. Layout marks are pre-sorted chronologically (`marks` prioritized over `widgets`) prior to builder streaming, permanently neutralizing `Ranges must be added sorted` editor crashes without heavy position `Set` lookups.
-* **Type-Locked Operator Blueprints**: Complex string-based CSS operator sniffing has been replaced by strict, mechanical indexing at input (`exact` for tags/attributes, `contains` for note paths), maximizing lookbehind velocity.
-* **Consolidated Leaf View Observers**: Sanered redundant `MutationObserver` leaks on the native leaf views while retaining immediate, zero-delay metadata pane layout hydration upon initial activation.
+* **Buttery-Smooth Scrolling (Up to 120 FPS)**: We removed heavy text-washing and repetitive calculations from the background loops. The plugin now styles your links effortlessly in milliseconds, eliminating micro-stutters even in massive vaults with thousands of links.
+* **Smart `#` Hashtag Management**: SCL now separates user input from system rendering. You can type tags cleanly in the settings tab without the `#` symbol. The plugin automatically manages the formatting under the hood, ensuring perfect out-of-the-box compatibility with your themes, custom CSS, and ecosystem tools like `myBrain`.
+* **Permanent Editor Crash Protection**: We completely re-designed how icons and styles are stacked together in Live Preview. By pre-sorting all visual elements before they hit the editor screen, we have permanently wiped out sequence sorting crashes when you edit or hover over link aliases.
+* **Instant Settings Feedback**: By streamlining how settings are stored, your custom color and icon choices will now light up your layout instantly—the exact microsecond you release your mouse cursor.
+* **Eliminated Hidden Visual Delays**: Cleaned up background overwatcher loops to ensure the File Properties panel and sidebars update synchronously, completely removing the annoying 1-second delay when switching notes.
 
 ---
 
