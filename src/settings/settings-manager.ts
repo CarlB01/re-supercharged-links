@@ -8,7 +8,7 @@ import { cloneSettingsObject } from "../utils/string-utils";
  * 🔑 CONDUIT PROPERTY DICTIONARY
  * Dictionary of strict implicit parameters that under no circumstance belong on the disk layer.
  */
-const GARBAGE_PROPERTIES: Record<string, unknown | unknown[]> = {
+const GARBAGE_PROPERTIES: Record<string, string | boolean | unknown[]> = {
 	name: "",
 	value: "",
 	iconBefore: "",
@@ -24,6 +24,7 @@ const GARBAGE_PROPERTIES: Record<string, unknown | unknown[]> = {
 	selectPrepend: [true, false],
 	selectBackground: [true, false]
 };
+
 
 /**
  * 🚀 RUNTIME INGESTION CLEANER

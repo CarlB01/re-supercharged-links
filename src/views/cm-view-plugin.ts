@@ -138,8 +138,7 @@ export class CMViewPlugin {
 
 			// Determine if the formatting markup expression is hidden based on immediate adjacent node visibility bounds
 			const isCollapsedCombined: boolean = nodeNameLower.includes("hmd-internal-link_link-has-alias") || nodeNameLower.includes("hmd-internal-link_link-alias");
-			const isCollapsed: boolean = isCollapsedCombined || (isAliasNode && view.state.doc.sliceString(node.from - 1, node.from) !== "|");
-
+			
 			// 🔑 LINK TEXT RECONSTRUCTION: If evaluating an isolated fragment, pull structural text from the line string matrix
 			const isFragment: boolean = isPipeNode || isAliasNode || isCollapsedCombined;
 			if (isFragment || linkText.length === 0 || !this.app.metadataCache.getFirstLinkpathDest(linkText, state.activeFileBasename)) {

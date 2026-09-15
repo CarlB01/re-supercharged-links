@@ -1,4 +1,4 @@
-import { WidgetType, EditorView } from "@codemirror/view";
+import { WidgetType } from "@codemirror/view";
 
 /**
  * 🟢 RUNTIME EMOJI WIDGET: Isolated physical DOM factory that renders inline rule icons.
@@ -15,12 +15,12 @@ export class IconWidget extends WidgetType {
 
 	/**
 	 * Creates the physical DOM element for the icon widget inside the CodeMirror layout stream.
-	 * STRICT PROTOCOL: Fully compliant with obsidianmd/prefer-create-el using safe window contexts.
+	 * 🔑 STRICT OBSIDIAN PROTOCOL: Invokes the global createEl wrapper factory directly.
+	 * This bypasses window/document prefix constraints to satisfy the developer linter perfectly.
 	 */
 	public toDOM(): HTMLElement {
-		// 🔑 THE FINAL PIECE: Call createEl via the window root proxy object to satisfy the linter
-		// perfectly without adding unsafe parent-injection chains, keeping runtime execution 100% stable
-		const span: HTMLElement = window.createEl("span", {
+		// ⚡ LINTER-LOVED WRAPPER: Calling createEl globally satisfies the 'prefer-create-el' rule natively
+		const span: HTMLElement = createEl("span", {
 			cls: this.isBefore ? "scl-inline-icon scl-inline-icon-before" : "scl-inline-icon scl-inline-icon-after",
 			text: this.icon
 		});
@@ -28,6 +28,7 @@ export class IconWidget extends WidgetType {
 		span.setCssStyles({ display: "inline-block" });
 		return span;
 	}
+
 
 
 	/**
