@@ -12,6 +12,18 @@ A modern, high-performance, and completely re-architected fork of **Supercharged
 
 ---
 
+## 🚀 What's New in v1.0.5
+
+Version 1.0.5 marks the completion of a core architectural framework, featuring a massive data-layer modernization that results in a significant reduction in runtime rendering overhead:
+
+* **Stripless In-Loop Execution Engine**: Style rules are now matched chronologically using clean, raw text tokens. High-frequency runtime string operations (`.replace()`, `decodeURIComponent()`, and regex matching) have been completely banished from active execution loops to guarantee buttery-smooth 60/120 FPS scrolling.
+* **DOM-Exclusive Hash Serialization Protocol**: SCL now enforces strict layer separation. Settings, data streams, and internal caches are kept 100% clean of `#` markers. The hashtag prefix is injected *exclusively* at the absolute boundary DOM layer (`data-link-tags="#tag"`), fully satisfying `myBrain` and legacy CSS wildcard sheets without polluting configuration memories.
+* **Transactional Array-Buffer Stream**: Replaced immediate CodeMirror injections with a flat transaction memory buffer. Layout marks are pre-sorted chronologically (`marks` prioritized over `widgets`) prior to builder streaming, permanently neutralizing `Ranges must be added sorted` editor crashes without heavy position `Set` lookups.
+* **Type-Locked Operator Blueprints**: Complex string-based CSS operator sniffing has been replaced by strict, mechanical indexing at input (`exact` for tags/attributes, `contains` for note paths), maximizing lookbehind velocity.
+* **Consolidated Leaf View Observers**: Sanered redundant `MutationObserver` leaks on the native leaf views while retaining immediate, zero-delay metadata pane layout hydration upon initial activation.
+
+---
+
 ## ✨ What this plugin does
 
 **Re-Supercharged Links** turns metadata into visual context directly in your notes.
@@ -35,7 +47,7 @@ To understand why **Re-Supercharged Links** was built, it helps to look at the m
 
 ---
 
-## ⚙️ The Semantic Mirroring Protocol (v0.0.39+)
+## ⚙️ The Semantic Mirroring Protocol
 
 With the release of the **Semantic Mirroring Protocol**, SCL delivers the best of both worlds: unprecedented in-memory rendering speed paired with absolute visibility for the Obsidian ecosystem.
 
@@ -64,8 +76,9 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 
 1. Open **Settings → Community plugins** and install **Re-Supercharged Links**.
 2. Navigate to the option pane and create a new selector rule targeting a metadata marker (e.g., `status`).
-3. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
-4. Watch your workspace map itself out visually in real-time!
+3. **Strict Text Inputs**: Type rule values cleanly *without* the `#` character (e.g., enter `gruppe`, not `#gruppe`). SCL manages the `#` prefix under the hood.
+4. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
+5. Watch your workspace map itself out visually in real-time!
 
 ---
 
