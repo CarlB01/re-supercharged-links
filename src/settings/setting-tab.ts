@@ -351,6 +351,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
       const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
 
+      // Locate the physical preview link anchor inside the settings tab DOM tree
       const noteEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${rule.uid}`) ?? null;
       
       if (noteEl !== null) {
@@ -372,16 +373,40 @@ export default class SCLSettingTab extends PluginSettingTab {
 
         noteEl.setCssStyles(targetStyles);
 
-        if ((rule.iconBefore ?? "").trim().length > 0) {
-          noteEl.setAttribute("data-link-icon-before", rule.iconBefore.trim());
-        } else {
-          noteEl.removeAttribute("data-link-icon-before");
+        // 🔑 ATTRIBUTE INTEROPERABILITY HARMONIZATION: Re-inject the standardized '#' prefix 
+        // exclusively onto the DOM data-attributes of the preview container.
+        // This ensures the preview node context mirrors the exact footprint required by CSS sheets.
+        const val: string = (rule.value || "").trim();
+        if (rule.type === "tag" && val.length > 0) {
+          const cleanTag = val.replace(/^#/, "");
+          noteEl.setAttribute("data-link-tags", `#${cleanTag}`);
         }
 
-        if ((rule.iconAfter ?? "").trim().length > 0) {
-          noteEl.setAttribute("data-link-icon-after", rule.iconAfter.trim());
-        } else {
-          noteEl.removeAttribute("data-link-icon-after");
+        // Wipe any stale background legacy icon nodes before re-rendering widgets
+        const oldIcons: NodeListOf<Element> = noteEl.querySelectorAll(".scl-inline-icon");
+        oldIcons.forEach((icon: Element): void => icon.remove());
+
+        const iconBefore: string = (rule.iconBefore ?? "").trim();
+        const iconAfter: string = (rule.iconAfter ?? "").trim();
+
+        if (iconBefore.length > 0) {
+          // Leverage the root window layout instance context to generate stable elements safely
+          const spanBefore: HTMLElement = noteEl.win.createEl("span", {
+            cls: "scl-inline-icon scl-inline-icon-before",
+            text: iconBefore
+          });
+          spanBefore.setCssStyles({ display: "inline-block" });
+          noteEl.insertBefore(spanBefore, noteEl.firstChild);
+        }
+
+        if (iconAfter.length > 0) {
+          // Leverage the root window layout instance context to generate stable elements safely
+          const spanAfter: HTMLElement = noteEl.win.createEl("span", {
+            cls: "scl-inline-icon scl-inline-icon-after",
+            text: iconAfter
+          });
+          spanAfter.setCssStyles({ display: "inline-block" });
+          noteEl.appendChild(spanAfter);
         }
       }
     }
