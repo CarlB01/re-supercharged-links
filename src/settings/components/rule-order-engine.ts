@@ -1,45 +1,71 @@
 import { CSSLink } from "../../types/css-link";
 import ResuperchargedLinks from "../../main";
 
+interface MoveRuleOptions {
+	onAfterMove: () => void;
+	onAnimate: (() => void) | null;
+	activeEditIndex: number | null;
+	setActiveEditIndex: (next: number | null) => void;
+}
+
 /**
- * Safe layout reordering routine.
- * Swaps index markers and handles clean transform repaint animations seamlessly.
+ * Moves a rule by one step and keeps active editor index in sync.
+ * Includes optional row animation after UI refresh.
  */
 export async function moveRule(
 	plugin: ResuperchargedLinks,
 	selectors: CSSLink[],
 	index: number,
 	direction: number,
-	refreshCallback: () => void,
-	generateCallback: () => void
+	options: MoveRuleOptions
 ): Promise<void> {
-	const targetIndex = index + direction;
-	const currentSelector = selectors[index];
-	const targetSelector = selectors[targetIndex];
-	if (!currentSelector || !targetSelector) return;
+	const targetIndex: number = index + direction;
+	const currentSelector: CSSLink | null = selectors[index] ?? null;
+	const targetSelector: CSSLink | null = selectors[targetIndex] ?? null;
+	if (currentSelector === null || targetSelector === null) return;
 
-	const allRowsBefore = Array.from(document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
-	const currentRowBefore = allRowsBefore[index];
-	const targetRowBefore = allRowsBefore[targetIndex];
-	const currentRect = currentRowBefore?.getBoundingClientRect();
-	const targetRect = targetRowBefore?.getBoundingClientRect();
+	const allRowsBefore: Element[] = Array.from(
+		document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row")
+	);
+	const currentRowBefore: Element | null = allRowsBefore[index] ?? null;
+	const targetRowBefore: Element | null = allRowsBefore[targetIndex] ?? null;
+	const currentRect: DOMRect | null = currentRowBefore instanceof HTMLElement ? currentRowBefore.getBoundingClientRect() : null;
+	const targetRect: DOMRect | null = targetRowBefore instanceof HTMLElement ? targetRowBefore.getBoundingClientRect() : null;
 
 	selectors[targetIndex] = currentSelector;
 	selectors[index] = targetSelector;
 
+	const active: number | null = options.activeEditIndex;
+	if (active === index) {
+		options.setActiveEditIndex(targetIndex);
+	} else if (active === targetIndex) {
+		options.setActiveEditIndex(index);
+	}
+
 	plugin.compileActiveAttributes();
 	await plugin.saveSettings();
-	generateCallback();
-	refreshCallback();
 
-	if (currentRect && targetRect) {
-		window.setTimeout(() => {
-			const allRowsAfter = document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row");
-			const movedRow = allRowsAfter[targetIndex] as HTMLElement;
-			const swappedRow = allRowsAfter[index] as HTMLElement;
-			if (movedRow && swappedRow) {
-				movedRow.animate([{ transform: `translateY(${currentRect.top - targetRect.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
-				swappedRow.animate([{ transform: `translateY(${targetRect.top - currentRect.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
+	options.onAfterMove();
+
+	if (currentRect !== null && targetRect !== null) {
+		window.setTimeout((): void => {
+			const allRowsAfter: NodeListOf<Element> = document.querySelectorAll(
+				".vertical-tab-content-container .scl-clickable-row"
+			);
+			const movedRow: HTMLElement | null = (allRowsAfter[targetIndex] as HTMLElement) ?? null;
+			const swappedRow: HTMLElement | null = (allRowsAfter[index] as HTMLElement) ?? null;
+			if (movedRow !== null && swappedRow !== null) {
+				movedRow.animate(
+					[{ transform: `translateY(${currentRect.top - targetRect.top}px)` }, { transform: "translateY(0)" }],
+					{ duration: 250, easing: "ease-in-out" }
+				);
+				swappedRow.animate(
+					[{ transform: `translateY(${targetRect.top - currentRect.top}px)` }, { transform: "translateY(0)" }],
+					{ duration: 250, easing: "ease-in-out" }
+				);
+			}
+			if (typeof options.onAnimate === "function") {
+				options.onAnimate();
 			}
 		}, 0);
 	}

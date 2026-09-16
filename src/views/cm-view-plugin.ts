@@ -8,6 +8,7 @@ import { startsWithToken, endsWithToken, extractCleanLinkPath, cleanRuleValue, c
 import { resolveLinkFile } from "./live-preview";
 import { CSSLink } from "../types/css-link";
 import { IconWidget } from "./components/icon-widget";
+import { resolveRuleResolution } from "../processors/rule-resolver";
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -203,120 +204,50 @@ export class CMViewPlugin {
 		}
 	}
 
-	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
-		const rawAttrs: Record<string, string> = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-		const attributes: Record<string, string> = {};
-		
-		for (const key in rawAttrs) {
-			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
-				const val: string | undefined = rawAttrs[key];
-				if (val !== undefined) {
-					attributes[`data-link-${key}`] = val;
-				}
+
+// replace only processLinkDecoration with this implementation:
+public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+	const rawAttrs: Record<string, string> = fetchTargetAttributesSync(this.app, this.plugin, file, true);
+	const attributes: Record<string, string> = {};
+
+	for (const key in rawAttrs) {
+		if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
+			const val: string | null = rawAttrs[key] ?? null;
+			if (val !== null) {
+				attributes[`data-link-${key}`] = val;
 			}
 		}
-
-		const selectorsConfig: CSSLink[] = this.plugin.settings?.selectors ?? [];
-		const classList: string[] = ["data-link-text"];
-		
-		let activeIconBefore: string = "";
-		let activeIconAfter: string = "";
-
-		// 🔑 STYLE EXPORT BUCKETS: Track compiled visual styles to inject explicitly into the DOM layers
-		let finalColor: string = "";
-		let finalBg: string = "";
-		let finalWeight: string = "normal";
-		let finalStyle: string = "normal";
-
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-
-		for (let i: number = 0; i < selectorsConfig.length; i++) {
-			const selector: CSSLink | null = selectorsConfig[i] ?? null;
-			if (selector === null) continue;
-
-			let isMatch: boolean = false;
-			const ruleValue: string = cleanRuleValue(selector.value);
-			if (ruleValue.length === 0) continue;
-
-			if (selector.type === "tag") {
-				const rawTags: string = rawAttrs["tags"] ?? rawAttrs["data-link-tags"] ?? "";
-				const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
-				if (cleanFileTags.includes(ruleValue)) isMatch = true;
-			} 
-			else if (selector.type === "path") {
-				const rawPath: string = rawAttrs["path"] ?? rawAttrs["data-link-path"] ?? "";
-				const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
-				if (cleanPath.includes(ruleValue)) isMatch = true;
-			}
-			else if (selector.type === "attribute") {
-				const cleanKey: string = cleanAttributeKey(selector.name);
-				if (cleanKey.length > 0) {
-					const rawAttrVal: string = rawAttrs[cleanKey] ?? rawAttrs[`data-link-${cleanKey}`] ?? "";
-					const cleanAttrVal: string = (rawAttrVal ?? "").toLowerCase().trim();
-					if (cleanAttrVal === ruleValue) isMatch = true;
-				}
-			}
-
-			if (isMatch) {
-				// 🔑 RUNTIME COUPLING: Bind the rendering identifier sequentially to the index (i)
-				classList.push(`scl-rule-${i}`);
-
-				// Accumulate cascading style metrics over the active rule transaction layer
-				const textSelection: string = isDark ? (selector.darkColor ?? "") : (selector.lightColor ?? "");
-				if (textSelection.length > 0) finalColor = textSelection;
-
-				const bgSelection: string = isDark ? (selector.darkBgColor ?? "") : (selector.lightBgColor ?? "");
-				if (bgSelection.length > 0) finalBg = bgSelection;
-
-				if (selector.fontWeight && selector.fontWeight !== "normal") finalWeight = selector.fontWeight;
-				if (selector.fontStyle && selector.fontStyle !== "normal") finalStyle = selector.fontStyle;
-
-				if ((selector.iconBefore ?? "").trim().length > 0) {
-					activeIconBefore = (selector.iconBefore ?? "").trim();
-				}
-				if ((selector.iconAfter ?? "").trim().length > 0) {
-					activeIconAfter = (selector.iconAfter ?? "").trim();
-				}
-			}
-		}
-
-		if (activeIconBefore.length > 0) {
-			attributes["data-scl-icon-before"] = activeIconBefore;
-			if (startsWithToken(linkLabel, activeIconBefore)) {
-				classList.push("scl-hide-before");
-			}
-		}
-
-		if (activeIconAfter.length > 0) {
-			attributes["data-scl-icon-after"] = activeIconAfter;
-			if (endsWithToken(linkLabel, activeIconAfter)) {
-				classList.push("scl-hide-after");
-			}
-		}
-
-		// 🔑 EXPLICIT VISUAL STYLE EXPORT: Hydrate attributes so styles are explicitly visible on the DOM
-		if (finalColor.length > 0) attributes["data-link-color"] = finalColor;
-		if (finalBg.length > 0 && finalBg !== "transparent") attributes["data-link-bg"] = finalBg;
-		if (finalWeight !== "normal") attributes["data-link-weight"] = finalWeight;
-		if (finalStyle !== "normal") attributes["data-link-style"] = finalStyle;
-
-		// === PHASE 4: MYBRAIN INTEROPERABILITY INJECTION ===
-		const rawTagsField: string = rawAttrs["tags"] ?? "";
-		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
-		
-		if (tagsArray.length > 0) {
-			attributes["data-link-tags"] = tagsArray.map((t: string): string => t.startsWith("#") ? t : `#${t}`).join(" ");
-		}
-
-		for (let j: number = 0; j < tagsArray.length; j++) {
-			const cleanTag: string | null = tagsArray[j] ?? null;
-			if (cleanTag !== null && cleanTag.length > 0) {
-				const safeClassName: string = cleanTag.replace(/^#/, "");
-				classList.push(`scl-match-tag-${safeClassName}`);
-			}
-		}
-
-		return Decoration.mark({ attributes, class: classList.filter((c: string): boolean => c.length > 0).join(" ") });
 	}
 
+	const selectorsConfig: CSSLink[] = this.plugin.settings?.selectors ?? [];
+	const isDark: boolean = document.body.classList.contains("theme-dark");
+
+	const resolution = resolveRuleResolution({
+		selectors: selectorsConfig,
+		resolvedAttrs: rawAttrs,
+		isDark,
+		includeTagMatchClasses: true
+	});
+
+	const classList: string[] = [...resolution.classes];
+
+	for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
+		attributes[attrKey] = attrValue;
+	}
+
+	const iconBefore: string = resolution.iconBefore;
+	if (iconBefore.length > 0 && startsWithToken(linkLabel, iconBefore)) {
+		classList.push("scl-hide-before");
+	}
+
+	const iconAfter: string = resolution.iconAfter;
+	if (iconAfter.length > 0 && endsWithToken(linkLabel, iconAfter)) {
+		classList.push("scl-hide-after");
+	}
+
+	return Decoration.mark({
+		attributes,
+		class: classList.filter((c: string): boolean => c.length > 0).join(" ")
+	});
+}
 }

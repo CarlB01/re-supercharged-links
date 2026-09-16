@@ -103,10 +103,19 @@
       "fontWeight": "lighter"
     },
     {
-      "type": "tag",
-      "value": "helse",
-      "lightColor": "#1f3193",
-      "darkColor": "#8c9cf2"
+      "type": "attribute",
+      "value": "44",
+      "lightColor": "#a26825",
+      "darkColor": "#f28cdc",
+      "iconBefore": "🚙",
+      "fontWeight": "lighter",
+      "name": "haha"
+    },
+    {
+      "type": "path",
+      "value": "e",
+      "lightColor": "#74c1fb",
+      "darkColor": "#f2a18c"
     }
   ],
   "scl_value_10": "haha",

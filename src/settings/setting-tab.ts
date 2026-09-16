@@ -8,6 +8,7 @@ import { getRuleDetailItems } from "./components/detail-rows-factory";
 import { createColorCapsule } from "./components/color-capsule";
 import { renderRuleSentence } from "./components/rule-renderer";
 import { cleanSearchQuery, parseControlValueKey } from "../utils/string-utils";
+import { moveRule } from "./components/rule-order-engine";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -80,32 +81,65 @@ export default class SCLSettingTab extends PluginSettingTab {
     createColorCapsule(badgeContainer, selector.darkBgColor ?? "transparent", selector.darkColor ?? "", "Dark mode", "var(--text-muted)");
   }
 
-  private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
-    const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
-    const grip: HTMLElement = wrap.createEl("button", {
-      cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
-      attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
-    });
+private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
+	const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
+	const grip: HTMLElement = wrap.createEl("button", {
+		cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
+		attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
+	});
 
-    setIcon(grip, "grip-vertical");
-    let longPressTriggered: boolean = false;
+	setIcon(grip, "grip-vertical");
+	let longPressTriggered: boolean = false;
 
-    const moveBy = (direction: number): void => {
-      const targetIndex: number = index + direction;
-      if (targetIndex >= 0 && targetIndex < selectors.length) {
-        void this.moveRule(index, direction, selectors);
-      }
-    };
+	const moveBy = (direction: number): void => {
+		const targetIndex: number = index + direction;
+		if (targetIndex < 0 || targetIndex >= selectors.length) return;
 
-    const onLongPress = debounce((): void => { longPressTriggered = true; moveBy(-1); }, 380, true);
-    const cancelLongPress = (): void => { onLongPress.cancel(); };
+		void moveRule(this.plugin, selectors, index, direction, {
+			activeEditIndex: this.activeEditIndex,
+			setActiveEditIndex: (next: number | null): void => {
+				this.activeEditIndex = next;
+			},
+			onAfterMove: (): void => {
+				this._generateSnippet();
+				this.refreshUI();
+			},
+			onAnimate: null
+		});
+	};
 
-    this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
-    this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
-    this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
-    this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => { if (e.pointerType === "touch") { longPressTriggered = false; onLongPress(); } });
-    this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => { e.preventDefault(); e.stopPropagation(); if (longPressTriggered) { longPressTriggered = false; return; } moveBy(e.shiftKey ? -1 : 1); });
-  }
+	const onLongPress = debounce((): void => {
+		longPressTriggered = true;
+		moveBy(-1);
+	}, 380, true);
+
+	const cancelLongPress = (): void => {
+		onLongPress.cancel();
+	};
+
+	this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
+	this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
+	this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
+
+	this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => {
+		if (e.pointerType === "touch") {
+			longPressTriggered = false;
+			onLongPress();
+		}
+	});
+
+	this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (longPressTriggered) {
+			longPressTriggered = false;
+			return;
+		}
+
+		moveBy(e.shiftKey ? -1 : 1);
+	});
+}
 
   private _generateSnippet(): void {
     updateVisibleLinks(this.app, this.plugin);
@@ -239,46 +273,6 @@ export default class SCLSettingTab extends PluginSettingTab {
     window.requestAnimationFrame((): void => {
       this.compilePaneStyles();
     });
-  }
-
-  private async moveRule(index: number, direction: number, selectors: CSSLink[]): Promise<void> {
-    const targetIndex: number = index + direction;
-    const currentSelector: CSSLink | null = selectors[index] ?? null;
-    const targetSelector: CSSLink | null = selectors[targetIndex] ?? null;
-    if (currentSelector === null || targetSelector === null) return;
-
-    const allRowsBefore: Element[] = Array.from(document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
-    const currentRowBefore: Element | null = allRowsBefore[index] ?? null;
-    const targetRowBefore: Element | null = allRowsBefore[targetIndex] ?? null;
-    const currentRect: DOMRect | null = currentRowBefore !== null ? currentRowBefore.getBoundingClientRect() : null;
-    const targetRect: DOMRect | null = targetRowBefore !== null ? targetRowBefore.getBoundingClientRect() : null;
-
-    selectors[targetIndex] = currentSelector;
-    selectors[index] = targetSelector;
-
-    // Shift active editing row index pointers harmoniously during array reorders
-    if (this.activeEditIndex === index) {
-      this.activeEditIndex = targetIndex;
-    } else if (this.activeEditIndex === targetIndex) {
-      this.activeEditIndex = index;
-    }
-
-    this.plugin.compileActiveAttributes();
-    await this.plugin.saveSettings();
-    this._generateSnippet();
-    this.refreshUI();
-
-    if (currentRect !== null && targetRect !== null) {
-      window.setTimeout((): void => {
-        const allRowsAfter: NodeListOf<Element> = document.querySelectorAll(".vertical-tab-content-container .scl-clickable-row");
-        const movedRow: HTMLElement | null = (allRowsAfter[targetIndex] as HTMLElement) ?? null;
-        const swappedRow: HTMLElement | null = (allRowsAfter[index] as HTMLElement) ?? null;
-        if (movedRow !== null && swappedRow !== null) {
-          movedRow.animate([{ transform: `translateY(${currentRect.top - targetRect.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
-          swappedRow.animate([{ transform: `translateY(${targetRect.top - currentRect.top}px)` }, { transform: "translateY(0)" }], { duration: 250, easing: "ease-in-out" });
-        }
-      }, 0);
-    }
   }
 
   private generateUniqueColors(): { light: string; dark: string } {

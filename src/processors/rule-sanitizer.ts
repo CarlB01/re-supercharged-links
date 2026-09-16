@@ -72,7 +72,7 @@ interface IconMatchResult {
   iconAfter: string;
 }
 
-export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): IconMatchResult {
+export function findMatchingIcon(selectors: CSSLink[] | null, resolvedAttrs: Record<string, string>): IconMatchResult {
   const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
   if (!selectors || !Array.isArray(selectors)) return result;
 
@@ -106,73 +106,4 @@ export function findMatchingIcon(selectors: CSSLink[] | undefined, resolvedAttrs
   }
 
   return result;
-}
-
-export function findMatchingRule(selectors: CSSLink[] | undefined, resolvedAttrs: Record<string, string>): AccumulatedStyleProfile {
-	const profile: AccumulatedStyleProfile = {
-		uid: "",
-		lightColor: "",
-		darkColor: "",
-		lightBgColor: "transparent",
-		darkBgColor: "transparent",
-		fontWeight: "normal",
-		fontStyle: "normal",
-		iconBefore: "",
-		iconAfter: "",
-		hasAnyMatch: false
-	};
-
-	if (!selectors || !Array.isArray(selectors)) return profile;
-
-	for (let i: number = 0; i < selectors.length; i++) {
-		const selector: CSSLink | null = selectors[i] ?? null;
-		if (selector === null) continue;
-
-		let isMatch: boolean = false;
-		const ruleValue: string = cleanRuleValue(selector.value);
-		if (ruleValue.length === 0) continue;
-
-		// ⚡ ZERO-OVERHEAD EXPLICIT LOOKUP: Ren matrise-lookbehind uten manipulasjon
-		if (selector.type === "tag") {
-			const rawTags: string = resolvedAttrs["tags"] ?? resolvedAttrs["data-link-tags"] ?? "";
-			const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
-			if (cleanFileTags.includes(ruleValue)) isMatch = true;
-		} 
-		else if (selector.type === "path") {
-			const rawPath: string = resolvedAttrs["path"] ?? resolvedAttrs["data-link-path"] ?? "";
-			const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
-			if (cleanPath.includes(ruleValue)) isMatch = true;
-		}
-		else if (selector.type === "attribute") {
-			const cleanKey: string = cleanAttributeKey(selector.name);
-			if (cleanKey.length > 0) {
-				const rawAttrVal: string = resolvedAttrs[cleanKey] ?? resolvedAttrs[`data-link-${cleanKey}`] ?? "";
-				const cleanAttrVal: string = (rawAttrVal ?? "").toLowerCase().trim();
-				if (cleanAttrVal === ruleValue) isMatch = true;
-			}
-		}
-
-		if (isMatch) {    
-			profile.hasAnyMatch = true;
-			profile.uid = selector.uid ?? "";
-
-			if (selector.lightColor && selector.lightColor !== "#aa0000") profile.lightColor = selector.lightColor;
-			if (selector.darkColor && selector.darkColor !== "#ff5555") profile.darkColor = selector.darkColor;
-
-			if (selector.lightBgColor && selector.lightBgColor !== "transparent") profile.lightBgColor = selector.lightBgColor;
-			if (selector.darkBgColor && selector.darkBgColor !== "transparent") profile.darkBgColor = selector.darkBgColor;
-
-			if (selector.fontWeight && selector.fontWeight !== "normal") profile.fontWeight = selector.fontWeight;
-			
-			const targetFontStyle: string = selector.fontStyle ?? "normal";
-			if (targetFontStyle !== "normal") {
-				profile.fontStyle = targetFontStyle as "normal" | "italic" | "underline" | "line-through";
-			}
-
-			if ((selector.iconBefore ?? "").trim().length > 0) profile.iconBefore = selector.iconBefore.trim();
-			if ((selector.iconAfter ?? "").trim().length > 0) profile.iconAfter = selector.iconAfter.trim();
-		}
-	}
-
-	return profile;
 }

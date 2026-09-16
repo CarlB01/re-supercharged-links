@@ -4,8 +4,7 @@ import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, clearExtraAttributes, tagChipStyles } from "../processors/link-mutator";
 import { CSSLink } from "../types/css-link";
-import { findMatchingRule } from "../processors/rule-sanitizer";
-
+import { resolveRuleResolution } from "../processors/rule-resolver";
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
 		contentEl?: HTMLElement;
@@ -68,18 +67,26 @@ export function updateContainer(container: HTMLElement, plugin: ResuperchargedLi
 					if (dest) {
 						const isDark: boolean = document.body.classList.contains("theme-dark");
 						const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
-						const rawProps = fetchTargetAttributesSync(plugin.app, plugin, dest, false);
-						const matchedProfile = findMatchingRule(selectorsConfig, rawProps);
-						
-						if (matchedProfile.hasAnyMatch) {
-							const activeColor = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
-							const activeBg = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
-							
-							// Direct atomic style injection. This keeps Obsidian's internal structure perfectly intact!
-							if (activeColor) node.style.color = activeColor;
-							if (activeBg && activeBg !== "transparent") node.style.backgroundColor = activeBg;
-							
-							node.setAttribute("data-link-color", activeColor || "");
+						const rawProps: Record<string, string> = fetchTargetAttributesSync(plugin.app, plugin, dest, false);
+
+						const resolution = resolveRuleResolution({
+							selectors: selectorsConfig,
+							resolvedAttrs: rawProps,
+							isDark,
+							includeTagMatchClasses: false
+						});
+
+						if (resolution.hasMatch) {
+							const activeColor: string = resolution.style.color;
+							const activeBg: string = resolution.style.backgroundColor;
+
+							// Atomic style injection while preserving Obsidian's internal structure.
+							if (activeColor.length > 0) node.style.color = activeColor;
+							if (activeBg.length > 0 && activeBg !== "transparent") node.style.backgroundColor = activeBg;
+
+							if (activeColor.length > 0) {
+								node.setAttribute("data-link-color", activeColor);
+							}
 							node.addClass("data-link-text");
 						}
 					}
@@ -212,52 +219,87 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 	});
 }
 
+interface LeafWithMarkdownView {
+	view: MarkdownView;
+}
+
+function updateLeafPropertiesPane(
+	app: App,
+	plugin: ResuperchargedLinks,
+	file: TFile,
+	leaf: LeafWithMarkdownView
+): void {
+	let metadataPane: HTMLElement | null = null;
+	const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
+	if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {
+		metadataPane = internalView.metadataEditor.contentEl;
+	}
+
+	if (metadataPane !== null) {
+		updatePropertiesPane(metadataPane, file, app, plugin);
+	}
+}
+
+function updateLeafTabHeader(
+	app: App,
+	plugin: ResuperchargedLinks,
+	file: TFile,
+	leaf: unknown
+): void {
+	let tabHeader: HTMLElement | null = null;
+	const internalLeaf = leaf as ObsidianLeafHeaderInternal;
+	if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
+		tabHeader = internalLeaf.tabHeaderInnerTitleEl;
+	}
+
+	if (tabHeader !== null) {
+		// Tab headers are always styled when available.
+		updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
+	}
+}
+
+function updateLeafInternalLinks(
+	app: App,
+	plugin: ResuperchargedLinks,
+	file: TFile,
+	containerEl: HTMLElement,
+	attrCache: AttrCache
+): void {
+	const cachedFile = app.metadataCache.getFileCache(file);
+	const links = cachedFile?.links ?? [];
+
+	for (let i: number = 0; i < links.length; i++) {
+		const link = links[i];
+		if (link === null || link === undefined) continue;
+
+		const dest = app.metadataCache.getFirstLinkpathDest(link.link, file.basename);
+		if (dest === null) continue;
+
+		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
+		const escapedHref: string = CSS.escape(link.link);
+		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(`a.internal-link[href="${escapedHref}"]`);
+
+		internalLinks.forEach((node: Element): void => {
+			if (isHtmlElement(node)) {
+				setLinkNewProps(node, newProps, plugin);
+			}
+		});
+	}
+}
+
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
-	const settings = plugin.settings;
 	const attrCache: AttrCache = plugin.attrCycleCache;
 
 	app.workspace.iterateRootLeaves((leaf) => {
-		if (!(leaf.view instanceof MarkdownView) || !leaf.view.file) return;
+		if (!(leaf.view instanceof MarkdownView)) return;
 
-		const file = leaf.view.file;
-		const cachedFile = app.metadataCache.getFileCache(file);
+		const file: TFile | null = leaf.view.file;
+		if (file === null) return;
 
-		let metadataPane: HTMLElement | null = null;
-		const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
-		if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {
-			metadataPane = internalView.metadataEditor.contentEl;
-		}
+		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
 
-		if (metadataPane) {
-			updatePropertiesPane(metadataPane, file, app, plugin);
-		}
-
-		let tabHeader: HTMLElement | null = null;
-		const internalLeaf = leaf as unknown as ObsidianLeafHeaderInternal;
-		if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
-			tabHeader = internalLeaf.tabHeaderInnerTitleEl;
-		}
-
-		if (tabHeader) {
-			// 🔑 UNIVERSAL PROTOCOL: Tab headers are now styled automatically and natively out of the box,
-			// completely free of legacy configuration switches.
-			updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
-		}
-
-		cachedFile?.links?.forEach((link) => {
-			// ⚡ ZERO OVERHEAD LOOKUP: Ditch regex and reference the file basename natively
-			const dest = app.metadataCache.getFirstLinkpathDest(link.link, file.basename);
-			if (!dest) return;
-
-			const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
-			const escapedHref = CSS.escape(link.link);
-			const internalLinks = leaf.view.containerEl.querySelectorAll(`a.internal-link[href="${escapedHref}"]`);
-
-			internalLinks.forEach((node) => {
-				if (isHtmlElement(node)) {
-					setLinkNewProps(node, newProps, plugin);
-				}
-			});
-		});
+		updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
+		updateLeafTabHeader(app, plugin, file, leaf);
+		updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
 	});
 }

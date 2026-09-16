@@ -1,8 +1,8 @@
 // DOM-changes
 import { cleanAttributeKey, parseSpaceSeparatedTokens, norm, processValue } from "../utils/string-utils";
-import { findMatchingRule } from "./rule-sanitizer";
 import ResuperchargedLinks from "../main";
 import { CSSLink } from "../types/css-link";
+import { resolveRuleResolution } from "./rule-resolver";
 
 /**
  * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.
@@ -103,91 +103,97 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 	const visibleText: string = (link.textContent ?? "").trim();
 	const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
-	const matchedProfile = findMatchingRule(selectorsConfig, newProps);
+	const isDark: boolean = document.body.classList.contains("theme-dark");
 
-	if (matchedProfile.hasAnyMatch) {
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const activeColor: string | null = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
-		const activeBg: string | null = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
+	const resolution = resolveRuleResolution({
+		selectors: selectorsConfig,
+		resolvedAttrs: newProps,
+		isDark,
+		includeTagMatchClasses: true
+	});
 
+	if (resolution.hasMatch) {
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
-		
-		if (activeColor) targetStyles.color = activeColor;
-		if (activeBg && activeBg !== "transparent") targetStyles.backgroundColor = activeBg;
-		if (matchedProfile.fontWeight && matchedProfile.fontWeight !== "normal") targetStyles.fontWeight = matchedProfile.fontWeight;
-		
-		if (matchedProfile.fontStyle === "italic") {
+
+		if (resolution.style.color.length > 0) {
+			targetStyles.color = resolution.style.color;
+		}
+		if (resolution.style.backgroundColor.length > 0 && resolution.style.backgroundColor !== "transparent") {
+			targetStyles.backgroundColor = resolution.style.backgroundColor;
+		}
+		if (resolution.style.fontWeight !== "normal") {
+			targetStyles.fontWeight = resolution.style.fontWeight;
+		}
+
+		if (resolution.style.fontStyle === "italic") {
 			targetStyles.fontStyle = "italic";
-		} else if (matchedProfile.fontStyle === "underline") {
+		} else if (resolution.style.fontStyle === "underline") {
 			targetStyles.textDecoration = "underline";
-		} else if (matchedProfile.fontStyle === "line-through") {
+		} else if (resolution.style.fontStyle === "line-through") {
 			targetStyles.textDecoration = "line-through";
 		}
 
 		link.setCssStyles(targetStyles);
 
-		// === PHASE 2: SEMANTIC INTEROPERABILITY MATCHING ===
-		// ⚡ REFACTORED: The private .scl-rule-[UID] class injection is completely dropped here!
-		// We exclusively append the standardized human-readable tag classes for external mapping utilities.
-		const rawTags: string = newProps["tags"] ?? "";
-		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTags);
-		for (let j: number = 0; j < tagsArray.length; j++) {
-			const cleanTag: string | null = tagsArray[j] ?? null;
-			if (cleanTag !== null && cleanTag.length > 0) {
-				const safeClassName: string = cleanTag.replace(/^#/, "");
-				link.addClass(`scl-match-tag-${safeClassName}`);
+		// Apply resolver-produced classes (including scl-rule-* and scl-match-tag-*)
+		for (let i: number = 0; i < resolution.classes.length; i++) {
+			const cls: string | null = resolution.classes[i] ?? null;
+			if (cls !== null && cls.length > 0 && cls !== "data-link-text") {
+				link.addClass(cls);
 			}
 		}
 
-		// === PHASE 3: INJECTED ICON CONTAINER STANDARDIZATION ===
-		const iconBefore: string | null = matchedProfile.iconBefore;
-		const iconAfter: string | null = matchedProfile.iconAfter;
+		const iconBefore: string = resolution.iconBefore;
+		const iconAfter: string = resolution.iconAfter;
 
-		const cleanedText: string | null = norm(visibleText);
-		const cleanedIconBefore: string | null = norm(iconBefore ?? "");
-		const cleanedIconAfter: string | null = norm(iconAfter ?? "");
+		const cleanedText: string = norm(visibleText);
+		const cleanedIconBefore: string = norm(iconBefore);
+		const cleanedIconAfter: string = norm(iconAfter);
 
-		const skipBefore: boolean = !!cleanedIconBefore && (cleanedText ?? "").startsWith(cleanedIconBefore);
-		let skipAfter: boolean = !!cleanedIconAfter && (cleanedText ?? "").endsWith(cleanedIconAfter);
+		const skipBefore: boolean = cleanedIconBefore.length > 0 && cleanedText.startsWith(cleanedIconBefore);
+		let skipAfter: boolean = cleanedIconAfter.length > 0 && cleanedText.endsWith(cleanedIconAfter);
 
-		if (cleanedIconAfter && !skipAfter && (cleanedText ?? "").length > 1) {
-			const endsWithEmojiSymbol: boolean = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedText ?? "");
-			if (endsWithEmojiSymbol) skipAfter = true;
+		if (cleanedIconAfter.length > 0 && !skipAfter && cleanedText.length > 1) {
+			const endsWithEmojiSymbol: boolean = /[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]$/u.test(cleanedText);
+			if (endsWithEmojiSymbol) {
+				skipAfter = true;
+			}
 		}
 
-		if (iconBefore && !skipBefore) {
+		if (iconBefore.length > 0 && !skipBefore) {
 			const spanBefore: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
 			});
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
-			
+
 			const firstChild: ChildNode | null = link.firstChild;
 			if (firstChild !== null) {
 				link.insertBefore(spanBefore, firstChild);
 			}
 		}
 
-		if (iconAfter && !skipAfter) {
+		if (iconAfter.length > 0 && !skipAfter) {
 			const spanAfter: HTMLElement = activeWindow.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
 			});
 			spanAfter.setAttribute("contenteditable", "false");
 			spanAfter.setCssStyles({ display: "inline-block" });
-			
+
 			link.appendChild(spanAfter);
 		}
 
-		// 🔑 EXTRA EXPLICIT EXPORT FOR READ MODE: Hydrate attributes so myBrain captures style states symmetrically
-		if (activeColor) link.setAttribute("data-link-color", activeColor);
-		if (activeBg && activeBg !== "transparent") link.setAttribute("data-link-bg", activeBg);
-		if (matchedProfile.fontWeight && matchedProfile.fontWeight !== "normal") link.setAttribute("data-link-weight", matchedProfile.fontWeight);
-		if (matchedProfile.fontStyle && matchedProfile.fontStyle !== "normal") link.setAttribute("data-link-style", matchedProfile.fontStyle);
+		// Apply resolver-produced data attributes (color/bg/weight/style/icon attrs/tags)
+		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
+			if (attrValue.length > 0) {
+				link.setAttribute(attrKey, attrValue);
+			}
+		}
 	}
 
-	// === PHASE 1: LEGACY METADATA FOOTPRINT SPECIATION ===
+	// Keep legacy metadata export behavior intact
 	for (const [key, propValue] of Object.entries(newProps)) {
 		const domKey: string = cleanAttributeKey(key);
 		const attributeName: string = `data-link-${domKey}`;
@@ -195,7 +201,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 		if (domKey === "tags" && newValue !== null) {
 			const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-			newValue = cleanTokens.map((t: string): string => t.startsWith("#") ? t : `#${t}`).join(" ");
+			newValue = cleanTokens.map((t: string): string => (t.startsWith("#") ? t : `#${t}`)).join(" ");
 		}
 
 		if (newValue !== null) {

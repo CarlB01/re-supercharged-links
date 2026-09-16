@@ -15,6 +15,12 @@ interface ObsidianAppInternalRegistry {
 const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTMLElement, number>();
 
 /**
+ * Tracks active observer bindings per container and logical observer key.
+ * Prevents duplicate observers from being attached across repeated layout cycles.
+ */
+const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = new WeakMap<HTMLElement, Map<string, MutationObserver>>();
+
+/**
  * Schedules a high-performance DOM update bound to the browser's repaint cycle.
  * Prevents layout thrashing by collapsing multiple rapid mutations into a single frame.
  */
@@ -186,6 +192,11 @@ function watchContainer(
 	selector: string,
 	filterCollapsible = false
 ): void {
+	const keyViewType: string = viewType !== null ? viewType : "modal";
+	const observerKey: string = `${keyViewType}|${selector}|${filterCollapsible ? "1" : "0"}|static`;
+
+	disconnectExistingObserver(container, observerKey);
+
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const hasRelevantMutation: boolean = records.some(
 			(m: MutationRecord): boolean => m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)
@@ -198,22 +209,23 @@ function watchContainer(
 	});
 
 	observer.observe(container, { subtree: true, childList: true, attributes: false });
+	registerObserver(container, observerKey, observer);
+
 	if (viewType !== null) {
 		plugin.observers.push([observer, viewType, selector]);
 	}
 }
 
-/**
- * High-frequency dynamic observer built for rapidly updating arrays like backlink layouts.
- * 🔑 ATOMIC PURGE: Completely removed obsolete 'enableBacklinks' configuration check.
- * Dynamic layout adjustments now execute globally and natively across all backlink trees.
- */
 function watchContainerDynamic(
 	viewType: string,
 	container: HTMLElement,
 	plugin: ResuperchargedLinks,
 	selector: string
 ): void {
+	const observerKey: string = `${viewType}|${selector}|0|dynamic`;
+
+	disconnectExistingObserver(container, observerKey);
+
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const hasRelevantMutation: boolean = records.some(
 			(m: MutationRecord): boolean => m.type === "childList" && m.addedNodes.length > 0
@@ -226,6 +238,7 @@ function watchContainerDynamic(
 	});
 
 	observer.observe(container, { subtree: true, childList: true, attributes: false });
+	registerObserver(container, observerKey, observer);
 	plugin.observers.push([observer, viewType, selector]);
 }
 
@@ -251,6 +264,10 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 			observer.disconnect();
 		}
 	}
+
+	// Reset plugin-level observer lists to avoid stale references after disconnect.
+	plugin.observers = [];
+	plugin.modalObservers = [];
 }
 
 /**
@@ -281,4 +298,32 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 			}
 		}
 	}
+}
+
+function getContainerRegistry(container: HTMLElement): Map<string, MutationObserver> {
+	const existing: Map<string, MutationObserver> | null = observerRegistry.get(container) ?? null;
+	if (existing !== null) return existing;
+
+	const created: Map<string, MutationObserver> = new Map<string, MutationObserver>();
+	observerRegistry.set(container, created);
+	return created;
+}
+
+function disconnectExistingObserver(container: HTMLElement, observerKey: string): void {
+	const reg: Map<string, MutationObserver> = getContainerRegistry(container);
+	const existing: MutationObserver | null = reg.get(observerKey) ?? null;
+	if (existing !== null) {
+		existing.disconnect();
+		reg.delete(observerKey);
+	}
+}
+
+function registerObserver(container: HTMLElement, observerKey: string, observer: MutationObserver): void {
+	const reg: Map<string, MutationObserver> = getContainerRegistry(container);
+	reg.set(observerKey, observer);
+}
+
+function unregisterObserver(container: HTMLElement, observerKey: string): void {
+	const reg: Map<string, MutationObserver> = getContainerRegistry(container);
+	reg.delete(observerKey);
 }
