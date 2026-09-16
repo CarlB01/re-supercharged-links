@@ -31,7 +31,8 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 /**
  * 🚀 REACTIVE IN-MEMORY THEME GENERATOR
  * Dynamically compiles system rules into an active CodeMirror theme instance.
- * ⚡ STRIPPED OVERHEAD: Streamlined dictionary engine loop removes redundant color fallback verification checks.
+ * 🔑 RUNTIME INDEXING ENGINE: Maps internal selectors cleanly to sequential array indices (scl-rule-0, scl-rule-1).
+ * This cuts the final legacy thread to static disk-persisted UID string dependencies.
  */
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
 	const themeSpec: Record<string, Record<string, string>> = {};
@@ -52,9 +53,8 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension
 		const rule: CSSLink | null = selectors[i] ?? null;
 		if (rule === null) continue;
 
-		const uid: string = rule.uid ?? "";
-		if (uid.length === 0) continue; 
-
+		// 🔑 RUNTIME GENERATION: Create a lightweight, stable session key from the array position index
+		const runtimeId: string = String(i);
 		const ruleStyles: Record<string, string> = {};
 
 		const textSelection: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
@@ -83,11 +83,13 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension
 		}
 
 		if (Object.keys(ruleStyles).length > 0) {
-			const targetSelector: string = `& .data-link-text.scl-rule-${uid}, & .cm-underline.scl-rule-${uid}`;
+			// 🔑 CRITICAL CSS ANCHOR FIX: Removed the trailing space after the '&' symbol.
+			// This guarantees CodeMirror maps properties directly when classes coexist on the exact same span node layer.
+			const targetSelector: string = `&.data-link-text.scl-rule-${runtimeId}, .scl-rule-${runtimeId} .cm-underline, .scl-rule-${runtimeId}`;
 			themeSpec[targetSelector] = ruleStyles;
 
 			if (hasActiveBg) {
-				const adjacentIconSelector: string = `& .scl-rule-${uid} ~ .scl-inline-icon, & .scl-inline-icon:has(+ .cm-hmd-internal-link .scl-rule-${uid})`;
+				const adjacentIconSelector: string = `.scl-rule-${runtimeId} ~ .scl-inline-icon, .scl-inline-icon:has(+ .cm-hmd-internal-link .scl-rule-${runtimeId})`;
 				themeSpec[adjacentIconSelector] = {
 					"background-color": bgSelection
 				};

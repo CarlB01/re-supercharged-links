@@ -15,7 +15,9 @@ export default class SCLSettingTab extends PluginSettingTab {
   public plugin: ResuperchargedLinks;
   private readonly debouncedGenerate: () => void;
   private rulesSearchQuery = "";
-  public activeEditUid: string | null = null;
+  
+  // 🔑 RUNTIME TRACKING INDEX: Track active row open boundaries using memory integer offsets cleanly
+  public activeEditIndex: number | null = null;
   private paneStyleEl: HTMLStyleElement | null = null;
 
   constructor(app: App, plugin: ResuperchargedLinks) {
@@ -35,12 +37,14 @@ export default class SCLSettingTab extends PluginSettingTab {
       const filteredSelectors: CSSLink[] = this.getFilteredSelectors(selectors);
       const allRows: Element[] = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
       const index: number = allRows.indexOf(clickedRow);
+      
       const selector: CSSLink | null = filteredSelectors[index] ?? null;
       if (selector === null) return;
 
+      const actualIndex: number = selectors.indexOf(selector);
       clearColorHistory();
 
-      this.activeEditUid = this.activeEditUid === selector.uid ? null : selector.uid;
+      this.activeEditIndex = this.activeEditIndex === actualIndex ? null : actualIndex;
       this.refreshUI();
     });
   }
@@ -115,14 +119,14 @@ export default class SCLSettingTab extends PluginSettingTab {
     if (key === "scl_rules_search") return this.rulesSearchQuery;
     const settings: ResuperchargedLinks["settings"] = this.plugin.settings;
     
-    // ⚡ STRIPPED CORE KEYS: Retained only the actual functional toggles
     const coreKeys: string[] = ["enableTagChips", "getFromInlineField"];
     if (coreKeys.includes(key)) return (settings as unknown as Record<string, unknown>)[key];
 
     if (key.startsWith("scl_")) {
-      const { prop, uid } = parseControlValueKey(key);
+      const { prop, uid: runtimeUid } = parseControlValueKey(key);
+      const targetIdx: number = parseInt(runtimeUid, 10);
       const selectors: CSSLink[] = settings.selectors ?? [];
-      const selector: CSSLink | null = selectors.find((s: CSSLink): boolean => s.uid === uid) ?? null;
+      const selector: CSSLink | null = selectors[targetIdx] ?? null;
       const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
       
       if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
@@ -140,7 +144,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     filteredSelectors.forEach((selector: CSSLink): void => {
       const index: number = selectors.indexOf(selector);
-      const isEditing: boolean = this.activeEditUid === selector.uid;
+      const isEditing: boolean = this.activeEditIndex === index;
       existingRuleItems.push({ render: (setting: Setting) => this.renderRuleRow(setting, selector, index, selectors, isEditing) });
       
       if (isEditing) {
@@ -177,18 +181,19 @@ export default class SCLSettingTab extends PluginSettingTab {
             newSelector.darkColor = generatedColors.dark;
             newSelector.lightBgColor = "transparent";
             newSelector.darkBgColor = "transparent";
+            
             selectors.push(newSelector);
             this.plugin.compileActiveAttributes();
             void this.plugin.saveSettings();
             void this._generateSnippet();
-            this.activeEditUid = newSelector.uid;
+            
+            this.activeEditIndex = selectors.length - 1;
             this.refreshUI();
           }); });
         }
       }]
     });
 
-    // ⚡ CONSOLIDATED GENERAL CONFIGURATION: Pure data source triggers remaining
     definitions.push({
       type: "group",
       heading: "Advanced Settings Overview",
@@ -212,15 +217,24 @@ export default class SCLSettingTab extends PluginSettingTab {
     return definitions;
   }
 
-  private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
+    private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
     setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
     setting.settingEl.addClass("markdown-rendered");
     if (isEditing) setting.settingEl.addClass("is-active");
     
-    setting.settingEl.setAttribute("data-uid", selector.uid);
+    setting.settingEl.setAttribute("data-index", String(index));
 
     setting.nameEl.empty();
     renderRuleSentence(setting.nameEl, selector);
+    
+    // 🔑 THE RE-COUPLING CRITICAL FIX: Find the freshly drawn preview anchor node inside the sentence matrix,
+    // and stamp it with the temporary index class (`scl-rule-0`, `scl-rule-1`). 
+    // This allows compilePaneStyles to catch it seamlessly on layout updates!
+    const previewAnchor: HTMLElement | null = setting.nameEl.querySelector(".data-link-text") ?? null;
+    if (previewAnchor !== null) {
+      previewAnchor.addClass(`scl-rule-${index}`);
+    }
+
     this.renderRuleBadges(setting, selector);
     this.renderReorderGrip(setting, index, selectors);
 
@@ -243,6 +257,13 @@ export default class SCLSettingTab extends PluginSettingTab {
 
     selectors[targetIndex] = currentSelector;
     selectors[index] = targetSelector;
+
+    // Shift active editing row index pointers harmoniously during array reorders
+    if (this.activeEditIndex === index) {
+      this.activeEditIndex = targetIndex;
+    } else if (this.activeEditIndex === targetIndex) {
+      this.activeEditIndex = index;
+    }
 
     this.plugin.compileActiveAttributes();
     await this.plugin.saveSettings();
@@ -277,28 +298,18 @@ export default class SCLSettingTab extends PluginSettingTab {
     return { light: hslToHex(hue, 65, 35), dark: hslToHex(hue, 80, 75) };
   }
 
-  override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
-    if (key === "scl_rules_search") { this.handleSearchQuery(value); return; }
-    if (key.startsWith("scl_")) this.handleRuleFieldUpdate(key, value); else this.handleGlobalSettingUpdate(key, value);
-
-    this.plugin.compileActiveAttributes();
-    await this.plugin.saveSettings();
-    this.debouncedGenerate();
-    if (!silent) this.refreshUI();
-  }
-
   private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
 
   private handleRuleFieldUpdate(key: string, value: unknown): void {
-    const { prop, uid } = parseControlValueKey(key);
+    const { prop, uid: runtimeUid } = parseControlValueKey(key);
+    const targetIdx: number = parseInt(runtimeUid, 10);
     const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
-    const selector: CSSLink | null = selectors.find((s: CSSLink): boolean => s.uid === uid) ?? null;
+    const selector: CSSLink | null = selectors[targetIdx] ?? null;
     const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
 
     if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
       const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
       
-      // 🔑 CLEAN INPUT GUARD: Strip any accidental leading '#' from tag rules in the UI layer
       let cleanValue = value;
       if (prop === "value" && typeof value === "string" && selector.type === "tag") {
         cleanValue = value.trim().replace(/^#/, "");
@@ -327,8 +338,7 @@ export default class SCLSettingTab extends PluginSettingTab {
       const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
       const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
 
-      // Locate the physical preview link anchor inside the settings tab DOM tree
-      const noteEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${rule.uid}`) ?? null;
+      const noteEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${i}`) ?? null;
       
       if (noteEl !== null) {
         const targetStyles: Partial<CSSStyleDeclaration> = {
@@ -349,16 +359,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 
         noteEl.setCssStyles(targetStyles);
 
-        // 🔑 ATTRIBUTE INTEROPERABILITY HARMONIZATION: Re-inject the standardized '#' prefix 
-        // exclusively onto the DOM data-attributes of the preview container.
-        // This ensures the preview node context mirrors the exact footprint required by CSS sheets.
         const val: string = (rule.value || "").trim();
         if (rule.type === "tag" && val.length > 0) {
           const cleanTag = val.replace(/^#/, "");
           noteEl.setAttribute("data-link-tags", `#${cleanTag}`);
         }
 
-        // Wipe any stale background legacy icon nodes before re-rendering widgets
         const oldIcons: NodeListOf<Element> = noteEl.querySelectorAll(".scl-inline-icon");
         oldIcons.forEach((icon: Element): void => icon.remove());
 
@@ -366,7 +372,6 @@ export default class SCLSettingTab extends PluginSettingTab {
         const iconAfter: string = (rule.iconAfter ?? "").trim();
 
         if (iconBefore.length > 0) {
-          // Leverage the root window layout instance context to generate stable elements safely
           const spanBefore: HTMLElement = noteEl.win.createEl("span", {
             cls: "scl-inline-icon scl-inline-icon-before",
             text: iconBefore
@@ -376,7 +381,6 @@ export default class SCLSettingTab extends PluginSettingTab {
         }
 
         if (iconAfter.length > 0) {
-          // Leverage the root window layout instance context to generate stable elements safely
           const spanAfter: HTMLElement = noteEl.win.createEl("span", {
             cls: "scl-inline-icon scl-inline-icon-after",
             text: iconAfter

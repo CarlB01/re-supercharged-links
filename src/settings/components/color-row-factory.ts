@@ -24,13 +24,18 @@ interface ColorRowConfig {
   modeName: string;
   fallbackColor: string;
   isBackground: boolean;
-  setControlValue: (key: string, value: unknown, silent: boolean) => Promise<void>;
+  // 🔑 CONTRACT HARMONIZATION: Allow the control parameter proxy to return void or Promise to align with Obsidian
+  setControlValue: (key: string, value: unknown, silent: boolean) => void | Promise<void>;
   refreshUI: () => void;
+  // 🔑 RUNTIME INDEXING: Pass the sequential array index instead of a static string hash UID
+  index: number; 
 }
 
 export function buildUnifiedColorRow(config: ColorRowConfig): void {
-  const { setting, plugin, selector, propKey, fallbackColor, isBackground, setControlValue, refreshUI } = config;
-  const historyKey = `${propKey}_${selector.uid}`;
+  const { setting, plugin, selector, propKey, fallbackColor, isBackground, setControlValue, refreshUI, index } = config;
+  
+  // 🔑 INDEX BRIDGE: Construct transaction history registration key directly around the runtime sequence index
+  const historyKey = `${propKey}_${index}`;
 
   const modelProxy = selector as unknown as Record<string, string>;
 
@@ -60,7 +65,8 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       
       modelProxy[propKey] = previous;
 
-      await setControlValue(`scl_${propKey}_${selector.uid}`, previous, false);
+      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
+      await setControlValue(`scl_${propKey}_${index}`, previous, false);
       refreshUI();
     });
   });
@@ -81,10 +87,10 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       const next = timeline.future.pop()!;
       timeline.past.push(next);
       
-      // 🔑 FIKSET: Skriver typesikkert via proxyen
       modelProxy[propKey] = next;
 
-      await setControlValue(`scl_${propKey}_${selector.uid}`, next, false);
+      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
+      await setControlValue(`scl_${propKey}_${index}`, next, false);
       refreshUI();
     });
   });
@@ -99,9 +105,9 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       timeline.future = []; 
     }
 
-    // 🔑 FIKSET: Nullstiller typesikkert
     modelProxy[propKey] = defaultVal;
-    await setControlValue(`scl_${propKey}_${selector.uid}`, defaultVal, false);
+    // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
+    await setControlValue(`scl_${propKey}_${index}`, defaultVal, false);
     refreshUI();
   }));
 
@@ -125,7 +131,8 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
       if (uEl) { if (timeline.past.length <= 1) uEl.hide(); else uEl.show(); }
       if (rEl) { if (timeline.future.length === 0) rEl.hide(); else rEl.show(); }
 
-      await setControlValue(`scl_${propKey}_${selector.uid}`, v, true);
+      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
+      await setControlValue(`scl_${propKey}_${index}`, v, true);
     });
 
     plugin.registerDomEvent(cp.colorPickerEl, "change", () => {

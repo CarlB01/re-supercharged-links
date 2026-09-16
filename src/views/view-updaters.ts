@@ -3,6 +3,8 @@ import ResuperchargedLinks from "../main";
 import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, clearExtraAttributes, tagChipStyles } from "../processors/link-mutator";
+import { CSSLink } from "../types/css-link";
+import { findMatchingRule } from "../processors/rule-sanitizer";
 
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
@@ -30,20 +32,62 @@ function getNestedChild(root: Element | null | undefined, path: number[]): Eleme
 export function updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
 	if (!container || typeof container.findAll !== "function") return;
 	
+	const dataType = container.getAttribute("data-type");
 	if (plugin.settings.enableTagChips) {
 		tagChipStyles(container, plugin);
 	}
 
-	// 🔑 UNIVERSAL PROTOCOL: Standardized index scanning now flows completely uninterrupted.
-	// All legacy configuration guards have been fully purged from this traversal path.
 	const nodes = container.findAll(selector);
 	const nodesCount = nodes.length;
 	if (nodesCount === 0) return;
 
+	// Check if this container belongs to a suggestion popup or modal frame
+	const isPopupContext = container.classList.contains("suggestion-container") || 
+	                       container.classList.contains("modal-container") || 
+	                       container.closest(".suggestion-container, .modal-container") !== null;
+
 	for (let i = 0; i < nodesCount; i++) {
 		const node = nodes[i];
 		if (node !== undefined && node !== null && isHtmlElement(node)) {
-			updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
+			// 🔑 SUGGESTOR PROTECTOR: If we are inside a typing lookup popup, bypass heavy DOM reshaping.
+			// Instead, we safely extract the target from the parent's data-path attributes if available,
+			// or read the text content directly without letting clearExtraAttributes touch Obsidian's spans.
+			if (isPopupContext) {
+				const parentItem = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
+				let resolvedPath = "";
+				
+				if (parentItem instanceof HTMLElement) {
+					resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
+				}
+				if (!resolvedPath) {
+					resolvedPath = node.textContent ?? "";
+				}
+				
+				if (resolvedPath) {
+					const dest = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "");
+					if (dest) {
+						const isDark: boolean = document.body.classList.contains("theme-dark");
+						const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
+						const rawProps = fetchTargetAttributesSync(plugin.app, plugin, dest, false);
+						const matchedProfile = findMatchingRule(selectorsConfig, rawProps);
+						
+						if (matchedProfile.hasAnyMatch) {
+							const activeColor = isDark ? matchedProfile.darkColor : matchedProfile.lightColor;
+							const activeBg = isDark ? matchedProfile.darkBgColor : matchedProfile.lightBgColor;
+							
+							// Direct atomic style injection. This keeps Obsidian's internal structure perfectly intact!
+							if (activeColor) node.style.color = activeColor;
+							if (activeBg && activeBg !== "transparent") node.style.backgroundColor = activeBg;
+							
+							node.setAttribute("data-link-color", activeColor || "");
+							node.addClass("data-link-text");
+						}
+					}
+				}
+			} else {
+				// Standard safe layout route for stable document trees and sidebars
+				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
+			}
 		}
 	}
 }

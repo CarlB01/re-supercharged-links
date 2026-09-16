@@ -5,7 +5,6 @@
     {
       "type": "tag",
       "value": "her",
-      "uid": "cd5e-deab",
       "iconBefore": "👩🏼‍🎤",
       "lightColor": "#be557f",
       "darkColor": "#ff5555"
@@ -13,7 +12,6 @@
     {
       "type": "tag",
       "value": "him",
-      "uid": "ed89-b784",
       "iconBefore": "👤",
       "lightColor": "#5773ff",
       "darkColor": "#a9b6f9",
@@ -23,7 +21,6 @@
     {
       "type": "tag",
       "value": "tekst",
-      "uid": "1327-142d",
       "iconBefore": "📄",
       "lightColor": "#c9ae26",
       "darkColor": "#dbdc79",
@@ -33,7 +30,6 @@
       "darkBgColor": "#664d4d"
     },
     {
-      "uid": "c8f0-a23d",
       "type": "path",
       "name": "hode",
       "value": "@",
@@ -46,7 +42,6 @@
     {
       "type": "tag",
       "value": "kalender",
-      "uid": "541c-90da",
       "iconBefore": "📅",
       "lightColor": "#e00f00",
       "darkColor": "#f46767",
@@ -54,7 +49,6 @@
       "darkBgColor": "#fdcece"
     },
     {
-      "uid": "7aef-a65d",
       "type": "attribute",
       "name": "tilhører",
       "value": "abc",
@@ -65,7 +59,6 @@
       "darkBgColor": "#94f0d4"
     },
     {
-      "uid": "a753-1d8e",
       "type": "tag",
       "value": "lege",
       "iconAfter": "⚕️",
@@ -73,7 +66,6 @@
       "fontStyle": "line-through"
     },
     {
-      "uid": "73ad-813f",
       "type": "tag",
       "value": "symptom",
       "iconBefore": "🛌",
@@ -83,7 +75,6 @@
       "darkBgColor": "#5a4861"
     },
     {
-      "uid": "a70d-517c",
       "type": "tag",
       "value": "👥gruppe",
       "iconBefore": "👥",
@@ -93,22 +84,11 @@
       "lightBgColor": "#cbfbeb"
     },
     {
-      "uid": "6f7c5abf-7394",
       "type": "tag",
       "value": "klinikk",
       "iconBefore": "🏥",
       "lightBgColor": "#dad8d8",
       "lightColor": "#1a8c18"
     }
-  ],
-  "targetTags": true,
-  "activateSnippet": true,
-  "enableTabHeader": true,
-  "enableEditor": true,
-  "enableFileList": true,
-  "enableBacklinks": true,
-  "enableQuickSwitcher": true,
-  "enableSuggestor": true,
-  "enableBases": true,
-  "targetAttributes": []
+  ]
 }

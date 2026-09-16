@@ -1,6 +1,3 @@
-// editor-decorations:
-// transactions-buffer + sorting before flushing in one pass
-
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
@@ -29,7 +26,6 @@ function isCodeMirrorInternalLink(nodeName: string): boolean {
 	);
 }
 
-// 🔑 ARCHITECTURAL INTERFACE: Extend the iteration state to hold a flat transaction memory array
 interface IterationState {
 	builder: RangeSetBuilder<Decoration>;
 	activeFileBasename: string;
@@ -59,9 +55,6 @@ export class CMViewPlugin {
 
 	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
 		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
-		// 🔑 UNIVERSAL PROTOCOL: Live Preview editor extensions now run automatically out of the box,
-		// completely free of legacy configuration switches.
-
 		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView) ?? null;
 		if (mdView === null || mdView.file === null) return builder.finish();
 
@@ -72,7 +65,6 @@ export class CMViewPlugin {
 			to: 0,
 			collectedDecos: []
 		};
-
 
 		for (const { from, to } of view.visibleRanges) {
 			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
@@ -89,24 +81,19 @@ export class CMViewPlugin {
 			});
 		}
 
-		// 🔑 PRODUCTION-READY SORTING ROUTINE: Order all collected nodes strictly ascending by index position
 		state.collectedDecos.sort((a, b) => {
 			if (a.from !== b.from) return a.from - b.from;
-			
-			// If position markers match precisely, sort widgets by CodeMirror's structural layout side priority constants
 			const aSide = (a.value.spec as { side?: number })?.side ?? 0;
 			const bSide = (b.value.spec as { side?: number })?.side ?? 0;
 			return aSide - bSide;
 		});
 
-		// ⚡ SAFE TRANSACTIONAL FLUSH: Commit the pre-sorted array sequentially into CodeMirror's native tree builder
 		for (let i = 0; i < state.collectedDecos.length; i++) {
 			const item = state.collectedDecos[i];
 			if (item !== undefined && item !== null) {
 				try {
 					builder.add(item.from, item.to, item.value);
 				} catch {
-					// Fallback containment enclosure to trap volatile syntax transitions silently without crashing the workspace
 					continue;
 				}
 			}
@@ -125,8 +112,6 @@ export class CMViewPlugin {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
 		const nodeNameLower: string = node.name.toLowerCase();
-		
-		// 🔑 ARCHITECTURAL PROTOCOL: Completely bypass syntax formatting bracket wrappers
 		if (nodeNameLower.includes("formatting-link")) {
 			return;
 		}
@@ -135,16 +120,12 @@ export class CMViewPlugin {
 			let rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
 			let linkText: string = extractCleanLinkPath(rawLinkText);
 			
-			// 🔑 FRAGMENT IDENTIFICATION MATRIX: Isolate each independent token node structural element cleanly
 			const isExpandedPathNode: boolean = nodeNameLower.includes("has-alias");
 			const isPipeNode: boolean = nodeNameLower === "cm-link-alias-pipe" || nodeNameLower.includes("pipe");
 			const isAliasNode: boolean = nodeNameLower === "cm-link-alias" || nodeNameLower.includes("link-alias");
 			const isStandardLinkNoAlias: boolean = nodeNameLower.includes("link") && !nodeNameLower.includes("alias") && !isPipeNode;
-
-			// Determine if the formatting markup expression is hidden based on immediate adjacent node visibility bounds
 			const isCollapsedCombined: boolean = nodeNameLower.includes("hmd-internal-link_link-has-alias") || nodeNameLower.includes("hmd-internal-link_link-alias");
 			
-			// 🔑 LINK TEXT RECONSTRUCTION: If evaluating an isolated fragment, pull structural text from the line string matrix
 			const isFragment: boolean = isPipeNode || isAliasNode || isCollapsedCombined;
 			if (isFragment || linkText.length === 0 || !this.app.metadataCache.getFirstLinkpathDest(linkText, state.activeFileBasename)) {
 				try {
@@ -184,10 +165,7 @@ export class CMViewPlugin {
 				return;
 			}
 
-			// 🔑 ARCHITECTURAL FIX: Use the file's basename as the ground truth for styling lookups.
-			// This guarantees that rules (colors, weights, decoration flags) apply symmetrically to all shards.
 			const deco: Decoration = this.processLinkDecoration(file, file.basename);
-
 			const specProxy: { attributes?: Record<string, string>; class?: string } = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec ?? {};
 			const currentActiveAttributes: Record<string, string> = specProxy.attributes ?? {};
 			const currentActiveClasses: string = specProxy.class ?? "";
@@ -195,12 +173,9 @@ export class CMViewPlugin {
 			if (node.from >= state.from && node.to <= state.to) {
 				const iconBefore: string = currentActiveAttributes["data-scl-icon-before"] ?? "";
 				const iconAfter: string = currentActiveAttributes["data-scl-icon-after"] ?? "";
-
 				const skipBefore: boolean = currentActiveClasses.includes("scl-hide-before");
 				const skipAfter: boolean = currentActiveClasses.includes("scl-hide-after");
 
-				// 🔑 STRICT WORK-SPLITTING RULESET: Prevent layout shifting and duplicate icon compilation
-				// 1. Prepend icons belong exclusively to the initial boundary marker token
 				const canDrawBefore: boolean = isStandardLinkNoAlias || isExpandedPathNode || (isCollapsedCombined && !isAliasNode);
 				if (iconBefore.length > 0 && !skipBefore && canDrawBefore) {
 					state.collectedDecos.push({ 
@@ -210,14 +185,12 @@ export class CMViewPlugin {
 					});
 				}
 
-				// Always apply style decoration mappings across every token fragment to guarantee absolute color uniformity
 				state.collectedDecos.push({ 
 					from: node.from, 
 					to: node.to, 
 					value: deco 
 				});
 
-				// 2. Append icons belong exclusively to the absolute trailing boundary marker token
 				const canDrawAfter: boolean = isStandardLinkNoAlias || isAliasNode || isCollapsedCombined;
 				if (iconAfter.length > 0 && !skipAfter && canDrawAfter) {
 					state.collectedDecos.push({ 
@@ -249,6 +222,14 @@ export class CMViewPlugin {
 		let activeIconBefore: string = "";
 		let activeIconAfter: string = "";
 
+		// 🔑 STYLE EXPORT BUCKETS: Track compiled visual styles to inject explicitly into the DOM layers
+		let finalColor: string = "";
+		let finalBg: string = "";
+		let finalWeight: string = "normal";
+		let finalStyle: string = "normal";
+
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+
 		for (let i: number = 0; i < selectorsConfig.length; i++) {
 			const selector: CSSLink | null = selectorsConfig[i] ?? null;
 			if (selector === null) continue;
@@ -262,7 +243,6 @@ export class CMViewPlugin {
 				const cleanFileTags: string[] = parseSpaceSeparatedTokens(rawTags);
 				if (cleanFileTags.includes(ruleValue)) isMatch = true;
 			} 
-			// ⚡ HIGH-PERFORMANCE ROUTE INDEXING: Map path strings perfectly using the unified tokens manager
 			else if (selector.type === "path") {
 				const rawPath: string = rawAttrs["path"] ?? rawAttrs["data-link-path"] ?? "";
 				const cleanPath: string = (rawPath ?? "").toLowerCase().trim();
@@ -278,10 +258,18 @@ export class CMViewPlugin {
 			}
 
 			if (isMatch) {
-				const uid: string = selector.uid ?? "";
-				if (uid.length > 0) {
-					classList.push(`scl-rule-${uid}`);
-				}
+				// 🔑 RUNTIME COUPLING: Bind the rendering identifier sequentially to the index (i)
+				classList.push(`scl-rule-${i}`);
+
+				// Accumulate cascading style metrics over the active rule transaction layer
+				const textSelection: string = isDark ? (selector.darkColor ?? "") : (selector.lightColor ?? "");
+				if (textSelection.length > 0) finalColor = textSelection;
+
+				const bgSelection: string = isDark ? (selector.darkBgColor ?? "") : (selector.lightBgColor ?? "");
+				if (bgSelection.length > 0) finalBg = bgSelection;
+
+				if (selector.fontWeight && selector.fontWeight !== "normal") finalWeight = selector.fontWeight;
+				if (selector.fontStyle && selector.fontStyle !== "normal") finalStyle = selector.fontStyle;
 
 				if ((selector.iconBefore ?? "").trim().length > 0) {
 					activeIconBefore = (selector.iconBefore ?? "").trim();
@@ -306,13 +294,17 @@ export class CMViewPlugin {
 			}
 		}
 
-		// 🔑 SEMANTIC CHIP CLASS INJECTION: Safely strip hash characters exclusively for valid class list naming architectures
+		// 🔑 EXPLICIT VISUAL STYLE EXPORT: Hydrate attributes so styles are explicitly visible on the DOM
+		if (finalColor.length > 0) attributes["data-link-color"] = finalColor;
+		if (finalBg.length > 0 && finalBg !== "transparent") attributes["data-link-bg"] = finalBg;
+		if (finalWeight !== "normal") attributes["data-link-weight"] = finalWeight;
+		if (finalStyle !== "normal") attributes["data-link-style"] = finalStyle;
+
 		// === PHASE 4: MYBRAIN INTEROPERABILITY INJECTION ===
 		const rawTagsField: string = rawAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
 		
 		if (tagsArray.length > 0) {
-			// 🔑 THE MYBRAIN CONTRACT CONDUIT: Force clean hash-prefixes into CodeMirror's active mark spec attributes
 			attributes["data-link-tags"] = tagsArray.map((t: string): string => t.startsWith("#") ? t : `#${t}`).join(" ");
 		}
 
@@ -326,4 +318,5 @@ export class CMViewPlugin {
 
 		return Decoration.mark({ attributes, class: classList.filter((c: string): boolean => c.length > 0).join(" ") });
 	}
+
 }

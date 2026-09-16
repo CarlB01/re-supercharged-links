@@ -5,11 +5,13 @@ import ResuperchargedLinks from "../../main";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
+// 🔑 ARCHITECTURAL INTERFACE SYNCHRONIZATION: Harmonize return types to satisfy Obsidian's core view contracts
 export interface ISCLSettingTab {
 	plugin: ResuperchargedLinks;
 	app: App;
-	activeEditUid: string | null;
-	setControlValue(key: string, value: unknown, silent?: boolean): Promise<void>;
+	activeEditIndex: number | null;
+	// ⚡ FIX: Allow both void and Promise<void> to seamlessly match Obsidian's event loop signatures
+	setControlValue(key: string, value: unknown, silent?: boolean): void | Promise<void>;
 	update(): void;
 	containerEl: HTMLElement;
 	compilePaneStyles(): void; 
@@ -30,6 +32,10 @@ function createDetailRow(
 	};
 }
 
+/**
+ * Generates expanded sub-form control rows for a selected style rule.
+ * 🔑 RUNTIME INDEXING PIPELINE: Discards selector.uid for UI keys, binding all states to the array index sequence instead.
+ */
 export function getRuleDetailItems(
 	tab: ISCLSettingTab, 
 	selector: CSSLink,
@@ -48,18 +54,19 @@ export function getRuleDetailItems(
 			 .setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
-					await tab.setControlValue(`scl_type_${selector.uid}`, v, true); 
+					// 🔑 INDEX BRIDGE: Use the array sequence index instead of selector.uid
+					await tab.setControlValue(`scl_type_${index}`, v, true); 
 					tab.update(); 
 				} 
 			});
 		});
 	}));
 
-	// 2. Attribute Key Name Row (Kun synlig hvis typen er attribute)
+	// 2. Attribute Key Name Row (Only visible if type is attribute)
 	if (selector.type === "attribute") {
 		rows.push(createDetailRow("scl-detail-row scl-row-attrname", "Key name (attributes only)", "Frontmatter key to read.", (setting) => {
 			setting.addText((t) => t.setPlaceholder("status").setValue(selector.name || "").onChange(async (v) => { 
-				await tab.setControlValue(`scl_name_${selector.uid}`, v, true); 
+				await tab.setControlValue(`scl_name_${index}`, v, true); 
 				tab.update(); 
 			}));
 		}));
@@ -76,21 +83,19 @@ export function getRuleDetailItems(
 
 	rows.push(createDetailRow("scl-detail-row scl-row-value", "Value to match", "Trigger keyword.", (setting) => {
 		setting.addText((t) => t
-			// 🔑 DYNAMIC UI PROTOCOL: Placeholder aligns perfectly with the active selector type matrix
 			.setPlaceholder(placeholderValue)
 			.setValue(selector.value || "")
 			.onChange(async (v: string) => { 
-				await tab.setControlValue(`scl_value_${selector.uid}`, v, true); 
+				await tab.setControlValue(`scl_value_${index}`, v, true); 
 				tab.update(); 
 			})
 		);
 	}));
 
-
 	// 4. Prepend Icon Row
 	rows.push(createDetailRow("scl-detail-row scl-row-iconbefore", "Prepend Icon", "Icon to inject before link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconBefore || "").onChange(async (v) => { 
-			await tab.setControlValue(`scl_iconBefore_${selector.uid}`, v, true); 
+			await tab.setControlValue(`scl_iconBefore_${index}`, v, true); 
 			triggerStylesUpdate(); 
 		}));
 	}));
@@ -98,7 +103,7 @@ export function getRuleDetailItems(
 	// 5. Append Icon Row
 	rows.push(createDetailRow("scl-detail-row scl-row-iconafter", "Append Icon", "Icon to inject after link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconAfter || "").onChange(async (v) => { 
-			await tab.setControlValue(`scl_iconAfter_${selector.uid}`, v, true); 
+			await tab.setControlValue(`scl_iconAfter_${index}`, v, true); 
 			triggerStylesUpdate(); 
 		}));
 	}));
@@ -112,7 +117,7 @@ export function getRuleDetailItems(
 			 .setValue(selector.fontWeight || "normal"); 
 			d.onChange(async (v) => { 
 				if (v === "normal" || v === "lighter" || v === "bold") {
-					await tab.setControlValue(`scl_fontWeight_${selector.uid}`, v, true); 
+					await tab.setControlValue(`scl_fontWeight_${index}`, v, true); 
 					triggerStylesUpdate(); 
 				}
 			}); 
@@ -129,7 +134,7 @@ export function getRuleDetailItems(
 			 .setValue(selector.fontStyle || "normal"); 
 			d.onChange(async (v) => { 
 				if (v === "normal" || v === "italic" || v === "underline" || v === "line-through") {
-					await tab.setControlValue(`scl_fontStyle_${selector.uid}`, v, true); 
+					await tab.setControlValue(`scl_fontStyle_${index}`, v, true); 
 					triggerStylesUpdate(); 
 				}
 			}); 
@@ -154,18 +159,23 @@ export function getRuleDetailItems(
 				modeName: c.name.replace(" Color", "").replace(" Background", "") + " mode",
 				fallbackColor: c.fallback, 
 				isBackground: c.isBg, 
-				setControlValue: tab.setControlValue.bind(tab), 
-				refreshUI: () => { tab.update(); triggerStylesUpdate(); } 
+				setControlValue: async (k, v, s) => { await tab.setControlValue(k, v, s); }, 
+				refreshUI: () => { tab.update(); triggerStylesUpdate(); },
+				index // 🔑 NEW PARAMETER: Sync the row sequence index number downwards perfectly
 			});
 		}));
 	}
+
+
 
 	// 12. Delete Style Row
 	rows.push(createDetailRow("scl-detail-row scl-row-delete", "Delete style", "Permanently remove this style rule.", (setting) => {
 		setting.addButton((btn) => { 
 			btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { 
 				selectors.splice(index, 1); 
-				if (tab.activeEditUid === selector.uid) tab.update(); 
+				if (tab.activeEditIndex === index) {
+					tab.activeEditIndex = null;
+				}
 				tab.plugin.compileActiveAttributes(); 
 				await tab.plugin.saveSettings(); 
 				triggerStylesUpdate();

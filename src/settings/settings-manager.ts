@@ -6,8 +6,7 @@ import { cloneSettingsObject } from "../utils/string-utils";
 
 /**
  * 🔑 CONDUIT PROPERTY DICTIONARY
- * Dictionary of strict implicit parameters that under no circumstance belong on the disk layer.
- * ⚡ AUTO-SCRUB MATRICES: Old structural view toggles are mapped here to be purged from disk on boot.
+ * Dictionary of strict implicit parameters that under no circumstance belong inside individual rule objects.
  */
 const GARBAGE_PROPERTIES: Record<string, string | boolean | unknown[]> = {
 	name: "",
@@ -23,24 +22,29 @@ const GARBAGE_PROPERTIES: Record<string, string | boolean | unknown[]> = {
 	selectText: [true, false],
 	selectAppend: [true, false],
 	selectPrepend: [true, false],
-	selectBackground: [true, false],
-	enableEditor: [true, false],
-	enableTabHeader: [true, false],
-	enableFileList: [true, false],
-	enableBacklinks: [true, false],
-	enableQuickSwitcher: [true, false],
-	enableSuggestor: [true, false],
-	enableBases: [true, false],
-	// ⚡ BANISHED OVAL KEYS: Scrub out the last legacy advanced switches from configuration states
-	activateSnippet: [true, false],
-	targetTags: [true, false]
+	selectBackground: [true, false]
 };
 
-
-
+/**
+ * 🔑 GLOBAL ROOT GARBAGE REGISTER
+ * One single truth array containing all obsolete legacy root keys slated for absolute eviction.
+ * ⚡ CENTRALIZED: Adding any future obsolete root-level keys here scrubs them in both directions.
+ */
+const GLOBAL_ROOT_GARBAGE_KEYS: readonly string[] = [
+	"targetTags", 
+	"activateSnippet", 
+	"enableTabHeader", 
+	"enableEditor", 
+	"enableFileList", 
+	"enableBacklinks", 
+	"enableQuickSwitcher", 
+	"enableSuggestor", 
+	"enableBases", 
+	"targetAttributes" // Unified blueprint tracking register
+];
 
 /**
- * 🚀 RUNTIME INGESTION CLEANER
+ * 🚀 RUNTIME INGESTION CLEANER (v1.1.0)
  */
 export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ settings: SCLSettings; dataRepaired: boolean }> {
 	const pluginInstance: Plugin | null = plugin ?? null;
@@ -54,6 +58,15 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 		: {};
 	
 	let dataRepaired: boolean = loadedData === null;
+
+	// ⚡ CENTRALIZED ROOT PURGE (Ingestion): Instantly evicts obsolete root parameters from RAM
+	for (let i = 0; i < GLOBAL_ROOT_GARBAGE_KEYS.length; i++) {
+		const garbageKey = GLOBAL_ROOT_GARBAGE_KEYS[i];
+		if (garbageKey !== undefined && dataProxy[garbageKey] !== undefined) {
+			delete dataProxy[garbageKey];
+			dataRepaired = true;
+		}
+	}
 
 	const rawSelectors: unknown = dataProxy["selectors"] ?? null;
 	let selectorsArray: Record<string, unknown>[] = [];
@@ -97,6 +110,12 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 			dataRepaired = true;
 		}
 
+		// 🔑 THE ATOMIC PURGE: Strip individual rule unique IDs uconditionally during boot
+		if (cleanRule["uid"] !== undefined) {
+			delete cleanRule["uid"];
+			dataRepaired = true;
+		}
+
 		sanitizedSelectors.push(cleanRule);
 	}
 
@@ -116,16 +135,26 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 }
 
 /**
- * 🔑 PRISTINE DATA STORAGE ENGINE
+ * 🔑 PRISTINE DATA STORAGE ENGINE (v1.1.0)
  */
 export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings): Promise<void> {
 	const pluginInstance: Plugin | null = plugin ?? null;
 	if (pluginInstance === null) return;
 
 	const settingsClone: SCLSettings = cloneSettingsObject(settings);
-	const rawSelectors: CSSLink[] = settingsClone.selectors ?? [];
+	
+	// ⚡ CENTRALIZED ROOT PURGE (Egress): Strips explicit defaults before JSON disk serialization
+	const rawSettingsProxy = settingsClone as unknown as Record<string, unknown>;
+	for (let i = 0; i < GLOBAL_ROOT_GARBAGE_KEYS.length; i++) {
+		const garbageKey = GLOBAL_ROOT_GARBAGE_KEYS[i];
+		if (garbageKey !== undefined && rawSettingsProxy[garbageKey] !== undefined) {
+			delete rawSettingsProxy[garbageKey];
+		}
+	}
 
+	const rawSelectors: CSSLink[] = settingsClone.selectors ?? [];
 	const strippedSelectors: CSSLink[] = [];
+
 	for (let i: number = 0; i < rawSelectors.length; i++) {
 		const rule: CSSLink | null = rawSelectors[i] ?? null;
 		if (rule === null) continue;
@@ -151,6 +180,11 @@ export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings
 
 		if (cleanRule["matchCaseSensitive"] === false) {
 			delete cleanRule["matchCaseSensitive"];
+		}
+
+		// 🔑 THE ATOMIC PURGE: Ensure no legacy active rule UIDs leak onto the hard drive configuration files
+		if ("uid" in cleanRule) {
+			delete cleanRule["uid"];
 		}
 
 		strippedSelectors.push(cleanRule as unknown as CSSLink);
