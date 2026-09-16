@@ -12,15 +12,15 @@ A modern, high-performance, and completely re-architected fork of **Supercharged
 
 ---
 
-## 🚀 What's New in v1.0.5
+## 🚀 What's New in v1.0.6
 
-Version 1.0.5 introduces a massive, underlying performance overhaul. We have completely cleaned and re-wired how data flows through the plugin, resulting in **lightning-fast link styling and an incredibly smooth workspace experience**:
+Version 1.0.0+ introduces a massive, underlying performance overhaul. We have completely cleaned how data flows through the plugin, shifting from a defensive, switch-heavy model to a **universal, zero-config styling engine** that reduces background processing considerably:
 
-* **Buttery-Smooth Scrolling (Up to 120 FPS)**: We removed heavy text-washing and repetitive calculations from the background loops. The plugin now styles your links effortlessly in milliseconds, eliminating micro-stutters even in massive vaults with thousands of links.
-* **Smart `#` Hashtag Management**: SCL now separates user input from system rendering. You can type tags cleanly in the settings tab without the `#` symbol. The plugin automatically manages the formatting under the hood, ensuring perfect out-of-the-box compatibility with your themes, custom CSS, and ecosystem tools like `myBrain`.
-* **Permanent Editor Crash Protection**: We completely re-designed how icons and styles are stacked together in Live Preview. By pre-sorting all visual elements before they hit the editor screen, we have permanently wiped out sequence sorting crashes when you edit or hover over link aliases.
-* **Instant Settings Feedback**: By streamlining how settings are stored, your custom color and icon choices will now light up your layout instantly—the exact microsecond you release your mouse cursor.
-* **Eliminated Hidden Visual Delays**: Cleaned up background overwatcher loops to ensure the File Properties panel and sidebars update synchronously, completely removing the annoying 1-second delay when switching notes.
+* **Buttery-Smooth Scrolling (Up to 120 FPS)**: All repetitive text-washing, file path calculations, and format-cleansing have been completely banished from active rendering loops, ensuring fluid scrolling even in massive vaults with thousands of links.
+* **Smart `#` Hashtag Management**: SCL now enforces strict data layer separation. You type tags cleanly in the option panel *without* the `#` symbol. The plugin handles formatting under the hood, injecting the `#` prefix *exclusively* on your screen's HTML layer. This guarantees perfect, out-of-the-box compatibility with wildcard CSS snippets and ecosystem tools like `myBrain` without duplicate hash glitches.
+* **Permanent Editor Crash Protection**: We completely re-designed how icons and styles are stacked together in Live Preview. By pre-sorting all visual elements in a flat transactional memory buffer before they hit the editor screen, we have permanently wiped out sequence sorting crashes when you edit or hover over link aliases.
+* **Universal Auto-Detection (Goodbye Toggles!)**: SCL is now fast enough to run everywhere simultaneously without artificial speed gates. We have removed all legacy switches (`enableFileList`, `enableBacklinks`, `enableTabHeader`, etc.). SCL now penetrates the entire workspace natively, instantly color-coding sidebars, search results, tabs, popups, and native properties.
+* **Instant Settings Feedback**: By streamlining how settings are stored on disk, your custom color and icon choices will now light up your layout instantly—the exact microsecond you release your mouse cursor.
 
 ---
 
@@ -34,26 +34,27 @@ Instead of plain internal links, you can style links based on frontmatter/fields
 
 ## ✨ The Architectural Evolution: Original vs. Re-Supercharged
 
-To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. The original plugin was a trailblazer, but its underlying browser-handling methodologies created inherent scaling challenges in massive vaults.
+To understand why **Re-Supercharged Links** was built, it helps to look at the mechanics under the hood. SCL v1.0.0 moves entirely past the legacy framework to unlock deep interoperability.
 
 ### 📊 Comparative Analysis
 
 | Feature / Core Mechanism | Original Supercharged Links (`mdelobelle/..`) | Re-Supercharged Links (`CarlB01/..`) |
 | :--- | :--- | :--- |
 | **Styling Mechanism** | **Disk Persisted CSS Snippets.** Writes massive, static `.css` files to disk whenever rules change. | **All-In-Memory Runtime.** Eliminates disk manipulation entirely. Styles compile in-memory and update UI profiles synchronously. |
-| **DOM Engine Lookup** | **Substring Attribute Scanning ($=, \*=).** Forces continuous, heavy substring searches on every frame while scrolling. | **O(1) Hash-Table Matching.** Assigns clean, static rule signatures (`.scl-rule-${uid}`) instantly. Extended by the **Semantic Mirroring Protocol**. |
+| **DOM Engine Lookup** | **Substring Attribute Scanning ($=, \*=).** Forces continuous, heavy substring searches on every frame while scrolling. | **O(1) Hash-Table Matching.** Assigns clean, static rule signatures instantly, backed by high-velocity attribute caching. |
 | **Icon Affixes (Emojis)** | **CSS Pseudo-Elements (`::before`/`::after`).** Emojis are injected blindly via CSS text properties, causing layout lag anomalies. | **Physical HTML Widgets (`<span>`).** Embeds lightweight, standardized icon spans natively inside CodeMirror 6 and Read Mode streams. |
-| **Ecosystem Integration** | **Native DOM Footprint.** Third-party plugins scan for static string attributes. | **Semantic Mirroring.** Synthesizes in-memory velocity with deterministic semantic class flags (e.g., `.scl-match-tag-him`) for downstream tools. |
+| **Ecosystem Integration** | **Native DOM Footprint.** Third-party plugins scan for static string attributes. | **Semantic Mirroring Protocol.** Synthesizes in-memory velocity with explicit data-attribute style exports (`data-link-color`) for downstream graphical tools. |
+| **Configuration Setup** | **Manual Toggle-Heavy Labyrinth.** Users must explicitly activate/deactivate plugin targets to preserve system speed. | **Universal Zero-Config Engine.** Automatically detects active third-party extensions (like `Bases`, `myBrain`, etc.) on boot with zero overhead. |
 
 ---
 
-## ⚙️ The Semantic Mirroring Protocol
+## ⚙️ The Semantic Mirroring Protocol & `myBrain` Integration
 
-With the release of the **Semantic Mirroring Protocol**, SCL delivers the best of both worlds: unprecedented in-memory rendering speed paired with absolute visibility for the Obsidian ecosystem.
+With the release of the **Semantic Mirroring Protocol**, SCL delivers unprecedented rendering speed paired with absolute visibility for external canvas, link-graph, and index engines:
 
-1. **Attribute Footprint Speciation:** Regardless of the current layout view, SCL synchronously maintains legacy-compatible metadata footprint parameters (`data-link-path` and `data-link-tags`).
-2. **Contextual Class Inheritance:** SCL processes matching rules chronologically and injects human-readable semantic descriptors (such as `.scl-match-tag-symptom`) additively. Downstream graphical frameworks and custom canvas matrices (like `myBrain`) can read or filter node states effortlessly.
-3. **Standardized Affix Affiliation:** All runtime-injected prefix and postfix icon widgets are bound to a universal structural class (`.scl-inline-icon`), shifting layout, scaling, and alignment boundaries entirely over to clean, declarative CSS.
+1. **Attribute Footprint Speciation:** SCL synchronously maintains legacy-compatible metadata footprint parameters (`data-link-path` and a fully standardized space-separated `data-link-tags="#him #nurse"` structure).
+2. **Explicit Visual Style Export:** SCL injects compiled visual properties directly onto the DOM layer (`data-link-color`, `data-link-bg`, `data-link-weight`, and `data-link-style`). Third-party tools like **`myBrain`** can instantly read the exact hex values and text decorations via lightweight attribute lookups, completely discarding the need to evaluate internal rule configurations.
+3. **Contextual Class Inheritance:** SCL processes matching rules chronologically and injects clean, human-readable semantic descriptors (such as `.scl-match-tag-symptom`) additively, allowing other tools to filter or group nodes effortlessly.
 
 ---
 
@@ -62,10 +63,10 @@ With the release of the **Semantic Mirroring Protocol**, SCL delivers the best o
 Engineering is about choices. While **Re-Supercharged Links** offers massive leaps forward in speed, it changes how the plugin interacts with your system.
 
 ### 🟢 Pros (Why you should use it)
-* **Zero UI Lag or Scrolling Micro-Stutter:** Fluid, locked 60+ FPS rhythm across multi-thousand-note vaults.
+* **Zero UI Lag or Scrolling Micro-Stutter:** Fluid, locked 60/120+ FPS rhythm across multi-thousand-note vaults.
 * **Instant Settings Feedback:** Color choices light up preview badges in the exact microsecond you release the cursor.
-* **Agnostic Style Compensation:** Empowers graph/canvas engines to harvest exact inline color configurations using native browser layout calculations (`getComputedStyle`).
-* **Total Crash Immunity:** Equipped with an internal ingestion engine that automatically vends and repairs legacy data nodes on disk, wiping out `TypeError` boot-time crashes permanently.
+* **Zero-Config Automation**: No advanced panel toggles to configure; everything farges automatically.
+* **Total Crash Immunity:** Equipped with an internal ingestion engine that automatically scrubs and permanently heals legacy data nodes on disk, wiping out `TypeError` boot-time crashes permanently.
 
 ### 🔴 Cons (What to be aware of)
 * **Deep Architectural Divergence:** Move so far past the original implementation that settings objects are structurally unique. It cannot read legacy data structures from the original plugin without configuring rules anew.
@@ -76,18 +77,18 @@ Engineering is about choices. While **Re-Supercharged Links** offers massive lea
 
 1. Open **Settings → Community plugins** and install **Re-Supercharged Links**.
 2. Navigate to the option pane and create a new selector rule targeting a metadata marker (e.g., `status`).
-3. **Strict Text Inputs**: Type rule values cleanly *without* the `#` character (e.g., enter `gruppe`, not `#gruppe`). SCL manages the `#` prefix under the hood.
+3. **Clean Text Inputs**: Type rule values cleanly **without** the `#` character (e.g., enter `gruppe`, not `#gruppe`). SCL manages the `#` prefix under the hood.
 4. Assign text weight options, custom icon affixes, and distinct colors for both light and dark mode.
-5. Watch your workspace map itself out visually in real-time!
+5. Watch your workspace map itself out visually across all panels in real-time!
 
 ---
 
 ## 🔌 Compatibility notes
 
-- Built for Obsidian users who rely on metadata-heavy workflows
-- Works especially well with structured vaults (projects, PARA, Zettelkasten hybrids)
-- Scoped observers protect native view leaves, file properties pane, and suggestion containers dynamically
-- Dataview-related enrichment is handled defensively to avoid hard failures
+- Built for Obsidian users who rely on metadata-heavy workflows.
+- Works especially well with structured vaults (projects, PARA, Zettelkasten hybrids).
+- Universal auto-detect engine protects native view leaves, file properties pane, suggestion containers, and third-party panels (`Bases`, `Breadcrumbs`, `myBrain`) dynamically.
+- Dataview-related enrichment is handled defensively to avoid hard failures.
 
 ---
 
