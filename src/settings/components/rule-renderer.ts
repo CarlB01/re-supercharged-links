@@ -1,9 +1,14 @@
 import { CSSLink } from "../../types/css-link";
 import { cleanAttributeKey } from "../../utils/string-utils";
 
-export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void {
+/**
+ * Renders the standalone preview link node inside the settings tab row framework.
+ * 🔑 RUNTIME INDEX MATRIX: Uses the dynamic row sequence index (index) instead of selector.uid.
+ */
+export function renderPreviewNote(parent: HTMLElement, selector: CSSLink, index: number): void {
+  // ⚡ FIX: Assign the lightweight runtime class index (scl-rule-0, scl-rule-1)
   const noteSpan = parent.createSpan({ 
-    cls: `data-link-text scl-rule-${selector.uid}` 
+    cls: `data-link-text scl-rule-${index}` 
   });
 
   const val: string = (selector.value || "").trim();
@@ -11,7 +16,6 @@ export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void 
   if (selector.type === "tag") {
     noteSpan.setAttribute("data-link-tags", val);
   } else if (selector.type === "attribute") {
-    // 🔑 MOVED TO UTILS: Synchronized attribute key formatter
     const key: string = cleanAttributeKey(selector.name);
     if (key.length > 0) noteSpan.setAttribute(`data-link-${key}`, val);
   } else {
@@ -25,11 +29,11 @@ export function renderPreviewNote(parent: HTMLElement, selector: CSSLink): void 
  * Assembles human-readable configuration descriptive strings alongside dynamic inline markup.
  * 🔑 CONTEXTUAL HASH ENFORCER: Guarantees exactly one '#' character is rendered for visual tags.
  */
-export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void {
+export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink, index: number): void {
   const valText: string = selector.value || "empty";
 
   if (selector.type === "tag") {
-    renderPreviewNote(nameEl, selector);
+    renderPreviewNote(nameEl, selector, index);
     nameEl.appendText(" has tag ");
     
     // Clean any legacy double hash artifacts during real-time visual assembly
@@ -40,7 +44,7 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void
 
   if (selector.type === "attribute") {
     const attrName: string = selector.name || "empty";
-    renderPreviewNote(nameEl, selector);
+    renderPreviewNote(nameEl, selector, index);
     nameEl.appendText(" has attribute ");
     nameEl.createEl("b", { text: attrName });
     nameEl.appendText(" with value ");
@@ -48,8 +52,7 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink): void
     return;
   }
 
-  renderPreviewNote(nameEl, selector);
+  renderPreviewNote(nameEl, selector, index);
   nameEl.appendText(" path matches ");
   nameEl.createEl("b", { text: valText });
 }
-

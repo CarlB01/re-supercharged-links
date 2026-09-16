@@ -151,19 +151,30 @@ export function cleanSearchQuery(query: string | null | undefined): string {
 }
 
 /**
- * 🚀 UNIFIED UI ROUTINE: Typesafe decoding of flat UI string property control keys.
- * Deconstructs expressions like 'scl_lightColor_uid123' without implicit array out-of-bound errors.
+ * Splits open control value interaction keys symmetrically.
+ * 🔑 RUNTIME INDEX MATRIX: Strictly cuts the string at the VERY LAST underscore character.
+ * This ensures clean extraction of CamelCase properties and sequential index numbers (e.g., 'scl_lightColor_0').
  */
-export function parseControlValueKey(key: string | null | undefined): { prop: string; uid: string } {
-	const rawKey: string = key ?? "";
-	if (!rawKey.startsWith("scl_")) return { prop: "", uid: "" };
-
-	const parts: string[] = rawKey.split("_");
-	const prop: string | null = parts[1] ?? null;
-	const uid: string | null = parts[2] ?? null;
-
-	return {
-		prop: prop !== null ? prop.trim() : "",
-		uid: uid !== null ? uid.trim() : ""
-	};
+export function parseControlValueKey(key: string): { prop: string; uid: string } {
+	const rawKey = key ?? "";
+	
+	// Finn posisjonen til den aller siste understreken i strengen (skiller egenskap fra indeks)
+	const lastUnderscoreIndex = rawKey.lastIndexOf("_");
+	
+	if (lastUnderscoreIndex > 0) {
+		// Finn den første understreken (skiller 'scl' fra egenskapen)
+		const firstUnderscoreIndex = rawKey.indexOf("_");
+		
+		// Trekk ut egenskapen (f.eks. alt mellom første og siste understrek: 'lightColor')
+		const prop = rawKey.slice(firstUnderscoreIndex + 1, lastUnderscoreIndex);
+		
+		// Trekk ut indeksen eller ID-en (alt etter den siste understreken: '0')
+		const uid = rawKey.slice(lastUnderscoreIndex + 1);
+		
+		return { prop, uid };
+	}
+	
+	return { prop: "", uid: "" };
 }
+
+

@@ -115,7 +115,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     });
   }
 
-  override getControlValue(key: string): unknown {
+    override getControlValue(key: string): unknown {
     if (key === "scl_rules_search") return this.rulesSearchQuery;
     const settings: ResuperchargedLinks["settings"] = this.plugin.settings;
     
@@ -125,16 +125,21 @@ export default class SCLSettingTab extends PluginSettingTab {
     if (key.startsWith("scl_")) {
       const { prop, uid: runtimeUid } = parseControlValueKey(key);
       const targetIdx: number = parseInt(runtimeUid, 10);
-      const selectors: CSSLink[] = settings.selectors ?? [];
-      const selector: CSSLink | null = selectors[targetIdx] ?? null;
-      const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
       
-      if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
-        return (selector as unknown as Record<string, unknown>)[prop];
+      // 🔑 INDEX CONSOLIDATION: Read directly from the integer position channel
+      if (!isNaN(targetIdx)) {
+        const selectors: CSSLink[] = settings.selectors ?? [];
+        const selector: CSSLink | null = selectors[targetIdx] ?? null;
+        const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
+        
+        if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
+          return (selector as unknown as Record<string, unknown>)[prop];
+        }
       }
     }
     return undefined;
   }
+
 
   override getSettingDefinitions(): SettingDefinitionItem[] {
     const definitions: SettingDefinitionItem[] = [];
@@ -217,7 +222,7 @@ export default class SCLSettingTab extends PluginSettingTab {
     return definitions;
   }
 
-    private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
+  private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
     setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
     setting.settingEl.addClass("markdown-rendered");
     if (isEditing) setting.settingEl.addClass("is-active");
@@ -225,15 +230,8 @@ export default class SCLSettingTab extends PluginSettingTab {
     setting.settingEl.setAttribute("data-index", String(index));
 
     setting.nameEl.empty();
-    renderRuleSentence(setting.nameEl, selector);
-    
-    // 🔑 THE RE-COUPLING CRITICAL FIX: Find the freshly drawn preview anchor node inside the sentence matrix,
-    // and stamp it with the temporary index class (`scl-rule-0`, `scl-rule-1`). 
-    // This allows compilePaneStyles to catch it seamlessly on layout updates!
-    const previewAnchor: HTMLElement | null = setting.nameEl.querySelector(".data-link-text") ?? null;
-    if (previewAnchor !== null) {
-      previewAnchor.addClass(`scl-rule-${index}`);
-    }
+    // 🔑 THE RE-COUPLING CRITICAL FIX: Pass the runtime index integer straight to the sentence assembler
+    renderRuleSentence(setting.nameEl, selector, index);
 
     this.renderRuleBadges(setting, selector);
     this.renderReorderGrip(setting, index, selectors);
@@ -300,9 +298,13 @@ export default class SCLSettingTab extends PluginSettingTab {
 
   private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
 
+  // Sørg for at navnet matcher 100% med kallet over
   private handleRuleFieldUpdate(key: string, value: unknown): void {
     const { prop, uid: runtimeUid } = parseControlValueKey(key);
     const targetIdx: number = parseInt(runtimeUid, 10);
+    
+    if (isNaN(targetIdx)) return;
+
     const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
     const selector: CSSLink | null = selectors[targetIdx] ?? null;
     const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
@@ -320,6 +322,36 @@ export default class SCLSettingTab extends PluginSettingTab {
       const sanitized: CSSLink = sanitizeRule(selector);
       selector.match = sanitized.match;
       selector.value = sanitized.value;
+      
+      // Tving oppdateringen direkte inn i referanse-arrayet
+      this.plugin.settings.selectors[targetIdx] = selector;
+    }
+  }
+
+  override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
+    // 🔑 EXPLICIT ROUTING MATRIX: Route the UI changes cleanly into memory
+    if (key === "scl_rules_search") { 
+      this.handleSearchQuery(value); 
+    } else if (key.startsWith("scl_")) { 
+      this.handleRuleFieldUpdate(key, value); 
+    } else { 
+      this.handleGlobalSettingUpdate(key, value); 
+    }
+
+    // Sync active structural metadata properties
+    this.plugin.compileActiveAttributes();
+    await this.plugin.saveSettings();
+    
+    // ⚡ REAL-TIME RE-PAINT INJECTION: Invoke compilePaneStyles synchronously right here!
+    // This bypasses the 300ms debounce block exclusively for the settings pane preview,
+    // making colors and texts light up instantly while you drag sliders or type words.
+    this.compilePaneStyles();
+    
+    // Keep heavy vault file rescans and snippet compilations debounced in the background
+    this.debouncedGenerate();
+    
+    if (!silent) {
+      this.refreshUI();
     }
   }
 
@@ -338,7 +370,12 @@ export default class SCLSettingTab extends PluginSettingTab {
       const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
       const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
 
-      const noteEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${i}`) ?? null;
+      // 1. Locate the physical row container layout in the DOM
+      const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`[data-index="${i}"]`) ?? null;
+      if (rowEl === null) continue;
+
+      // 2. Locate and style the "Note" preview anchor node dynamically
+      const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${i}`) ?? null;
       
       if (noteEl !== null) {
         const targetStyles: Partial<CSSStyleDeclaration> = {
@@ -365,6 +402,40 @@ export default class SCLSettingTab extends PluginSettingTab {
           noteEl.setAttribute("data-link-tags", `#${cleanTag}`);
         }
 
+        // 3. 🔑 REAL-TIME TEXT REFLECTION: Update sentence tokens directly in the DOM!
+        // This instantly reflects typing changes in the main row sentence without triggering a focus-breaking refreshUI().
+        const valText: string = rule.value || "empty";
+        
+        if (rule.type === "tag") {
+          const tagAnchor = rowEl.querySelector<HTMLElement>("a.tag");
+          if (tagAnchor !== null) {
+            const cleanDisplayTag = valText.trim().replace(/^#/, "");
+            tagAnchor.setText(`#${cleanDisplayTag}`);
+          }
+        } else if (rule.type === "attribute") {
+          const boldElements = rowEl.querySelectorAll("b");
+          const attrName: string = rule.name || "empty";
+          
+          // Bold 0 is Key Name, Bold 1 is Attribute Value
+          if (boldElements[0] instanceof HTMLElement) boldElements[0].setText(attrName);
+          if (boldElements[1] instanceof HTMLElement) boldElements[1].setText(valText);
+        } else {
+          // Note path match view
+          const boldElement = rowEl.querySelector("b");
+          if (boldElement instanceof HTMLElement) {
+            boldElement.setText(valText);
+          }
+        }
+
+        // 4. Symmetrically synchronize the badges capsule container representation
+        const badgeContainer = rowEl.querySelector(".scl-badge-container");
+        if (badgeContainer instanceof HTMLElement) {
+          badgeContainer.empty();
+          createColorCapsule(badgeContainer, rule.lightBgColor ?? "transparent", rule.lightColor ?? "", "Light mode", "var(--text-normal)");
+          createColorCapsule(badgeContainer, rule.darkBgColor ?? "transparent", rule.darkColor ?? "", "Dark mode", "var(--text-muted)");
+        }
+
+        // 5. Wipe any stale background legacy icon nodes before re-rendering widgets
         const oldIcons: NodeListOf<Element> = noteEl.querySelectorAll(".scl-inline-icon");
         oldIcons.forEach((icon: Element): void => icon.remove());
 
@@ -391,4 +462,5 @@ export default class SCLSettingTab extends PluginSettingTab {
       }
     }
   }
+
 }

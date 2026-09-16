@@ -5,12 +5,10 @@ import ResuperchargedLinks from "../../main";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
-// 🔑 ARCHITECTURAL INTERFACE SYNCHRONIZATION: Harmonize return types to satisfy Obsidian's core view contracts
 export interface ISCLSettingTab {
 	plugin: ResuperchargedLinks;
 	app: App;
 	activeEditIndex: number | null;
-	// ⚡ FIX: Allow both void and Promise<void> to seamlessly match Obsidian's event loop signatures
 	setControlValue(key: string, value: unknown, silent?: boolean): void | Promise<void>;
 	update(): void;
 	containerEl: HTMLElement;
@@ -34,7 +32,8 @@ function createDetailRow(
 
 /**
  * Generates expanded sub-form control rows for a selected style rule.
- * 🔑 RUNTIME INDEXING PIPELINE: Discards selector.uid for UI keys, binding all states to the array index sequence instead.
+ * 🔑 KEYBOARD IMMUNITY UPGRADE: Text inputs now save silently without triggering full UI redraws.
+ * This completely banishes input freezing and cursor focus loss bugs.
  */
 export function getRuleDetailItems(
 	tab: ISCLSettingTab, 
@@ -45,7 +44,7 @@ export function getRuleDetailItems(
 	const rows: MyGroupItems[] = [];
 	const triggerStylesUpdate = () => tab.compilePaneStyles();
 
-	// 1. Match Target Type Row
+	// 1. Match Target Type Row (Dropdowns are safe to refresh fully)
 	rows.push(createDetailRow("scl-detail-row scl-row-type", "Match Target Type", "Select target metadata type.", (setting) => {
 		setting.addDropdown((d) => {
 			d.addOption("tag", "Tag")
@@ -54,8 +53,8 @@ export function getRuleDetailItems(
 			 .setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
-					// 🔑 INDEX BRIDGE: Use the array sequence index instead of selector.uid
-					await tab.setControlValue(`scl_type_${index}`, v, true); 
+					// Toggles UI structure, full update required here
+					await tab.setControlValue(`scl_type_${index}`, v, false); 
 					tab.update(); 
 				} 
 			});
@@ -66,8 +65,9 @@ export function getRuleDetailItems(
 	if (selector.type === "attribute") {
 		rows.push(createDetailRow("scl-detail-row scl-row-attrname", "Key name (attributes only)", "Frontmatter key to read.", (setting) => {
 			setting.addText((t) => t.setPlaceholder("status").setValue(selector.name || "").onChange(async (v) => { 
+				// 🔑 SILENT SAVE: Set silent=true so the UI doesn't redraw and break keyboard focus
 				await tab.setControlValue(`scl_name_${index}`, v, true); 
-				tab.update(); 
+				triggerStylesUpdate();
 			}));
 		}));
 	}
@@ -86,8 +86,9 @@ export function getRuleDetailItems(
 			.setPlaceholder(placeholderValue)
 			.setValue(selector.value || "")
 			.onChange(async (v: string) => { 
+				// 🔑 SILENT SAVE: Keep cursor focus intact during active typing sessions
 				await tab.setControlValue(`scl_value_${index}`, v, true); 
-				tab.update(); 
+				triggerStylesUpdate(); 
 			})
 		);
 	}));
@@ -108,7 +109,7 @@ export function getRuleDetailItems(
 		}));
 	}));
 
-	// 6. Font Weight Row
+	// 6. Font Weight Row (Dropdowns are safe to refresh silently)
 	rows.push(createDetailRow("scl-detail-row scl-row-weight", "Font Weight", "Choose font weight.", (setting) => {
 		setting.addDropdown((d) => { 
 			d.addOption("normal", "Normal")
@@ -160,13 +161,11 @@ export function getRuleDetailItems(
 				fallbackColor: c.fallback, 
 				isBackground: c.isBg, 
 				setControlValue: async (k, v, s) => { await tab.setControlValue(k, v, s); }, 
-				refreshUI: () => { tab.update(); triggerStylesUpdate(); },
-				index // 🔑 NEW PARAMETER: Sync the row sequence index number downwards perfectly
+				refreshUI: () => { triggerStylesUpdate(); }, // 🔑 Only refresh preview styles contextually
+				index 
 			});
 		}));
 	}
-
-
 
 	// 12. Delete Style Row
 	rows.push(createDetailRow("scl-detail-row scl-row-delete", "Delete style", "Permanently remove this style rule.", (setting) => {

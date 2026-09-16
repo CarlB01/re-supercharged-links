@@ -89,6 +89,29 @@
       "iconBefore": "🏥",
       "lightBgColor": "#dad8d8",
       "lightColor": "#1a8c18"
+    },
+    {
+      "type": "tag",
+      "value": "him",
+      "lightColor": "#5c63c7",
+      "darkColor": "#8e8cf2",
+      "iconBefore": "🚹",
+      "iconAfter": "😍",
+      "lightBgColor": "#dc2e2e",
+      "fontStyle": "italic",
+      "name": "him",
+      "fontWeight": "lighter"
+    },
+    {
+      "type": "tag",
+      "value": "helse",
+      "lightColor": "#1f3193",
+      "darkColor": "#8c9cf2"
     }
-  ]
+  ],
+  "scl_value_10": "haha",
+  "scl_type_10": "attribute",
+  "scl_value_9": "d",
+  "scl_iconBefore_10": "😉",
+  "scl_lightColor_10": "#931f63"
 }
