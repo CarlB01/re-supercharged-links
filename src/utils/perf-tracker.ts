@@ -8,7 +8,7 @@ interface PerfStats {
 }
 
 const PERF_ENABLED: boolean = false; // sett til false før release
-const REPORT_EVERY_N: number = 1000;
+const REPORT_EVERY_N: number = 1;
 
 const statsMap: Record<PerfMetricKey, PerfStats> = {
 	updateVisibleLinks: { count: 0, totalMs: 0, maxMs: 0, minMs: Number.POSITIVE_INFINITY },
@@ -50,7 +50,6 @@ function recordMetric(key: PerfMetricKey, durationMs: number): void {
 	if (metric.count % REPORT_EVERY_N === 0) {
 		const avgMs: number = metric.totalMs / metric.count;
 		const minMs: number = metric.minMs === Number.POSITIVE_INFINITY ? 0 : metric.minMs;
-
 		console.info(
 			`[SCL PERF] ${key} count=${metric.count} avg=${avgMs.toFixed(2)}ms min=${minMs.toFixed(2)}ms max=${metric.maxMs.toFixed(2)}ms`
 		);

@@ -9,7 +9,7 @@ import { updateElLinks, updateVisibleLinks, updateContainer } from "./views/view
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { CSSLink } from './types/css-link';
-
+import { invalidateByPath, invalidateByPrefix } from "./processors/attribute-fetcher";
 /**
  * Structural contract defining Obsidian's internal CSS registry endpoints.
  * This bypasses type constraints safely without introducing global namespace pollution.
@@ -47,6 +47,59 @@ export default class ResuperchargedLinks extends Plugin {
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
 	private ruleConfigVersion: number = 0;
+	private readonly pendingChangedPaths: Set<string> = new Set();
+	private readonly pendingChangedPrefixes: Set<string> = new Set();
+
+	private readonly scheduleVisibleRefresh = debounce((): void => {
+		this.flushPendingRefresh();
+	}, 180, true);
+
+	// 2) ADD helper methods inside class
+	private queuePath(path: string): void {
+		if (path.length === 0) return;
+		this.pendingChangedPaths.add(path);
+	}
+
+	private queuePrefix(prefix: string): void {
+		if (prefix.length === 0) return;
+		this.pendingChangedPrefixes.add(prefix);
+	}
+
+	private flushPendingRefresh(): void {
+		const changedPaths: string[] = Array.from(this.pendingChangedPaths);
+		const changedPrefixes: string[] = Array.from(this.pendingChangedPrefixes);
+
+		if (changedPaths.length === 0 && changedPrefixes.length === 0) return;
+
+		// clear first to avoid re-entrancy duplication
+		this.pendingChangedPaths.clear();
+		this.pendingChangedPrefixes.clear();
+
+		updateVisibleLinks(this.app, this);
+		this.refreshEditorThemes();
+	}
+
+	private readonly recentPathTouches: Map<string, number> = new Map();
+	private readonly PATH_TOUCH_COOLDOWN_MS = 400;
+
+	private markPathTouched(path: string): void {
+		if (path.length === 0) return;
+		this.recentPathTouches.set(path, Date.now());
+	}
+
+	private wasPathTouchedRecently(path: string): boolean {
+		if (path.length === 0) return false;
+		const last: number | undefined = this.recentPathTouches.get(path);
+		if (last === undefined) return false;
+		return Date.now() - last < this.PATH_TOUCH_COOLDOWN_MS;
+	}
+	public invalidateAttrCacheByPath(path: string): void {
+		invalidateByPath(this.attrCycleCache, path);
+	}
+
+	public invalidateAttrCacheByPrefix(prefix: string): void {
+		invalidateByPrefix(this.attrCycleCache, prefix);
+	}
 
 	public bumpRuleConfigVersion(): void {
 		this.ruleConfigVersion += 1;
@@ -125,15 +178,15 @@ export default class ResuperchargedLinks extends Plugin {
 			themeCompartment.of(initialTheme)
 		]);
 
-		this.app.workspace.onLayoutReady(() => {
+		this.app.workspace.onLayoutReady((): void => {
 			this.clearAttrCycleCache();
 			initViewObservers(this);
 			initModalObservers(this, document);
+
 			updateVisibleLinks(this.app, this);
 			this.refreshEditorThemes();
 
-			// pass 2: for metadata/dataview to stabilize
-			window.setTimeout(() => {
+			window.setTimeout((): void => {
 				updateVisibleLinks(this.app, this);
 			}, 250);
 		});
@@ -156,8 +209,63 @@ export default class ResuperchargedLinks extends Plugin {
 			updateLinksDebounced(null);
 		}));
 
+		this.registerEvent(this.app.vault.on("modify", (file): void => {
+			if (!(file instanceof TFile)) return;
+
+			this.invalidateAttrCacheByPath(file.path);
+			this.markPathTouched(file.path);
+
+			this.queuePath(file.path);
+			this.scheduleVisibleRefresh();
+		}));
+
+		this.registerEvent(this.app.vault.on("delete", (file): void => {
+			const path = (file as { path?: string }).path ?? "";
+			if (path.length === 0) return;
+
+			this.invalidateAttrCacheByPath(path);
+			this.markPathTouched(path);
+
+			this.queuePath(path);
+			this.scheduleVisibleRefresh();
+		}));
+
+this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
+	const newPath = (file as { path?: string }).path ?? "";
+
+	if (oldPath && oldPath.length > 0) {
+		this.invalidateAttrCacheByPath(oldPath);
+		this.markPathTouched(oldPath);
+		this.queuePath(oldPath);
 	}
 
+	if (newPath.length > 0) {
+		this.invalidateAttrCacheByPath(newPath);
+		this.markPathTouched(newPath);
+		this.queuePath(newPath);
+	}
+
+	if (oldPath.endsWith("/")) {
+		this.invalidateAttrCacheByPrefix(oldPath);
+		this.queuePrefix(oldPath);
+	}
+
+	if (newPath.endsWith("/")) {
+		this.invalidateAttrCacheByPrefix(newPath);
+		this.queuePrefix(newPath);
+	}
+
+	this.scheduleVisibleRefresh();
+}));
+
+		this.registerEvent(this.app.metadataCache.on("changed", (file: TFile): void => {
+			if (this.wasPathTouchedRecently(file.path)) return;
+
+			this.queuePath(file.path);
+			this.scheduleVisibleRefresh();
+		}));
+	}
+	
 	public onunload(): void {
 		disconnectAllObservers(this);
 		removeStylingFromViews(this);
@@ -168,7 +276,7 @@ export default class ResuperchargedLinks extends Plugin {
 		const selectorsProxy: CSSLink[] = this.settings?.selectors ?? [];
 		if (Array.isArray(selectorsProxy)) {
 			selectorsProxy.forEach((selector) => {
-				if (selector?.type === 'attribute' && selector.name) {
+				if (selector?.type === "attribute" && selector.name) {
 					this.activeAttributesSet.add(selector.name);
 				}
 			});

@@ -6,6 +6,7 @@ import { updateVisibleLinks } from "../../views/view-updaters";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
+
 export interface ISCLSettingTab {
 	plugin: ResuperchargedLinks;
 	app: App;
@@ -54,6 +55,7 @@ export function getRuleDetailItems(
 			 .setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
+
 					// Toggles UI structure, full update required here
 					await tab.setControlValue(`scl_type_${index}`, v, false); 
 					tab.update(); 

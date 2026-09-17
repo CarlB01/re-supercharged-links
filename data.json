@@ -76,22 +76,6 @@
     },
     {
       "type": "tag",
-      "value": "👥gruppe",
-      "iconBefore": "👥",
-      "fontWeight": "lighter",
-      "lightColor": "#9c29fa",
-      "darkColor": "#8431aa",
-      "lightBgColor": "#cbfbeb"
-    },
-    {
-      "type": "tag",
-      "value": "klinikk",
-      "iconBefore": "🏥",
-      "lightBgColor": "#dad8d8",
-      "lightColor": "#1a8c18"
-    },
-    {
-      "type": "tag",
       "value": "him",
       "lightColor": "#5c63c7",
       "darkColor": "#8e8cf2",
@@ -103,13 +87,26 @@
       "fontWeight": "lighter"
     },
     {
-      "type": "attribute",
-      "value": "44",
-      "lightColor": "#a26825",
-      "darkColor": "#f28cdc",
-      "iconBefore": "🚙",
+      "type": "tag",
+      "value": "👥gruppe",
+      "iconBefore": "👥",
       "fontWeight": "lighter",
-      "name": "haha"
+      "lightColor": "#fa2983",
+      "darkColor": "#8431aa",
+      "lightBgColor": "#cbfbeb"
+    },
+    {
+      "type": "path",
+      "value": "!@",
+      "lightColor": "#931f52",
+      "darkColor": "#f28cb8"
+    },
+    {
+      "type": "attribute",
+      "value": "klinikk",
+      "iconBefore": "🏥",
+      "lightBgColor": "#dad8d8",
+      "lightColor": "#1a8c18"
     }
   ],
   "scl_value_10": "haha",

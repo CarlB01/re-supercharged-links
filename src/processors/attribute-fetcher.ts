@@ -149,3 +149,35 @@ export function fetchTargetAttributesCached(
 	cache.set(key, resolved);
 	return resolved;
 }
+
+export function invalidateByPath(cache: AttrCache, path: string): void {
+	if (!path || path.length === 0) return;
+
+	// Match both legacy and versioned keys:
+	// - "path::0/1"
+	// - "vN::path::0/1"
+	const suffixA = `${path}::0`;
+	const suffixB = `${path}::1`;
+
+	for (const key of cache.keys()) {
+		if (key === suffixA || key === suffixB || key.endsWith(`::${suffixA}`) || key.endsWith(`::${suffixB}`)) {
+			cache.delete(key);
+		}
+	}
+}
+
+export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
+	if (!prefix || prefix.length === 0) return;
+	const normalized = prefix.endsWith("/") ? prefix : `${prefix}/`;
+
+	for (const key of cache.keys()) {
+		// Key format:
+		// - "some/path.md::0"
+		// - "v12::some/path.md::0"
+		const raw = key.startsWith("v") ? key.split("::").slice(1).join("::") : key;
+		// raw is now typically "path::0" or "path::1"
+		if (raw.startsWith(normalized)) {
+			cache.delete(key);
+		}
+	}
+}

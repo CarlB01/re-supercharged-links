@@ -10,6 +10,7 @@ import { renderRuleSentence } from "./components/rule-renderer";
 import { cleanSearchQuery, parseControlValueKey } from "../utils/string-utils";
 import { moveRule } from "./components/rule-order-engine";
 
+
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
 export default class SCLSettingTab extends PluginSettingTab {
@@ -20,6 +21,39 @@ export default class SCLSettingTab extends PluginSettingTab {
   // 🔑 RUNTIME TRACKING INDEX: Track active row open boundaries using memory integer offsets cleanly
   public activeEditIndex: number | null = null;
   private paneStyleEl: HTMLStyleElement | null = null;
+
+  private _generateSnippet(): void {
+    updateVisibleLinks(this.app, this.plugin);
+    this.plugin.refreshEditorThemes();
+
+    window.requestAnimationFrame((): void => {
+      this.compilePaneStyles();
+    });
+  }
+
+override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
+	if (key === "scl_rules_search") {
+		this.handleSearchQuery(value);
+	} else if (key.startsWith("scl_")) {
+		this.handleRuleFieldUpdate(key, value);
+		this.plugin.bumpRuleConfigVersion();
+	} else {
+		this.handleGlobalSettingUpdate(key, value);
+		if (key === "enableTagChips" || key === "getFromInlineField") {
+			this.plugin.bumpRuleConfigVersion();
+		}
+	}
+
+	this.plugin.compileActiveAttributes();
+
+	await this.plugin.saveSettings();
+
+	this.compilePaneStyles();
+
+	this.debouncedGenerate();
+
+	if (!silent) this.refreshUI();
+}
 
   constructor(app: App, plugin: ResuperchargedLinks) {
     super(app, plugin);
@@ -81,71 +115,63 @@ export default class SCLSettingTab extends PluginSettingTab {
     createColorCapsule(badgeContainer, selector.darkBgColor ?? "transparent", selector.darkColor ?? "", "Dark mode", "var(--text-muted)");
   }
 
-private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
-	const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
-	const grip: HTMLElement = wrap.createEl("button", {
-		cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
-		attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
-	});
+  private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
+    const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
+    const grip: HTMLElement = wrap.createEl("button", {
+      cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
+      attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
+    });
 
-	setIcon(grip, "grip-vertical");
-	let longPressTriggered: boolean = false;
+    setIcon(grip, "grip-vertical");
+    let longPressTriggered: boolean = false;
 
-	const moveBy = (direction: number): void => {
-		const targetIndex: number = index + direction;
-		if (targetIndex < 0 || targetIndex >= selectors.length) return;
+    const moveBy = (direction: number): void => {
+      const targetIndex: number = index + direction;
+      if (targetIndex < 0 || targetIndex >= selectors.length) return;
 
-		void moveRule(this.plugin, selectors, index, direction, {
-			activeEditIndex: this.activeEditIndex,
-			setActiveEditIndex: (next: number | null): void => {
-				this.activeEditIndex = next;
-			},
-			onAfterMove: (): void => {
-				this._generateSnippet();
-				this.refreshUI();
-			},
-			onAnimate: null
-		});
-	};
+      void moveRule(this.plugin, selectors, index, direction, {
+        activeEditIndex: this.activeEditIndex,
+        setActiveEditIndex: (next: number | null): void => {
+          this.activeEditIndex = next;
+        },
+        onAfterMove: (): void => {
+          this._generateSnippet();
+          this.refreshUI();
+        },
+        onAnimate: null
+      });
+    };
 
-	const onLongPress = debounce((): void => {
-		longPressTriggered = true;
-		moveBy(-1);
-	}, 380, true);
+    const onLongPress = debounce((): void => {
+      longPressTriggered = true;
+      moveBy(-1);
+    }, 380, true);
 
-	const cancelLongPress = (): void => {
-		onLongPress.cancel();
-	};
+    const cancelLongPress = (): void => {
+      onLongPress.cancel();
+    };
 
-	this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
-	this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
-	this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
+    this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
+    this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
+    this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
 
-	this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => {
-		if (e.pointerType === "touch") {
-			longPressTriggered = false;
-			onLongPress();
-		}
-	});
+    this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => {
+      if (e.pointerType === "touch") {
+        longPressTriggered = false;
+        onLongPress();
+      }
+    });
 
-	this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => {
-		e.preventDefault();
-		e.stopPropagation();
+    this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => {
+      e.preventDefault();
+      e.stopPropagation();
 
-		if (longPressTriggered) {
-			longPressTriggered = false;
-			return;
-		}
+      if (longPressTriggered) {
+        longPressTriggered = false;
+        return;
+      }
 
-		moveBy(e.shiftKey ? -1 : 1);
-	});
-}
-
-  private _generateSnippet(): void {
-    updateVisibleLinks(this.app, this.plugin);
-    this.plugin.refreshEditorThemes();
-    window.requestAnimationFrame((): void => {
-      this.compilePaneStyles();
+      moveBy(e.shiftKey ? -1 : 1);
     });
   }
 
@@ -321,29 +347,6 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
       // Tving oppdateringen direkte inn i referanse-arrayet
       this.plugin.settings.selectors[targetIdx] = selector;
     }
-  }
-
-  override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
-    if (key === "scl_rules_search") {
-      this.handleSearchQuery(value);
-    } else if (key.startsWith("scl_")) {
-      this.handleRuleFieldUpdate(key, value);
-      this.plugin.bumpRuleConfigVersion(); // <-- D1
-    } else {
-      this.handleGlobalSettingUpdate(key, value);
-
-      // Rule-relevant global toggles
-      if (key === "enableTagChips" || key === "getFromInlineField") {
-        this.plugin.bumpRuleConfigVersion(); // <-- D1
-      }
-    }
-
-    this.plugin.compileActiveAttributes();
-    await this.plugin.saveSettings();
-    this.compilePaneStyles();
-    this.debouncedGenerate();
-
-    if (!silent) this.refreshUI();
   }
 
   private handleGlobalSettingUpdate(key: string, value: unknown): void {
