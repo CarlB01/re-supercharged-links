@@ -21,6 +21,12 @@ const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTML
 const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = new WeakMap<HTMLElement, Map<string, MutationObserver>>();
 
 /**
+ * Tracks one modal observer per document instance.
+ * Prevents duplicate modal observers during repeated window/layout initialization.
+ */
+const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
+
+/**
  * Schedules a high-performance DOM update bound to the browser's repaint cycle.
  * Prevents layout thrashing by collapsing multiple rapid mutations into a single frame.
  */
@@ -148,6 +154,17 @@ export function registerViewType(
  * The styling now dynamically penetrates all active suggestion modales natively.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
+	const existing: MutationObserver | null = modalObserverRegistry.get(doc) ?? null;
+	if (existing !== null) {
+		existing.disconnect();
+		modalObserverRegistry.delete(doc);
+
+		const idx: number = plugin.modalObservers.indexOf(existing);
+		if (idx >= 0) {
+			plugin.modalObservers.splice(idx, 1);
+		}
+	}
+
 	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
@@ -158,8 +175,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 			mutation.addedNodes.forEach((node: Node): void => {
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
-					
-					// 🔑 UNIVERSAL ADMISSION: If the injected DOM node is a modal or a suggestion drop, process it instantly
+
 					const isModal: boolean = list.contains("modal-container");
 					const isSuggest: boolean = list.contains("suggestion-container");
 
@@ -168,7 +184,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 						if (isSuggest) {
 							selector = ".suggestion-title, .suggestion-note";
 						}
-						
+
 						updateContainer(node, plugin, selector);
 						watchContainer(null, node, plugin, selector);
 					}
@@ -177,10 +193,10 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		}
 	});
 
-	plugin.modalObservers.push(observer);
 	observer.observe(doc.body, config);
+	modalObserverRegistry.set(doc, observer);
+	plugin.modalObservers.push(observer);
 }
-
 
 /**
  * Standard tree observer that monitors static elements for layout additions or tree drops.
@@ -265,6 +281,13 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 		}
 	}
 
+	// Best-effort cleanup for known documents
+	const rootDoc: Document = document;
+	const rootModal: MutationObserver | null = modalObserverRegistry.get(rootDoc) ?? null;
+	if (rootModal !== null) {
+		modalObserverRegistry.delete(rootDoc);
+	}
+
 	// Reset plugin-level observer lists to avoid stale references after disconnect.
 	plugin.observers = [];
 	plugin.modalObservers = [];
@@ -321,9 +344,4 @@ function disconnectExistingObserver(container: HTMLElement, observerKey: string)
 function registerObserver(container: HTMLElement, observerKey: string, observer: MutationObserver): void {
 	const reg: Map<string, MutationObserver> = getContainerRegistry(container);
 	reg.set(observerKey, observer);
-}
-
-function unregisterObserver(container: HTMLElement, observerKey: string): void {
-	const reg: Map<string, MutationObserver> = getContainerRegistry(container);
-	reg.delete(observerKey);
 }

@@ -113,9 +113,10 @@
     },
     {
       "type": "path",
-      "value": "e",
+      "value": "ef",
       "lightColor": "#74c1fb",
-      "darkColor": "#f2a18c"
+      "darkColor": "#f2a18c",
+      "iconBefore": "👑"
     }
   ],
   "scl_value_10": "haha",

@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/v
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
-import { startsWithToken, endsWithToken, extractCleanLinkPath, cleanRuleValue, cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/string-utils";
+import { startsWithToken, endsWithToken, extractCleanLinkPath } from "../utils/string-utils";
 import { resolveLinkFile } from "./live-preview";
 import { CSSLink } from "../types/css-link";
 import { IconWidget } from "./components/icon-widget";

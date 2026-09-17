@@ -2,7 +2,7 @@ import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } f
 import ResuperchargedLinks from "../main";
 import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
-import { setLinkNewProps, clearExtraAttributes, tagChipStyles } from "../processors/link-mutator";
+import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
 import { CSSLink } from "../types/css-link";
 import { resolveRuleResolution } from "../processors/rule-resolver";
 interface ObsidianViewMetadataInternal {
@@ -31,7 +31,6 @@ function getNestedChild(root: Element | null | undefined, path: number[]): Eleme
 export function updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
 	if (!container || typeof container.findAll !== "function") return;
 	
-	const dataType = container.getAttribute("data-type");
 	if (plugin.settings.enableTagChips) {
 		tagChipStyles(container, plugin);
 	}
