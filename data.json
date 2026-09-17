@@ -110,13 +110,6 @@
       "iconBefore": "🚙",
       "fontWeight": "lighter",
       "name": "haha"
-    },
-    {
-      "type": "path",
-      "value": "ef",
-      "lightColor": "#74c1fb",
-      "darkColor": "#f2a18c",
-      "iconBefore": "👑"
     }
   ],
   "scl_value_10": "haha",

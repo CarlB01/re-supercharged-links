@@ -34,6 +34,7 @@ export async function moveRule(
 
 	selectors[targetIndex] = currentSelector;
 	selectors[index] = targetSelector;
+	plugin.bumpRuleConfigVersion();
 
 	const active: number | null = options.activeEditIndex;
 	if (active === index) {

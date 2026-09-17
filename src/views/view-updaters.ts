@@ -4,7 +4,9 @@ import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
 import { CSSLink } from "../types/css-link";
-import { resolveRuleResolution } from "../processors/rule-resolver";
+import { resolveRuleResolution, RuleResolution } from "../processors/rule-resolver";
+import { measurePerf } from "../utils/perf-tracker";
+
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
 		contentEl?: HTMLElement;
@@ -28,74 +30,96 @@ function getNestedChild(root: Element | null | undefined, path: number[]): Eleme
 	return cur;
 }
 
-export function updateContainer(container: HTMLElement, plugin: ResuperchargedLinks, selector: string, filterCollapsible = false): void {
-	if (!container || typeof container.findAll !== "function") return;
-	
-	if (plugin.settings.enableTagChips) {
-		tagChipStyles(container, plugin);
-	}
+export function updateContainer(
+	container: HTMLElement,
+	plugin: ResuperchargedLinks,
+	selector: string,
+	filterCollapsible = false
+): void {
+	measurePerf("updateContainer", (): void => {
+		if (!container || typeof container.findAll !== "function") return;
 
-	const nodes = container.findAll(selector);
-	const nodesCount = nodes.length;
-	if (nodesCount === 0) return;
+		// Safe guard for detached DOM only.
+		// (Do not use offsetParent visibility checks here; that can break edit/live preview styling.)
+		if (!container.isConnected) return;
 
-	// Check if this container belongs to a suggestion popup or modal frame
-	const isPopupContext = container.classList.contains("suggestion-container") || 
-	                       container.classList.contains("modal-container") || 
-	                       container.closest(".suggestion-container, .modal-container") !== null;
+		if (plugin.settings.enableTagChips) {
+			tagChipStyles(container, plugin);
+		}
 
-	for (let i = 0; i < nodesCount; i++) {
-		const node = nodes[i];
-		if (node !== undefined && node !== null && isHtmlElement(node)) {
-			// 🔑 SUGGESTOR PROTECTOR: If we are inside a typing lookup popup, bypass heavy DOM reshaping.
-			// Instead, we safely extract the target from the parent's data-path attributes if available,
-			// or read the text content directly without letting clearExtraAttributes touch Obsidian's spans.
+		const nodes: HTMLElement[] = container.findAll(selector) ?? [];
+		if (nodes.length === 0) return;
+
+		const isPopupContext: boolean =
+			container.classList.contains("suggestion-container") ||
+			container.classList.contains("modal-container") ||
+			container.closest(".suggestion-container, .modal-container") !== null;
+
+		// Hoist stable values once per container pass
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
+
+		for (let i = 0; i < nodes.length; i++) {
+			const node: HTMLElement | null = nodes[i] ?? null;
+			if (node === null || !isHtmlElement(node)) continue;
+
 			if (isPopupContext) {
-				const parentItem = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
-				let resolvedPath = "";
-				
+				const parentItem: Element | null = node.closest(
+					".suggestion-item, .another-quick-switcher__item, .omnisearch-result"
+				);
+
+				let resolvedPath: string = "";
 				if (parentItem instanceof HTMLElement) {
-					resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
+					resolvedPath =
+						parentItem.getAttribute("data-path") ||
+						parentItem.getAttribute("data-href") ||
+						"";
 				}
-				if (!resolvedPath) {
+
+				if (resolvedPath.length === 0) {
 					resolvedPath = node.textContent ?? "";
 				}
-				
-				if (resolvedPath) {
-					const dest = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "");
-					if (dest) {
-						const isDark: boolean = document.body.classList.contains("theme-dark");
-						const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
-						const rawProps: Record<string, string> = fetchTargetAttributesSync(plugin.app, plugin, dest, false);
+				if (resolvedPath.length === 0) continue;
 
-						const resolution = resolveRuleResolution({
-							selectors: selectorsConfig,
-							resolvedAttrs: rawProps,
-							isDark,
-							includeTagMatchClasses: false
-						});
+				const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(
+					getLinkpath(resolvedPath),
+					""
+				);
+				if (dest === null) continue;
 
-						if (resolution.hasMatch) {
-							const activeColor: string = resolution.style.color;
-							const activeBg: string = resolution.style.backgroundColor;
+				const rawProps: Record<string, string> = fetchTargetAttributesSync(
+					plugin.app,
+					plugin,
+					dest,
+					false
+				);
 
-							// Atomic style injection while preserving Obsidian's internal structure.
-							if (activeColor.length > 0) node.style.color = activeColor;
-							if (activeBg.length > 0 && activeBg !== "transparent") node.style.backgroundColor = activeBg;
+				const resolution: RuleResolution = resolveRuleResolution({
+					selectors: selectorsConfig,
+					resolvedAttrs: rawProps,
+					isDark,
+					includeTagMatchClasses: false
+				});
 
-							if (activeColor.length > 0) {
-								node.setAttribute("data-link-color", activeColor);
-							}
-							node.addClass("data-link-text");
-						}
-					}
+				if (!resolution.hasMatch) continue;
+
+				const activeColor: string = resolution.style.color;
+				const activeBg: string = resolution.style.backgroundColor;
+
+				if (activeColor.length > 0) node.style.color = activeColor;
+				if (activeBg.length > 0 && activeBg !== "transparent") {
+					node.style.backgroundColor = activeBg;
 				}
+
+				if (activeColor.length > 0) {
+					node.setAttribute("data-link-color", activeColor);
+				}
+				node.addClass("data-link-text");
 			} else {
-				// Standard safe layout route for stable document trees and sidebars
 				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
 			}
 		}
-	}
+	});
 }
 
 export function updateDivExtraAttributes(
@@ -287,18 +311,22 @@ function updateLeafInternalLinks(
 }
 
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
-	const attrCache: AttrCache = plugin.attrCycleCache;
+	measurePerf("updateVisibleLinks", (): void => {
+		const attrCache: AttrCache = plugin.attrCycleCache;
 
-	app.workspace.iterateRootLeaves((leaf) => {
-		if (!(leaf.view instanceof MarkdownView)) return;
+		app.workspace.iterateRootLeaves((leaf) => {
+			if (!(leaf.view instanceof MarkdownView)) return;
 
-		const file: TFile | null = leaf.view.file;
-		if (file === null) return;
+			const file: TFile | null = leaf.view.file;
+			if (file === null) return;
 
-		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
+			const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
 
-		updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
-		updateLeafTabHeader(app, plugin, file, leaf);
-		updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
+			updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
+			updateLeafTabHeader(app, plugin, file, leaf);
+			updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
+		});
 	});
 }
+
+

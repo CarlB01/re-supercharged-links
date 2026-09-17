@@ -46,6 +46,16 @@ export default class ResuperchargedLinks extends Plugin {
 	public modalObservers!: MutationObserver[];
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
+	private ruleConfigVersion: number = 0;
+
+	public bumpRuleConfigVersion(): void {
+		this.ruleConfigVersion += 1;
+		this.clearAttrCycleCache();
+	}
+
+	public getRuleConfigVersion(): number {
+		return this.ruleConfigVersion;
+	}
 
 	public clearAttrCycleCache(): void {
 		const cache: Map<string, Record<string, string>> | null = this.attrCycleCache ?? null;
@@ -121,6 +131,11 @@ export default class ResuperchargedLinks extends Plugin {
 			initModalObservers(this, document);
 			updateVisibleLinks(this.app, this);
 			this.refreshEditorThemes();
+
+			// pass 2: for metadata/dataview to stabilize
+			window.setTimeout(() => {
+				updateVisibleLinks(this.app, this);
+			}, 250);
 		});
 
 		this.registerEvent(this.app.workspace.on("window-open", (window) => {

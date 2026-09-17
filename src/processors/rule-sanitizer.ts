@@ -71,39 +71,3 @@ interface IconMatchResult {
   iconBefore: string;
   iconAfter: string;
 }
-
-export function findMatchingIcon(selectors: CSSLink[] | null, resolvedAttrs: Record<string, string>): IconMatchResult {
-  const result: IconMatchResult = { iconBefore: "", iconAfter: "" };
-  if (!selectors || !Array.isArray(selectors)) return result;
-
-  for (let i: number = 0; i < selectors.length; i++) {
-    const selector: CSSLink | null = selectors[i] ?? null;
-    if (selector === null) continue;
-
-    let isMatch: boolean = false;
-    const ruleValue: string = cleanRuleValue(selector.value);
-
-    // ⚡ LYNRAST MATCHER: Fordi cachen og reglene begge er garantert å ha '#'
-    if (selector.type === "tag" && resolvedAttrs["tags"]) {
-      const cleanFileTags: string[] = parseSpaceSeparatedTokens(resolvedAttrs["tags"]);
-      if (cleanFileTags.includes(ruleValue)) isMatch = true;
-    } else if (selector.type === "path" && resolvedAttrs["path"]) {
-      const cleanPath: string = (resolvedAttrs["path"] ?? "").toLowerCase().trim();
-      if (cleanPath.includes(ruleValue)) isMatch = true;
-    } else if (selector.type === "attribute") {
-      const cleanKey: string = cleanAttributeKey(selector.name);
-      if (cleanKey.length > 0 && resolvedAttrs[cleanKey]) {
-        const cleanAttrVal: string = (resolvedAttrs[cleanKey] ?? "").toLowerCase().trim();
-        if (cleanAttrVal.includes(ruleValue)) isMatch = true;
-      }
-    }
-
-    if (isMatch) {
-      result.iconBefore = (selector.iconBefore ?? "").trim();
-      result.iconAfter = (selector.iconAfter ?? "").trim();
-      break;
-    }
-  }
-
-  return result;
-}

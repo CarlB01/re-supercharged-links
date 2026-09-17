@@ -2,6 +2,7 @@ import { Setting, SettingDefinitionItem, App } from "obsidian";
 import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
 import ResuperchargedLinks from "../../main";
+import { updateVisibleLinks } from "../../views/view-updaters";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -171,14 +172,21 @@ export function getRuleDetailItems(
 	rows.push(createDetailRow("scl-detail-row scl-row-delete", "Delete style", "Permanently remove this style rule.", (setting) => {
 		setting.addButton((btn) => { 
 			btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { 
-				selectors.splice(index, 1); 
+				selectors.splice(index, 1);
+
 				if (tab.activeEditIndex === index) {
 					tab.activeEditIndex = null;
 				}
-				tab.plugin.compileActiveAttributes(); 
-				await tab.plugin.saveSettings(); 
+
+				tab.plugin.bumpRuleConfigVersion();
+				tab.plugin.compileActiveAttributes();
+				await tab.plugin.saveSettings();
+
+				updateVisibleLinks(tab.app, tab.plugin);
+				tab.plugin.refreshEditorThemes();
+
 				triggerStylesUpdate();
-				tab.update(); 
+				tab.update();
 			}); 
 			btn.buttonEl.addClass("mod-warning"); 
 		});

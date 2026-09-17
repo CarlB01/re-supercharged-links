@@ -1,5 +1,6 @@
 import { CSSLink } from "../types/css-link";
 import { cleanAttributeKey, cleanRuleValue, parseSpaceSeparatedTokens } from "../utils/string-utils";
+import { measurePerf } from "../utils/perf-tracker";
 
 export interface RuleResolution {
 	readonly hasMatch: boolean;
@@ -26,23 +27,25 @@ interface ResolveRuleResolutionInput {
  * Resolves all matching rules into a single deterministic style payload.
  * This function is side-effect free and can be shared across rendering pipelines.
  */
+
 export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleResolution {
-	const selectors: readonly CSSLink[] = input.selectors;
-	const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
-	const isDark: boolean = input.isDark;
-	const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
+	return measurePerf("resolveRuleResolution", (): RuleResolution => {
+		const selectors: readonly CSSLink[] = input.selectors;
+		const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
+		const isDark: boolean = input.isDark;
+		const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
 
-	const classList: string[] = ["data-link-text"];
+		const classList: string[] = ["data-link-text"];
 
-	let hasMatch: boolean = false;
-	let color: string = "";
-	let backgroundColor: string = "";
-	let fontWeight: "normal" | "lighter" | "bold" = "normal";
-	let fontStyle: "normal" | "italic" | "underline" | "line-through" = "normal";
-	let iconBefore: string = "";
-	let iconAfter: string = "";
+		let hasMatch: boolean = false;
+		let color: string = "";
+		let backgroundColor: string = "";
+		let fontWeight: "normal" | "lighter" | "bold" = "normal";
+		let fontStyle: "normal" | "italic" | "underline" | "line-through" = "normal";
+		let iconBefore: string = "";
+		let iconAfter: string = "";
 
-	for (let i: number = 0; i < selectors.length; i++) {
+for (let i: number = 0; i < selectors.length; i++) {
 		const selector: CSSLink | null = selectors[i] ?? null;
 		if (selector === null) continue;
 
@@ -111,10 +114,9 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			iconAfter = after;
 		}
 	}
+		const attributes: Record<string, string> = {};
 
-	const attributes: Record<string, string> = {};
-
-	if (color.length > 0) {
+if (color.length > 0) {
 		attributes["data-link-color"] = color;
 	}
 	if (backgroundColor.length > 0 && backgroundColor !== "transparent") {
@@ -148,18 +150,19 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			}
 		}
 	}
-
-	return {
-		hasMatch,
-		classes: classList,
-		attributes,
-		iconBefore,
-		iconAfter,
-		style: {
-			color,
-			backgroundColor,
-			fontWeight,
-			fontStyle
-		}
-	};
+		return {
+			hasMatch,
+			classes: classList,
+			attributes,
+			iconBefore,
+			iconAfter,
+			style: {
+				color,
+				backgroundColor,
+				fontWeight,
+				fontStyle
+			}
+		};
+	});
 }
+

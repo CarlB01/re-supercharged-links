@@ -136,7 +136,12 @@ export function fetchTargetAttributesCached(
 	addDataHref: boolean,
 	cache: AttrCache
 ): Record<string, string> {
-	const key: string = `${dest.path}::${addDataHref ? "1" : "0"}`;
+	// D1: versioned cache key to avoid stale attribute snapshots when rules/settings change.
+	// Falls back safely if method does not exist (during transition/refactor).
+	const ruleConfigVersion: number =
+		typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
+
+	const key: string = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
 	const hit: Record<string, string> | null = cache.get(key) ?? null;
 	if (hit !== null) return hit;
 

@@ -222,6 +222,7 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
             newSelector.darkBgColor = "transparent";
             
             selectors.push(newSelector);
+            this.plugin.bumpRuleConfigVersion();
             this.plugin.compileActiveAttributes();
             void this.plugin.saveSettings();
             void this._generateSnippet();
@@ -323,30 +324,26 @@ private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[])
   }
 
   override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
-    // 🔑 EXPLICIT ROUTING MATRIX: Route the UI changes cleanly into memory
-    if (key === "scl_rules_search") { 
-      this.handleSearchQuery(value); 
-    } else if (key.startsWith("scl_")) { 
-      this.handleRuleFieldUpdate(key, value); 
-    } else { 
-      this.handleGlobalSettingUpdate(key, value); 
+    if (key === "scl_rules_search") {
+      this.handleSearchQuery(value);
+    } else if (key.startsWith("scl_")) {
+      this.handleRuleFieldUpdate(key, value);
+      this.plugin.bumpRuleConfigVersion(); // <-- D1
+    } else {
+      this.handleGlobalSettingUpdate(key, value);
+
+      // Rule-relevant global toggles
+      if (key === "enableTagChips" || key === "getFromInlineField") {
+        this.plugin.bumpRuleConfigVersion(); // <-- D1
+      }
     }
 
-    // Sync active structural metadata properties
     this.plugin.compileActiveAttributes();
     await this.plugin.saveSettings();
-    
-    // ⚡ REAL-TIME RE-PAINT INJECTION: Invoke compilePaneStyles synchronously right here!
-    // This bypasses the 300ms debounce block exclusively for the settings pane preview,
-    // making colors and texts light up instantly while you drag sliders or type words.
     this.compilePaneStyles();
-    
-    // Keep heavy vault file rescans and snippet compilations debounced in the background
     this.debouncedGenerate();
-    
-    if (!silent) {
-      this.refreshUI();
-    }
+
+    if (!silent) this.refreshUI();
   }
 
   private handleGlobalSettingUpdate(key: string, value: unknown): void {
