@@ -1,4 +1,4 @@
-import { Plugin, debounce, TFile, Notice, App } from 'obsidian';
+import { Plugin, debounce, TFile, Notice, App, MarkdownView } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { SCLSettings } from './settings/settings';
@@ -50,19 +50,90 @@ export default class ResuperchargedLinks extends Plugin {
 	private readonly pendingChangedPaths: Set<string> = new Set();
 	private readonly pendingChangedPrefixes: Set<string> = new Set();
 
+	private readonly recentPathTouches: Map<string, number> = new Map();
+	private readonly PATH_TOUCH_PRUNE_AGE_MS = 10_000;
+	private readonly PATH_TOUCH_MAX_ENTRIES = 2000;
+	private readonly PATH_TOUCH_COOLDOWN_MS = 400;
+
+	private readonly ATTR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+	private readonly ATTR_CACHE_MAX_ENTRIES = 4000;
+	private readonly attrCacheTouchedAt: Map<string, number> = new Map();
+
+	public touchAttrCacheKey(key: string): void {
+		if (!key || key.length === 0) return;
+		this.attrCacheTouchedAt.set(key, Date.now());
+	}
+
+	private pruneAttrCycleCache(nowTs: number): void {
+		const cache = this.attrCycleCache;
+		if (!cache || cache.size === 0) return;
+
+		// 1) TTL prune
+		for (const key of cache.keys()) {
+			const ts = this.attrCacheTouchedAt.get(key);
+			if (ts === undefined || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
+				cache.delete(key);
+				this.attrCacheTouchedAt.delete(key);
+			}
+		}
+
+		// 2) size-cap prune (eldste først)
+		if (cache.size > this.ATTR_CACHE_MAX_ENTRIES) {
+			const overflow = cache.size - this.ATTR_CACHE_MAX_ENTRIES;
+			const entries = Array.from(this.attrCacheTouchedAt.entries())
+				.sort((a, b) => a[1] - b[1]); // oldest first
+
+			let removed = 0;
+			for (const [key] of entries) {
+				if (!cache.has(key)) continue;
+				cache.delete(key);
+				this.attrCacheTouchedAt.delete(key);
+				removed++;
+				if (removed >= overflow) break;
+			}
+		}
+	}
+
+	private pruneRecentPathTouches(nowTs: number): void {
+		if (this.recentPathTouches.size === 0) return;
+		
+		// Age-based prune
+		for (const [path, ts] of this.recentPathTouches) {
+			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
+				this.recentPathTouches.delete(path);
+			}
+		}
+
+		// Size cap fallback
+		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
+			const overflow = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
+			let removed = 0;
+			for (const key of this.recentPathTouches.keys()) {
+				this.recentPathTouches.delete(key);
+				removed++;
+				if (removed >= overflow) break;
+			}
+		}
+	}
+
 	private readonly scheduleVisibleRefresh = debounce((): void => {
 		this.flushPendingRefresh();
 	}, 180, true);
 
-	// 2) ADD helper methods inside class
-	private queuePath(path: string): void {
-		if (path.length === 0) return;
-		this.pendingChangedPaths.add(path);
+	private normalizePathForQueue(input: string): string {
+		return (input ?? "").trim().replace(/^\/+/, "").toLowerCase();
 	}
 
+private queuePath(path: string): void {
+	const normalized = this.normalizePathForQueue(path);
+	if (normalized.length === 0) return;
+	this.pendingChangedPaths.add(normalized);
+}
+
 	private queuePrefix(prefix: string): void {
-		if (prefix.length === 0) return;
-		this.pendingChangedPrefixes.add(prefix);
+		const normalized = this.normalizePathForQueue(prefix);
+		if (normalized.length === 0) return;
+		this.pendingChangedPrefixes.add(normalized.endsWith("/") ? normalized : `${normalized}/`);
 	}
 
 	private flushPendingRefresh(): void {
@@ -71,16 +142,34 @@ export default class ResuperchargedLinks extends Plugin {
 
 		if (changedPaths.length === 0 && changedPrefixes.length === 0) return;
 
-		// clear first to avoid re-entrancy duplication
+		const nowTs = Date.now();
+		this.pruneRecentPathTouches(nowTs);
+
+		this.pruneAttrCycleCache(nowTs);
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 
-		updateVisibleLinks(this.app, this);
-		this.refreshEditorThemes();
+		const pathSet = new Set(changedPaths);
+
+		// 👇 ny linje: fjern redundante child-prefixes
+		const compactedPrefixes: string[] = this.compactPrefixes(changedPrefixes);
+		const prefixSet = new Set(compactedPrefixes);
+
+		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 	}
 
-	private readonly recentPathTouches: Map<string, number> = new Map();
-	private readonly PATH_TOUCH_COOLDOWN_MS = 400;
+	private compactPrefixes(prefixes: string[]): string[] {
+		const sorted = Array.from(new Set(prefixes))
+			.map((p) => p.endsWith("/") ? p : `${p}/`)
+			.sort((a, b) => a.length - b.length);
+
+		const out: string[] = [];
+		for (const p of sorted) {
+			const covered = out.some((parent) => p.startsWith(parent));
+			if (!covered) out.push(p);
+		}
+		return out;
+	}
 
 	private markPathTouched(path: string): void {
 		if (path.length === 0) return;
@@ -95,10 +184,12 @@ export default class ResuperchargedLinks extends Plugin {
 	}
 	public invalidateAttrCacheByPath(path: string): void {
 		invalidateByPath(this.attrCycleCache, path);
+		// lazy-sync: touched-map is cleaned in prune
 	}
 
 	public invalidateAttrCacheByPrefix(prefix: string): void {
 		invalidateByPrefix(this.attrCycleCache, prefix);
+		// lazy-sync: touched-map is cleaned in prune
 	}
 
 	public bumpRuleConfigVersion(): void {
@@ -112,9 +203,8 @@ export default class ResuperchargedLinks extends Plugin {
 
 	public clearAttrCycleCache(): void {
 		const cache: Map<string, Record<string, string>> | null = this.attrCycleCache ?? null;
-		if (cache !== null) {
-			cache.clear();
-		}
+		if (cache !== null) cache.clear();
+		this.attrCacheTouchedAt.clear();
 	}
 
 	public refreshEditorThemes(): void {
@@ -186,6 +276,19 @@ export default class ResuperchargedLinks extends Plugin {
 			updateVisibleLinks(this.app, this);
 			this.refreshEditorThemes();
 
+			// Fix: first active LP leaf may miss initial paint on cold start
+			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			const activeFile = activeView?.file ?? null;
+			if (activeFile) {
+				window.setTimeout((): void => {
+					updateVisibleLinks(this.app, this, { paths: new Set([activeFile.path]) });
+				}, 60);
+
+				window.setTimeout((): void => {
+					updateVisibleLinks(this.app, this, { paths: new Set([activeFile.path]) });
+				}, 220);
+			}
+
 			window.setTimeout((): void => {
 				updateVisibleLinks(this.app, this);
 			}, 250);
@@ -195,10 +298,6 @@ export default class ResuperchargedLinks extends Plugin {
 			if (window?.getContainer()?.doc) {
 				initModalObservers(this, window.getContainer().doc);
 			}
-		}));
-
-		this.registerEvent(this.app.metadataCache.on('changed', (_file: TFile) => {
-			updateLinksDebounced(_file);
 		}));
 
 		this.registerEvent(this.app.workspace.on("layout-change", (): void => {

@@ -1,11 +1,15 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { isHtmlElement, extractCleanLinkPath } from "../utils/string-utils";
+import { isHtmlElement, extractCleanLinkPath, normalizePath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
 import { CSSLink } from "../types/css-link";
 import { resolveRuleResolution, RuleResolution } from "../processors/rule-resolver";
-import { measurePerf } from "../utils/perf-tracker";
+
+type RefreshScope = {
+	paths?: Set<string>;
+	prefixes?: Set<string>;
+};
 
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
@@ -36,8 +40,7 @@ export function updateContainer(
 	selector: string,
 	filterCollapsible = false
 ): void {
-	measurePerf("updateContainer", (): void => {
-		if (!container || typeof container.findAll !== "function") return;
+	if (!container || typeof container.findAll !== "function") return;
 
 		// Safe guard for detached DOM only.
 		// (Do not use offsetParent visibility checks here; that can break edit/live preview styling.)
@@ -119,9 +122,8 @@ export function updateContainer(
 				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
 			}
 		}
-	});
-}
-
+	}
+	
 export function updateDivExtraAttributes(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -310,23 +312,63 @@ function updateLeafInternalLinks(
 	}
 }
 
-export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks): void {
-	measurePerf("updateVisibleLinks", (): void => {
-		const attrCache: AttrCache = plugin.attrCycleCache;
+function isPathInScope(path: string, scope?: RefreshScope): boolean {
+	if (!scope) return true;
 
-		app.workspace.iterateRootLeaves((leaf) => {
-			if (!(leaf.view instanceof MarkdownView)) return;
+	const normalizedPath: string = normalizePath(path);
+	if (normalizedPath.length === 0) return true;
 
-			const file: TFile | null = leaf.view.file;
-			if (file === null) return;
+	const paths: Set<string> = scope.paths ?? new Set<string>();
+	const prefixes: Set<string> = scope.prefixes ?? new Set<string>();
 
-			const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
+	if (paths.size === 0 && prefixes.size === 0) return true;
 
-			updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
-			updateLeafTabHeader(app, plugin, file, leaf);
-			updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
-		});
-	});
+	if (paths.has(normalizedPath)) return true;
+
+	for (const prefix of prefixes) {
+		const p: string = normalizePath(prefix);
+		if (p.length === 0) continue;
+
+		const normalizedPrefix: string = p.endsWith("/") ? p : `${p}/`;
+		if (normalizedPath === p || normalizedPath.startsWith(normalizedPrefix)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
+export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?: RefreshScope): void {
+	const attrCache: AttrCache = plugin.attrCycleCache;
 
+	const normalizedScope: RefreshScope | undefined = scope
+		? {
+				paths: new Set(
+					Array.from(scope.paths ?? [])
+						.map((p: string): string => normalizePath(p))
+						.filter((p: string): boolean => p.length > 0)
+				),
+				prefixes: new Set(
+					Array.from(scope.prefixes ?? [])
+						.map((p: string): string => normalizePath(p))
+						.filter((p: string): boolean => p.length > 0)
+				)
+		  }
+		: undefined;
+
+	app.workspace.iterateRootLeaves((leaf) => {
+		if (!(leaf.view instanceof MarkdownView)) return;
+
+		const file: TFile | null = leaf.view.file;
+		if (file === null) return;
+
+		// Scoped short-circuit: skip leaves outside changed paths/prefixes
+		if (!isPathInScope(file.path, normalizedScope)) return;
+
+		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
+
+		updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
+		updateLeafTabHeader(app, plugin, file, leaf);
+		updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
+	});
+}

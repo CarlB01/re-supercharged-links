@@ -1,6 +1,5 @@
 import { CSSLink } from "../types/css-link";
 import { cleanAttributeKey, cleanRuleValue, parseSpaceSeparatedTokens } from "../utils/string-utils";
-import { measurePerf } from "../utils/perf-tracker";
 
 export interface RuleResolution {
 	readonly hasMatch: boolean;
@@ -29,8 +28,7 @@ interface ResolveRuleResolutionInput {
  */
 
 export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleResolution {
-	return measurePerf("resolveRuleResolution", (): RuleResolution => {
-		const selectors: readonly CSSLink[] = input.selectors;
+const selectors: readonly CSSLink[] = input.selectors;
 		const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
 		const isDark: boolean = input.isDark;
 		const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
@@ -163,6 +161,5 @@ if (color.length > 0) {
 				fontStyle
 			}
 		};
-	});
-}
+	}
 

@@ -60,7 +60,7 @@
     },
     {
       "type": "tag",
-      "value": "lege",
+      "value": "sasd",
       "iconAfter": "⚕️",
       "lightColor": "#b97cd0",
       "fontStyle": "line-through"
@@ -76,18 +76,6 @@
     },
     {
       "type": "tag",
-      "value": "him",
-      "lightColor": "#5c63c7",
-      "darkColor": "#8e8cf2",
-      "iconBefore": "🚹",
-      "iconAfter": "😍",
-      "lightBgColor": "#dc2e2e",
-      "fontStyle": "italic",
-      "name": "him",
-      "fontWeight": "lighter"
-    },
-    {
-      "type": "tag",
       "value": "👥gruppe",
       "iconBefore": "👥",
       "fontWeight": "lighter",
@@ -97,7 +85,7 @@
     },
     {
       "type": "path",
-      "value": "!@",
+      "value": "ad",
       "lightColor": "#931f52",
       "darkColor": "#f28cb8"
     },

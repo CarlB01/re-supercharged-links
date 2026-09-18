@@ -177,4 +177,6 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 	return { prop: "", uid: "" };
 }
 
-
+export function normalizePath(input: string | null | undefined): string {
+	return (input ?? "").trim().replace(/^\/+/, "").toLowerCase();
+}

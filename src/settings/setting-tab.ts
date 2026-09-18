@@ -16,6 +16,7 @@ type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void
 export default class SCLSettingTab extends PluginSettingTab {
   public plugin: ResuperchargedLinks;
   private readonly debouncedGenerate: () => void;
+  private readonly debouncedSaveSettings: () => void;
   private rulesSearchQuery = "";
   
   // 🔑 RUNTIME TRACKING INDEX: Track active row open boundaries using memory integer offsets cleanly
@@ -31,29 +32,32 @@ export default class SCLSettingTab extends PluginSettingTab {
     });
   }
 
-override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
-	if (key === "scl_rules_search") {
-		this.handleSearchQuery(value);
-	} else if (key.startsWith("scl_")) {
-		this.handleRuleFieldUpdate(key, value);
-		this.plugin.bumpRuleConfigVersion();
-	} else {
-		this.handleGlobalSettingUpdate(key, value);
-		if (key === "enableTagChips" || key === "getFromInlineField") {
-			this.plugin.bumpRuleConfigVersion();
-		}
-	}
+  override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
+    if (key === "scl_rules_search") {
+      this.handleSearchQuery(value);
+    } else if (key.startsWith("scl_")) {
+      this.handleRuleFieldUpdate(key, value);
+      this.plugin.bumpRuleConfigVersion();
+    } else {
+      this.handleGlobalSettingUpdate(key, value);
+      if (key === "enableTagChips" || key === "getFromInlineField") {
+        this.plugin.bumpRuleConfigVersion();
+      }
+    }
 
-	this.plugin.compileActiveAttributes();
+    this.plugin.compileActiveAttributes();
 
-	await this.plugin.saveSettings();
+    if (silent) {
+      this.debouncedSaveSettings();
+    } else {
+      await this.plugin.saveSettings();
+    }
 
-	this.compilePaneStyles();
+    this.compilePaneStyles();
+    this.debouncedGenerate();
 
-	this.debouncedGenerate();
-
-	if (!silent) this.refreshUI();
-}
+    if (!silent) this.refreshUI();
+  }
 
   constructor(app: App, plugin: ResuperchargedLinks) {
     super(app, plugin);
@@ -82,10 +86,18 @@ override async setControlValue(key: string, value: unknown, silent = false): Pro
       this.activeEditIndex = this.activeEditIndex === actualIndex ? null : actualIndex;
       this.refreshUI();
     });
+
+    this.debouncedSaveSettings = debounce((): void => {
+      void this.plugin.saveSettings();
+    }, 180, true);
   }
 
   public hide(): void {
     clearColorHistory();
+
+    // fallback: ensure latest state is persisted when pane closes
+    void this.plugin.saveSettings();
+
     const styleEl: HTMLStyleElement | null = this.paneStyleEl;
     if (styleEl !== null) {
       styleEl.remove();
@@ -319,11 +331,10 @@ override async setControlValue(key: string, value: unknown, silent = false): Pro
 
   private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
 
-  // Sørg for at navnet matcher 100% med kallet over
   private handleRuleFieldUpdate(key: string, value: unknown): void {
     const { prop, uid: runtimeUid } = parseControlValueKey(key);
     const targetIdx: number = parseInt(runtimeUid, 10);
-    
+
     if (isNaN(targetIdx)) return;
 
     const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
@@ -332,18 +343,32 @@ override async setControlValue(key: string, value: unknown, silent = false): Pro
 
     if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
       const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
-      
+
       let cleanValue = value;
       if (prop === "value" && typeof value === "string" && selector.type === "tag") {
         cleanValue = value.trim().replace(/^#/, "");
       }
-      
+
+      // ✅ Guard: korte alfanumeriske contains-tokens blokkeres, symboler tillates
+      if (
+        prop === "value" &&
+        selector.match === "contains" &&
+        typeof cleanValue === "string"
+      ) {
+        const token = cleanValue.trim();
+        const isAlnumOnly = /^[a-z0-9]+$/i.test(token);
+        if (token.length > 0 && token.length < 2 && isAlnumOnly) {
+          new Notice("Contains value must be at least 2 characters for letters/numbers (symbols like @ are allowed).");          return;
+        }
+        cleanValue = token;
+      }
+
       ruleProxy[prop] = cleanValue;
 
       const sanitized: CSSLink = sanitizeRule(selector);
       selector.match = sanitized.match;
       selector.value = sanitized.value;
-      
+
       // Tving oppdateringen direkte inn i referanse-arrayet
       this.plugin.settings.selectors[targetIdx] = selector;
     }

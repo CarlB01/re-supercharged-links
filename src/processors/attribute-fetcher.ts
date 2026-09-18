@@ -143,10 +143,16 @@ export function fetchTargetAttributesCached(
 
 	const key: string = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
 	const hit: Record<string, string> | null = cache.get(key) ?? null;
-	if (hit !== null) return hit;
+
+	if (hit !== null) {
+		plugin.touchAttrCacheKey(key);
+		return hit;
+	}
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
 	cache.set(key, resolved);
+	plugin.touchAttrCacheKey(key);
+
 	return resolved;
 }
 
