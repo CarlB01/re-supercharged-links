@@ -10,10 +10,10 @@ import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '.
 import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { CSSLink } from './types/css-link';
 import { invalidateByPath, invalidateByPrefix } from "./processors/attribute-fetcher";
-/**
- * Structural contract defining Obsidian's internal CSS registry endpoints.
- * This bypasses type constraints safely without introducing global namespace pollution.
- */
+import { PluginPerformanceTracker } from './telemetry';
+import { AttributeCacheManager } from './processors/cache-manager';
+import { normalizePathForQueue, compactPrefixes } from './utils/path-utils';
+
 interface ObsidianAppWithCustomCss {
 	customCss?: {
 		getSnippets(): string[];
@@ -21,10 +21,6 @@ interface ObsidianAppWithCustomCss {
 	};
 }
 
-/**
- * Structural contract mapping Obsidian's internal community plugin registry.
- * Allows safe verification of coexisting extensions without leaking global any types.
- */
 interface ObsidianPluginRegistry {
 	plugins?: {
 		enabledPlugins?: Set<string>;
@@ -46,92 +42,30 @@ export default class ResuperchargedLinks extends Plugin {
 	public modalObservers!: MutationObserver[];
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
+	
+	public performanceTracker!: PluginPerformanceTracker;
+	public cacheManager!: AttributeCacheManager;
+	
 	private ruleConfigVersion: number = 0;
 	private readonly pendingChangedPaths: Set<string> = new Set();
 	private readonly pendingChangedPrefixes: Set<string> = new Set();
-
-	private readonly recentPathTouches: Map<string, number> = new Map();
-	private readonly PATH_TOUCH_PRUNE_AGE_MS = 10_000;
-	private readonly PATH_TOUCH_MAX_ENTRIES = 2000;
-	private readonly PATH_TOUCH_COOLDOWN_MS = 400;
-
-	private readonly ATTR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
-	private readonly ATTR_CACHE_MAX_ENTRIES = 4000;
-	private readonly attrCacheTouchedAt: Map<string, number> = new Map();
-
-	public touchAttrCacheKey(key: string): void {
-		if (!key || key.length === 0) return;
-		this.attrCacheTouchedAt.set(key, Date.now());
-	}
-
-	private pruneAttrCycleCache(nowTs: number): void {
-		const cache = this.attrCycleCache;
-		if (!cache || cache.size === 0) return;
-
-		// 1) TTL prune
-		for (const key of cache.keys()) {
-			const ts = this.attrCacheTouchedAt.get(key);
-			if (ts === undefined || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				cache.delete(key);
-				this.attrCacheTouchedAt.delete(key);
-			}
-		}
-
-		// 2) size-cap prune (eldste først)
-		if (cache.size > this.ATTR_CACHE_MAX_ENTRIES) {
-			const overflow = cache.size - this.ATTR_CACHE_MAX_ENTRIES;
-			const entries = Array.from(this.attrCacheTouchedAt.entries())
-				.sort((a, b) => a[1] - b[1]); // oldest first
-
-			let removed = 0;
-			for (const [key] of entries) {
-				if (!cache.has(key)) continue;
-				cache.delete(key);
-				this.attrCacheTouchedAt.delete(key);
-				removed++;
-				if (removed >= overflow) break;
-			}
-		}
-	}
-
-	private pruneRecentPathTouches(nowTs: number): void {
-		if (this.recentPathTouches.size === 0) return;
-		
-		// Age-based prune
-		for (const [path, ts] of this.recentPathTouches) {
-			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
-				this.recentPathTouches.delete(path);
-			}
-		}
-
-		// Size cap fallback
-		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
-			const overflow = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
-			let removed = 0;
-			for (const key of this.recentPathTouches.keys()) {
-				this.recentPathTouches.delete(key);
-				removed++;
-				if (removed >= overflow) break;
-			}
-		}
-	}
 
 	private readonly scheduleVisibleRefresh = debounce((): void => {
 		this.flushPendingRefresh();
 	}, 180, true);
 
-	private normalizePathForQueue(input: string): string {
-		return (input ?? "").trim().replace(/^\/+/, "").toLowerCase();
+	public touchAttrCacheKey(key: string): void {
+		this.cacheManager.touchAttrCacheKey(key);
 	}
 
-private queuePath(path: string): void {
-	const normalized = this.normalizePathForQueue(path);
-	if (normalized.length === 0) return;
-	this.pendingChangedPaths.add(normalized);
-}
+	private queuePath(path: string): void {
+		const normalized: string = normalizePathForQueue(path);
+		if (normalized.length === 0) return;
+		this.pendingChangedPaths.add(normalized);
+	}
 
 	private queuePrefix(prefix: string): void {
-		const normalized = this.normalizePathForQueue(prefix);
+		const normalized: string = normalizePathForQueue(prefix);
 		if (normalized.length === 0) return;
 		this.pendingChangedPrefixes.add(normalized.endsWith("/") ? normalized : `${normalized}/`);
 	}
@@ -142,54 +76,32 @@ private queuePath(path: string): void {
 
 		if (changedPaths.length === 0 && changedPrefixes.length === 0) return;
 
-		const nowTs = Date.now();
-		this.pruneRecentPathTouches(nowTs);
-
-		this.pruneAttrCycleCache(nowTs);
+		this.cacheManager.runLifecyclePrune();
+		
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 
 		const pathSet = new Set(changedPaths);
-
-		// 👇 ny linje: fjern redundante child-prefixes
-		const compactedPrefixes: string[] = this.compactPrefixes(changedPrefixes);
+		const compactedPrefixes: string[] = compactPrefixes(changedPrefixes);
 		const prefixSet = new Set(compactedPrefixes);
 
+		const trackingActive: boolean = this.performanceTracker.getTrackingState();
+		const startMark: number = trackingActive ? performance.now() : 0;
+
 		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
-	}
 
-	private compactPrefixes(prefixes: string[]): string[] {
-		const sorted = Array.from(new Set(prefixes))
-			.map((p) => p.endsWith("/") ? p : `${p}/`)
-			.sort((a, b) => a.length - b.length);
-
-		const out: string[] = [];
-		for (const p of sorted) {
-			const covered = out.some((parent) => p.startsWith(parent));
-			if (!covered) out.push(p);
+		if (trackingActive) {
+			const elapsed: number = performance.now() - startMark;
+			this.performanceTracker.recordUpdateCycle(elapsed, 0);
 		}
-		return out;
 	}
 
-	private markPathTouched(path: string): void {
-		if (path.length === 0) return;
-		this.recentPathTouches.set(path, Date.now());
-	}
-
-	private wasPathTouchedRecently(path: string): boolean {
-		if (path.length === 0) return false;
-		const last: number | undefined = this.recentPathTouches.get(path);
-		if (last === undefined) return false;
-		return Date.now() - last < this.PATH_TOUCH_COOLDOWN_MS;
-	}
 	public invalidateAttrCacheByPath(path: string): void {
 		invalidateByPath(this.attrCycleCache, path);
-		// lazy-sync: touched-map is cleaned in prune
 	}
 
 	public invalidateAttrCacheByPrefix(prefix: string): void {
 		invalidateByPrefix(this.attrCycleCache, prefix);
-		// lazy-sync: touched-map is cleaned in prune
 	}
 
 	public bumpRuleConfigVersion(): void {
@@ -202,9 +114,9 @@ private queuePath(path: string): void {
 	}
 
 	public clearAttrCycleCache(): void {
-		const cache: Map<string, Record<string, string>> | null = this.attrCycleCache ?? null;
-		if (cache !== null) cache.clear();
-		this.attrCacheTouchedAt.clear();
+		if (this.cacheManager) {
+			this.cacheManager.clearAllCache();
+		}
 	}
 
 	public refreshEditorThemes(): void {
@@ -225,20 +137,30 @@ private queuePath(path: string): void {
 		this.observers = [];
 		this.modalObservers = [];
 		this.attrCycleCache = new Map();
+		
+		this.performanceTracker = new PluginPerformanceTracker(true);
+		this.cacheManager = new AttributeCacheManager(this.attrCycleCache, this.performanceTracker);
 
-		// Clean up legacy artifact files from disk channels
 		await this.cleanupLegacySnippetFile();
-
-		// Check for environmental runtime collisions with the legacy plugin
 		this.detectPluginCollisions();
 		
-		// 🔑 STRICT PROTOCOL FIX: Enforce sequential data resolution BEFORE initializing UI tabs
 		await this.loadSettings();
 		this.compileActiveAttributes();
 		
-		// Wire the configuration tab safely now that states are hydrated
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
+
+		this.addCommand({
+			id: "print-scl-perf-report",
+			name: "Print performance instrumentation report",
+			callback: () => { this.performanceTracker.printReport(); }
+		});
+
+		this.addCommand({
+			id: "reset-scl-perf-metrics",
+			name: "Reset performance metrics counters",
+			callback: () => { this.performanceTracker.resetMetrics(); }
+		});
 
 		this.registerMarkdownPostProcessor((el: HTMLElement, ctx) => {
 			updateElLinks(this.app, this, el, ctx);
@@ -246,7 +168,17 @@ private queuePath(path: string): void {
 
 		const updateLinksDebounced = debounce((_file: TFile | null) => {
 			this.clearAttrCycleCache();
+			
+			const trackingActive: boolean = this.performanceTracker.getTrackingState();
+			const startMark: number = trackingActive ? performance.now() : 0;
+
 			updateVisibleLinks(this.app, this);
+
+			if (trackingActive) {
+				const elapsed: number = performance.now() - startMark;
+				this.performanceTracker.recordUpdateCycle(elapsed, 0);
+			}
+
 			this.refreshEditorThemes();
 
 			const activeObservers: [MutationObserver, string, string][] = this.observers ?? [];
@@ -276,10 +208,10 @@ private queuePath(path: string): void {
 			updateVisibleLinks(this.app, this);
 			this.refreshEditorThemes();
 
-			// Fix: first active LP leaf may miss initial paint on cold start
 			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 			const activeFile = activeView?.file ?? null;
-			if (activeFile) {
+			
+			if (activeFile !== null) {
 				window.setTimeout((): void => {
 					updateVisibleLinks(this.app, this, { paths: new Set([activeFile.path]) });
 				}, 60);
@@ -301,10 +233,7 @@ private queuePath(path: string): void {
 		}));
 
 		this.registerEvent(this.app.workspace.on("layout-change", (): void => {
-			// 🔑 FAST-TRACK: Initialize observers instantly on layout change so file-properties are painted immediately
 			initViewObservers(this);
-			
-			// Keep the debounce on the heavier asset cache updates to save CPU cycles
 			updateLinksDebounced(null);
 		}));
 
@@ -312,7 +241,7 @@ private queuePath(path: string): void {
 			if (!(file instanceof TFile)) return;
 
 			this.invalidateAttrCacheByPath(file.path);
-			this.markPathTouched(file.path);
+			this.cacheManager.markPathTouched(file.path);
 
 			this.queuePath(file.path);
 			this.scheduleVisibleRefresh();
@@ -323,42 +252,42 @@ private queuePath(path: string): void {
 			if (path.length === 0) return;
 
 			this.invalidateAttrCacheByPath(path);
-			this.markPathTouched(path);
+			this.cacheManager.markPathTouched(path);
 
 			this.queuePath(path);
 			this.scheduleVisibleRefresh();
 		}));
 
-this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
-	const newPath = (file as { path?: string }).path ?? "";
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
+			const newPath = (file as { path?: string }).path ?? "";
 
-	if (oldPath && oldPath.length > 0) {
-		this.invalidateAttrCacheByPath(oldPath);
-		this.markPathTouched(oldPath);
-		this.queuePath(oldPath);
-	}
+			if (oldPath && oldPath.length > 0) {
+				this.invalidateAttrCacheByPath(oldPath);
+				this.cacheManager.markPathTouched(oldPath);
+				this.queuePath(oldPath);
+			}
 
-	if (newPath.length > 0) {
-		this.invalidateAttrCacheByPath(newPath);
-		this.markPathTouched(newPath);
-		this.queuePath(newPath);
-	}
+			if (newPath.length > 0) {
+				this.invalidateAttrCacheByPath(newPath);
+				this.cacheManager.markPathTouched(newPath);
+				this.queuePath(newPath);
+			}
 
-	if (oldPath.endsWith("/")) {
-		this.invalidateAttrCacheByPrefix(oldPath);
-		this.queuePrefix(oldPath);
-	}
+			if (oldPath.endsWith("/")) {
+				this.invalidateAttrCacheByPrefix(oldPath);
+				this.queuePrefix(oldPath);
+			}
 
-	if (newPath.endsWith("/")) {
-		this.invalidateAttrCacheByPrefix(newPath);
-		this.queuePrefix(newPath);
-	}
+			if (newPath.endsWith("/")) {
+				this.invalidateAttrCacheByPrefix(newPath);
+				this.queuePrefix(newPath);
+			}
 
-	this.scheduleVisibleRefresh();
-}));
+			this.scheduleVisibleRefresh();
+		}));
 
 		this.registerEvent(this.app.metadataCache.on("changed", (file: TFile): void => {
-			if (this.wasPathTouchedRecently(file.path)) return;
+			if (this.cacheManager.wasPathTouchedRecently(file.path)) return;
 
 			this.queuePath(file.path);
 			this.scheduleVisibleRefresh();
@@ -383,22 +312,19 @@ this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
 	}
 
 	public async loadSettings(): Promise<void> {
-		// 🚀 ARCHITECTURAL DECOUPLING: Delegate ingestion, vasking and translation paths to the manager
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
-		// Force write back clean structure instantly if corrupted nodes were healed during ingestion
 		if (dataRepaired) {
 			await this.saveSettings();
 		}
 	}
 
 	public async saveSettings(): Promise<void> {
-		// 🚀 ARCHITECTURAL DECOUPLING: Delegate output stripping and serialization to the manager
 		await saveStrippedSettings(this, this.settings);
 	}
 	
-	private async cleanupLegacySnippetFile(): Promise<void> {
+		private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
 			const adapter = this.app.vault.adapter;
 			const configDir = this.app.vault.configDir;
@@ -421,7 +347,8 @@ this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
 
 	private detectPluginCollisions(): void {
 		try {
-			const internalApp = this.app as App & ObsidianPluginRegistry;			const enabledPlugins: Set<string> | null = internalApp.plugins?.enabledPlugins ?? null;
+			const internalApp = this.app as App & ObsidianPluginRegistry;
+			const enabledPlugins: Set<string> | null = internalApp.plugins?.enabledPlugins ?? null;
 
 			if (enabledPlugins !== null && enabledPlugins.has("supercharged-links")) {
 				new Notice(
@@ -437,3 +364,4 @@ this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
 		}
 	}
 }
+
