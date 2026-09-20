@@ -38,7 +38,7 @@ export function updateContainer(
 	plugin: ResuperchargedLinks,
 	selector: string,
 	filterCollapsible = false
-): number { // 🔑 Returns incremental element count for granular instrumentation telemetry
+): number { 
 	if (!container || typeof container.findAll !== "function") return 0;
 	if (!container.isConnected) return 0;
 
@@ -57,6 +57,7 @@ export function updateContainer(
 		container.closest(".suggestion-container, .modal-container") !== null;
 
 	const isDark: boolean = document.body.classList.contains("theme-dark");
+	const globalCache = plugin.attrCycleCache; // 🚀 Bruk den felles globale versjonerte cachen!
 
 	for (let i = 0; i < nodes.length; i++) {
 		const node: HTMLElement | null = nodes[i] ?? null;
@@ -86,11 +87,13 @@ export function updateContainer(
 			);
 			if (dest === null) continue;
 
-			const rawProps: Record<string, string> = fetchTargetAttributesSync(
+			// 🚀 FIX: Byttet fra Sync til Cached for å bryte race condition i popups
+			const rawProps: Record<string, string> = fetchTargetAttributesCached(
 				plugin.app,
 				plugin,
 				dest,
-				false
+				false,
+				globalCache
 			);
 
 			const resolution = resolveRuleResolution({
@@ -149,9 +152,11 @@ export function updateDivExtraAttributes(
 	const dest = app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedLinkName), destName);
 	if (!dest) return;
 
-	const newProps = fetchTargetAttributesSync(app, plugin, dest, true);
+	// 🚀 FIX: Hent fra felles global cache i stedet for å tvinge frem tunge rå-skanninger synkront
+	const newProps = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
 	setLinkNewProps(link, newProps, plugin);
 }
+
 
 export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 	const attrCache: AttrCache = new Map();
@@ -284,6 +289,69 @@ function updateLeafTabHeader(
 	return 0;
 }
 
+interface QueuedDOMMutation {
+	readonly element: HTMLElement;
+	readonly props: Record<string, string>;
+}
+
+/**
+ * High-performance asynchronous DOM mutation queue.
+ * Processes link styling in micro-batches to eliminate layout thrashing during heavy scrolling.
+ */
+class DOMMutationBatcher {
+	private readonly queue: QueuedDOMMutation[] = [];
+	private isProcessing = false;
+	private readonly CHUNK_SIZE = 25; // Process max 25 elements per frame to secure 60 FPS
+
+	/**
+	 * Pushes a targeted link element mutation into the asynchronous render pipeline.
+	 */
+	public enqueue(element: HTMLElement, props: Record<string, string>): void {
+		this.queue.push({ element, props });
+		if (!this.isProcessing) {
+			this.isProcessing = true;
+			// Schedule the batch process on the next native animation frame
+			activeWindow.requestAnimationFrame(() => this.processBatch());
+		}
+	}
+
+	/**
+	 * Iterates and flushes a strict slice of the queue inside a single layout frame.
+	 */
+	private processBatch(): void {
+		const plugin = (window as any).app.plugins?.plugins?.["re-supercharged-links"];
+		if (!plugin) {
+			this.queue.length = 0;
+			this.isProcessing = false;
+			return;
+		}
+
+		// Calculate how many elements to safely process this frame
+		const currentBatchSize = Math.min(this.queue.length, this.CHUNK_SIZE);
+		
+		for (let i = 0; i < currentBatchSize; i++) {
+			const task = this.queue.shift();
+			if (task && task.element.isConnected) {
+				// Perform the actual heavy DOM mutation here
+				setLinkNewProps(task.element, task.props, plugin);
+			}
+		}
+
+		// If elements remain, request a new animation frame loop dynamically
+		if (this.queue.length > 0) {
+			activeWindow.requestAnimationFrame(() => this.processBatch());
+		} else {
+			this.isProcessing = false;
+		}
+	}
+}
+
+// Global instance allocated statically to optimize memory footprint
+const domBatcher = new DOMMutationBatcher();
+
+/**
+ * Scans view links and routes them via the async mutation batcher to maintain fluid frame rates.
+ */
 function updateLeafInternalLinks(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -293,25 +361,27 @@ function updateLeafInternalLinks(
 ): number {
 	const cachedFile = app.metadataCache.getFileCache(file);
 	const links = cachedFile?.links ?? [];
-	let localCount: number = 0;
+	let localCount = 0;
 
-	for (let i: number = 0; i < links.length; i++) {
+	for (let i = 0; i < links.length; i++) {
 		const link = links[i];
-		if (link === null || link === undefined) continue;
+		if (!link) continue;
 
 		const dest = app.metadataCache.getFirstLinkpathDest(link.link, file.basename);
-		if (dest === null) continue;
+		if (!dest) continue;
 
 		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
 		const escapedHref: string = CSS.escape(link.link);
 		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(`a.internal-link[href="${escapedHref}"]`);
 
-		internalLinks.forEach((node: Element): void => {
-			if (isHtmlElement(node)) {
-				setLinkNewProps(node, newProps, plugin);
+		for (let j = 0; j < internalLinks.length; j++) {
+			const node = internalLinks[j];
+			if (node && isHtmlElement(node)) {
+				// 🚀 BREAK SYNCHRONOUS BOTTLENECK: Deflect mutations to the asynchronous chunk engine
+				domBatcher.enqueue(node, newProps);
 				localCount += 1;
 			}
-		});
+		}
 	}
 	return localCount;
 }

@@ -8,39 +8,52 @@ export function cloneSettingsObject<T>(obj: T): T {
 }
 
 /**
- * Standardizes formatting and strips invisible emoji variation selectors (U+FE0F).
- * Enforces unified NFC normalization boundaries across layout nodes.
+ * Super-robust normalization for emojis and text strings.
+ * Strips emoji variation selectors (U+FE0F) and standardizes formatting.
+ * Performance: Checks if normalization is actually required before invoking heavy operations.
  */
-export const norm = (s: string | null | undefined): string =>
-	(s ?? "")
+export const norm = (s: string | null): string => {
+	if (s === null || s.length === 0) return "";
+	
+	if (!s.includes(" ") && !/[\uFE00-\uFE0F]/.test(s)) {
+		return s.trim().normalize("NFC");
+	}
+
+	return s
 		.normalize("NFC")
 		.replace(/[\uFE00-\uFE0F]/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
-
-/**
- * Evaluates whether a normalized layout text string begins with a specific token literal.
- */
-export const startsWithToken = (text: string | null | undefined, token: string | null | undefined): boolean => {
-	const t: string = norm(text);
-	const k: string = norm(token);
-	return t.length > 0 && k.length > 0 && t.startsWith(k);
 };
 
 /**
- * Multi-window safe bounds verification check ensuring a string ends with a token literal.
- * Employs trailing slice validation to eliminate whitespace drops or layout drift.
+ * Verifies if a normalized text string begins with a specific token literal.
+ * Performance: Compares raw strings first to skip normalization on exact matches.
  */
-export const endsWithToken = (text: string | null | undefined, token: string | null | undefined): boolean => {
-	const t: string = norm(text);
+export const startsWithToken = (text: string | null, token: string | null): boolean => {
+	if (text === null || token === null || text.length === 0 || token.length === 0) return false;
+	if (text === token) return true;
+
 	const k: string = norm(token);
-	if (t.length === 0 || k.length === 0 || t.length < k.length) return false;
+	if (k.length === 0) return false;
 
-	const standardMatch: boolean = t.endsWith(k);
-	if (standardMatch) return true;
+	const t: string = norm(text);
+	return t.startsWith(k);
+};
 
-	const trailingSlice: string = t.slice(-k.length - 2);
-	return trailingSlice.includes(k);
+/**
+ * Advanced check verifying if a string ends with a specific token literal.
+ * Prevents layout drift by verifying direct string positioning instead of speculative slicing.
+ */
+export const endsWithToken = (text: string | null, token: string | null): boolean => {
+	if (text === null || token === null || text.length === 0 || token.length === 0) return false;
+	if (text === token) return true;
+
+	const k: string = norm(token);
+	if (k.length === 0 || text.length < k.length) return false;
+
+	const t: string = norm(text);
+	return t.endsWith(k);
 };
 
 /**
@@ -65,13 +78,11 @@ export function processValue(key: string, value: string): string {
  * Sanitizes and transforms loose structural strings into standard hashtag tokens.
  */
 export function normalizeTagToken(input: string): string {
-	let s: string = norm(input);
+	const s: string = norm(input);
 	if (s.length === 0) return "";
-	s = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
-	if (!s.startsWith("#")) {
-		s = `#${s}`;
-	}
-	return s;
+	
+	const clean = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
+	return clean.startsWith("#") ? clean : `#${clean}`;
 }
 
 /**
@@ -95,25 +106,34 @@ export function extractCleanLinkPath(rawText: string | null | undefined): string
 	const text: string = rawText ?? "";
 	if (text.length === 0) return "";
 	
-	let cleanText: string = text.replace(/^\[\[/, "").replace(/\]\]\$/, "");
-
-	if (cleanText.includes("|")) {
-		const pipeParts: string[] = cleanText.split("|");
-		const pathPart: string | null = pipeParts[0] ?? null;
-		cleanText = pathPart !== null ? pathPart : cleanText;
+	let cleanText: string = text;
+	if (cleanText.startsWith("[[")) {
+		cleanText = cleanText.substring(2);
+	}
+	if (cleanText.endsWith("]]")) {
+		cleanText = cleanText.substring(0, cleanText.length - 2);
 	}
 
-	const hashParts: string[] = cleanText.split("#");
-	const firstPart: string | null = hashParts[0] ?? null;
+	const pipeIdx = cleanText.indexOf("|");
+	if (pipeIdx !== -1) {
+		cleanText = cleanText.substring(0, pipeIdx);
+	}
+
+	const hashIdx = cleanText.indexOf("#");
+	if (hashIdx !== -1) {
+		cleanText = cleanText.substring(0, hashIdx);
+	}
 	
-	return firstPart !== null ? firstPart.trim() : "";
+	return cleanText.trim();
 }
 
 /**
  * Standardizes configuration selector match keywords into clean, lowercase strings.
  */
 export function cleanRuleValue(value: string | null | undefined): string {
-	return (value ?? "").toLowerCase().trim().replace(/^#/, "");
+	if (!value) return "";
+	const trimmed = value.trim().toLowerCase();
+	return trimmed.startsWith("#") ? trimmed.substring(1) : trimmed;
 }
 
 /**
@@ -125,7 +145,6 @@ export function cleanAttributeKey(name: string | null | undefined): string {
 
 /**
  * Fast-track path string normalization routine specifically tailored for queue ingestion.
- * Converts characters to lowercase and strips leading forward slashes without regex overhead.
  */
 export function normalizePathForQueue(input: string | null | undefined): string {
 	const text: string = input ?? "";
@@ -153,48 +172,56 @@ export function hasTagToken(rawTags: string | null | undefined, targetCleanTag: 
 
 /**
  * Historical fallback array wrapper preserved for internal configuration parsing.
+ * ⚡ LATMANNSKODE FJERNET: Byttet ut .filter().map() med en lynrask singel for-løkke.
  */
 export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): string[] {
-	const text: string = rawInput ?? "";
-	if (text.length === 0) return [];
+	if (!rawInput) return [];
 	
-	return text
-		.toLowerCase()
-		.replace(/#/g, "")
-		.trim()
-		.split(/\s+/)
-		.filter((token: string): boolean => token.length > 0);
+	const tokens = rawInput.toLowerCase().replace(/#/g, "").trim().split(/\s+/);
+	const result: string[] = [];
+	
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token && token.length > 0) {
+			result.push(token);
+		}
+	}
+	
+	return result;
 }
 
 /**
  * Filters and compacts a list of folder prefixes to purge redundant children from memory trees.
- * Runs on sorted array indexes allowing linear positional lookups in O(N log N) speed.
+ * ⚡ LATMANNSKODE FJERNET: Replaced side-effect forEach arrays allocation with predictable index loop.
  */
 export function compactPrefixes(prefixes: string[]): string[] {
-	if (prefixes.length === 0) return [];
+	const len = prefixes.length;
+	if (len === 0) return [];
 
 	const cleaned: string[] = [];
-	prefixes.forEach((p) => {
-		if (p.length === 0) return;
-		cleaned.push(p.endsWith("/") ? p : `${p}/`);
-	});
+	for (let i = 0; i < len; i++) {
+		const p = prefixes[i];
+		if (p && p.length > 0) {
+			cleaned.push(p.endsWith("/") ? p : `${p}/`);
+		}
+	}
 
 	if (cleaned.length <= 1) return cleaned;
-
 	cleaned.sort();
 
 	const output: string[] = [];
-	const currentParent: string = cleaned[0] || ""; 
+	let currentParent: string = cleaned[0] || ""; 
 	if (currentParent.length > 0) {
 		output.push(currentParent);
 	}
 
-	for (let i = 1; i < cleaned.length; i += 1) {
+	for (let i = 1; i < cleaned.length; i++) {
 		const nextPath: string = cleaned[i] || "";
 		if (nextPath.length === 0) continue;
 
 		if (!nextPath.startsWith(currentParent)) {
-			output.push(nextPath);
+			currentParent = nextPath;
+			output.push(currentParent);
 		}
 	}
 
@@ -217,7 +244,6 @@ export function cleanSearchQuery(query: string | null | undefined): string {
 
 /**
  * Slices interface element interaction triggers symmetrically at the trailing underscore character.
- * Prevents index alignment failures when handling multi-nested properties (e.g., 'scl_lightColor_0').
  */
 export function parseControlValueKey(key: string): { prop: string; uid: string } {
 	const rawKey = key ?? "";
@@ -225,12 +251,11 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 	
 	if (lastUnderscoreIndex > 0) {
 		const firstUnderscoreIndex = rawKey.indexOf("_");
-		const prop = rawKey.slice(firstUnderscoreIndex + 1, lastUnderscoreIndex);
-		const uid = rawKey.slice(lastUnderscoreIndex + 1);
-		
-		return { prop, uid };
+		return {
+			prop: rawKey.slice(firstUnderscoreIndex + 1, lastUnderscoreIndex),
+			uid: rawKey.slice(lastUnderscoreIndex + 1)
+		};
 	}
 	
 	return { prop: "", uid: "" };
 }
-

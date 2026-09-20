@@ -1,7 +1,7 @@
 // lifecycle/observation
 
 import { App, TFile, WorkspaceLeaf } from "obsidian";
-import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
+import { updatePropertiesPane, updateContainer } from "../views/view-invalidator";
 import { clearExtraAttributes } from "../processors/link-mutator";
 import ResuperchargedLinks from "../main";
 import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";

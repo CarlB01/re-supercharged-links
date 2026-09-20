@@ -1,6 +1,6 @@
 import { App, debounce, TFile, MarkdownView } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { updateVisibleLinks, updateContainer, updateElLinks } from "../views/view-updaters";
+import { updateVisibleLinks, updateContainer, updateElLinks } from "../views/view-invalidator";
 import { initViewObservers, initModalObservers } from "./observer-engine";
 
 /**

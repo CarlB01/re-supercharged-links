@@ -2,7 +2,7 @@ import { Setting, SettingDefinitionItem, App } from "obsidian";
 import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
 import ResuperchargedLinks from "../../main";
-import { updateVisibleLinks } from "../../views/view-updaters";
+import { updateVisibleLinks } from "../../views/view-invalidator";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 

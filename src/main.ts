@@ -4,7 +4,7 @@ import { SCLSettings } from './settings/settings';
 import SCLSettingTab from './settings/setting-tab';
 import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
 
-import { updateVisibleLinks } from "./views/view-updaters";
+import { updateVisibleLinks } from "./views/view-invalidator";
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
 import { disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { CSSLink } from './types/css-link';
@@ -46,7 +46,7 @@ export default class ResuperchargedLinks extends Plugin {
 
 	private readonly scheduleVisibleRefresh = debounce((): void => {
 		this.flushPendingRefresh();
-	}, 180, true);
+	}, 180, false);
 
 	// Public API for external event framework access
 	public enqueuePath(path: string): void {
@@ -70,23 +70,32 @@ export default class ResuperchargedLinks extends Plugin {
 	}
 
 	private flushPendingRefresh(): void {
-		const changedPaths: string[] = Array.from(this.pendingChangedPaths);
-		const changedPrefixes: string[] = Array.from(this.pendingChangedPrefixes);
+		if (this.pendingChangedPaths.size === 0 && this.pendingChangedPrefixes.size === 0) return;
 
-		if (changedPaths.length === 0 && changedPrefixes.length === 0) return;
+		// 🚀 FIX 2: REVNUT: Cache-pruning (sortering/scanning) er fjernet herfra fullstendig.
+		// Den kjører nå på en dedikert bakgrunns-timer i stedet for å kvele render-tråden.
 
-		this.cacheManager.runLifecyclePrune();
+		// ⚡ OPTIMALISERING: Konverter rå data effektivt uten doble arrays i minnet
+		const pathSet = new Set<string>();
+		this.pendingChangedPaths.forEach((p) => pathSet.add(p));
 		
+		const changedPrefixes: string[] = [];
+		this.pendingChangedPrefixes.forEach((p) => changedPrefixes.push(p));
+
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 
-		const pathSet = new Set(changedPaths);
 		const compactedPrefixes: string[] = compactPrefixes(changedPrefixes);
-		const prefixSet = new Set(compactedPrefixes);
+		const prefixSet = new Set<string>();
+		for (let i = 0; i < compactedPrefixes.length; i++) {
+			const pref = compactedPrefixes[i];
+			if (pref) prefixSet.add(pref);
+		}
 
 		const trackingActive: boolean = this.telemetry.getTrackingState();
 		const startMark: number = trackingActive ? Date.now() : 0;
 
+		// Vår oppdaterte versjon som ignorerer Live Preview/CodeMirror (preview-only guard)
 		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 
 		if (trackingActive) {
@@ -180,7 +189,17 @@ export default class ResuperchargedLinks extends Plugin {
 			callback: this.handleResetPerfMetrics.bind(this)
 		});
 
-		// 🔑 DECOUPLED: All event listeners and handlers are mounted via the dedicated engine
+		// 🚀 NATIVE TIMED EVICTION ENGINE: Registers cache lifecycle management with Obsidian's internal cleaner loop.
+		// Relocates heavy sort and map iteration routines completely away from hot rendering execution pipelines.
+		this.registerInterval(
+			window.setInterval(() => {
+				if (this.cacheManager) {
+					this.cacheManager.runLifecyclePrune();
+				}
+			}, 30000) // Executes passively every 30 seconds to clean stale memory segments
+		);
+
+		// All event listeners and handlers are mounted via the dedicated engine
 		registerPluginEvents(this.app, this);
 
 		const viewPluginInstance = buildCMViewPlugin(this.app, this);

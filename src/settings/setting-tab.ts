@@ -1,6 +1,6 @@
 import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem, setIcon } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { updateVisibleLinks } from "../views/view-updaters";
+import { updateVisibleLinks } from "../views/view-invalidator";
 import { CSSLink } from "../types/css-link";
 import { sanitizeRule } from "../processors/rule-sanitizer";
 import { clearColorHistory } from "./components/color-row-factory";
