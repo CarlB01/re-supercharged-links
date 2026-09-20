@@ -8,7 +8,7 @@
 [![Downloads](https://img.shields.io/github/downloads/CarlB01/re-supercharged-links/total)](https://github.com/CarlB01/re-supercharged-links/releases)
 [![Stars](https://img.shields.io/github/stars/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/stargazers)
 
-## 🚀 Built for Enterprise-Scale Vaults (v2.0.0)
+## 🚀 Built for Enterprise-Scale Vaults (v1.0.19)
 
 If you work in a giant vault with thousands of notes, database-like tables (Bases), or heavy automation addons like **myBrain**, traditional styling plugins can slow Obsidian down to a crawl. 
 
