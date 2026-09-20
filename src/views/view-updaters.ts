@@ -1,9 +1,9 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { isHtmlElement, extractCleanLinkPath, normalizePath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
 import { resolveRuleResolution } from "../processors/rule-resolver";
+import { extractCleanLinkPath, isHtmlElement, normalizePathForQueue } from "../utils/shared-utils";
 
 type RefreshScope = {
 	paths?: Set<string>;
@@ -319,7 +319,7 @@ function updateLeafInternalLinks(
 function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	if (!scope) return true;
 
-	const normalizedPath: string = normalizePath(path);
+	const normalizedPath: string = normalizePathForQueue(path);
 	if (normalizedPath.length === 0) return true;
 
 	const paths: Set<string> = scope.paths ?? new Set<string>();
@@ -329,7 +329,7 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	if (paths.has(normalizedPath)) return true;
 
 	for (const prefix of prefixes) {
-		const p: string = normalizePath(prefix);
+		const p: string = normalizePathForQueue(prefix);
 		if (p.length === 0) continue;
 
 		const normalizedPrefix: string = p.endsWith("/") ? p : `${p}/`;
@@ -349,12 +349,12 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 		? {
 				paths: new Set(
 					Array.from(scope.paths ?? [])
-						.map((p: string): string => normalizePath(p))
+						.map((p: string): string => normalizePathForQueue(p))
 						.filter((p: string): boolean => p.length > 0)
 				),
 				prefixes: new Set(
 					Array.from(scope.prefixes ?? [])
-						.map((p: string): string => normalizePath(p))
+						.map((p: string): string => normalizePathForQueue(p))
 						.filter((p: string): boolean => p.length > 0)
 				)
 		  }

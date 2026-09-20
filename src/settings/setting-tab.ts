@@ -5,10 +5,10 @@ import { CSSLink } from "../types/css-link";
 import { sanitizeRule } from "../processors/rule-sanitizer";
 import { clearColorHistory } from "./components/color-row-factory";
 import { getRuleDetailItems } from "./components/detail-rows-factory";
-import { createColorCapsule } from "./components/color-capsule";
 import { renderRuleSentence } from "./components/rule-renderer";
-import { cleanSearchQuery, parseControlValueKey } from "../utils/string-utils";
 import { moveRule } from "./components/rule-order-engine";
+import { cleanSearchQuery, parseControlValueKey } from "../utils/shared-utils";
+import { createColorCapsule } from "./components/color-capsule";
 
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };

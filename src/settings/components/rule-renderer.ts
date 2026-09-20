@@ -1,5 +1,5 @@
 import { CSSLink } from "../../types/css-link";
-import { cleanAttributeKey } from "../../utils/string-utils";
+import { cleanAttributeKey } from "../../utils/shared-utils";
 
 /**
  * Renders the standalone preview link node inside the settings tab row framework.

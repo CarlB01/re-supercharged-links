@@ -4,10 +4,10 @@ import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/v
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
-import { startsWithToken, endsWithToken, extractCleanLinkPath } from "../utils/string-utils";
 import { resolveLinkFile } from "./live-preview";
 import { IconWidget } from "./components/icon-widget";
 import { resolveRuleResolution } from "../processors/rule-resolver";
+import { endsWithToken, extractCleanLinkPath, startsWithToken } from "../utils/shared-utils";
 
 interface CodeMirrorNodeRef {
 	name: string;

@@ -84,10 +84,12 @@
       "lightBgColor": "#cbfbeb"
     },
     {
-      "type": "path",
-      "value": "ad",
-      "lightColor": "#931f52",
-      "darkColor": "#f28cb8"
+      "type": "tag",
+      "value": "hun",
+      "lightColor": "#6f1f93",
+      "darkColor": "#f28cb8",
+      "iconAfter": "🀄️",
+      "lightBgColor": "#e0d23e"
     },
     {
       "type": "attribute",

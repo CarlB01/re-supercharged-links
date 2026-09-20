@@ -11,7 +11,7 @@ import { CSSLink } from './types/css-link';
 import { invalidateByPath, invalidateByPrefix } from "./processors/attribute-fetcher";
 import { PluginPerformanceTracker } from './telemetry';
 import { AttributeCacheManager } from './processors/cache-manager';
-import { normalizePathForQueue, compactPrefixes } from './utils/path-utils';
+import { normalizePathForQueue, compactPrefixes } from './utils/shared-utils';
 import { compileSelectors, CompiledRule } from './processors/rule-compiler';
 import { registerPluginEvents } from './observers/event-registry';
 

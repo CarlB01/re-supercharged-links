@@ -1,23 +1,25 @@
+// utils/shared-utils
+
 /**
- * Perform a typesafe structural clone of settings blocks without using any-casts.
+ * Performs a typesafe structural clone of settings blocks without using any-casts.
  */
 export function cloneSettingsObject<T>(obj: T): T {
 	return JSON.parse(JSON.stringify(obj)) as T;
 }
 
 /**
- * Super-robust normalization for emojis and text strings.
- * Strips emoji variation selectors (U+FE0F) and standardizes formatting.
+ * Standardizes formatting and strips invisible emoji variation selectors (U+FE0F).
+ * Enforces unified NFC normalization boundaries across layout nodes.
  */
 export const norm = (s: string | null | undefined): string =>
 	(s ?? "")
 		.normalize("NFC")
-		.replace(/[\uFE00-\uFE0F]/g, "") // Strips absolutely all invisible emoji variation selectors
+		.replace(/[\uFE00-\uFE0F]/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
 
 /**
- * Verifies if a normalized text string begins with a specific token literal.
+ * Evaluates whether a normalized layout text string begins with a specific token literal.
  */
 export const startsWithToken = (text: string | null | undefined, token: string | null | undefined): boolean => {
 	const t: string = norm(text);
@@ -26,8 +28,8 @@ export const startsWithToken = (text: string | null | undefined, token: string |
 };
 
 /**
- * Advanced, multi-window safe check verifying if a string ends with a specific token literal.
- * Uses a slice boundary lookup to eliminate bugs caused by hidden trailing space strings.
+ * Multi-window safe bounds verification check ensuring a string ends with a token literal.
+ * Employs trailing slice validation to eliminate whitespace drops or layout drift.
  */
 export const endsWithToken = (text: string | null | undefined, token: string | null | undefined): boolean => {
 	const t: string = norm(text);
@@ -49,7 +51,7 @@ export function processKey(key: string): string {
 }
 
 /**
- * Cleans metadata string properties and strips internal wiki brackets from designated publishing matrices.
+ * Sanitizes frontmatter strings and slices open internal wikilink brackets for targeted matrices.
  */
 export function processValue(key: string, value: string): string {
 	if (!value) return value;
@@ -60,12 +62,12 @@ export function processValue(key: string, value: string): string {
 }
 
 /**
- * Transforms loose layout words into standardized hashtag tokens cleanly.
+ * Sanitizes and transforms loose structural strings into standard hashtag tokens.
  */
 export function normalizeTagToken(input: string): string {
 	let s: string = norm(input);
 	if (s.length === 0) return "";
-	s = s.replace(/^[\s,;|]+|[\s,;|]+$/g, "");
+	s = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
 	if (!s.startsWith("#")) {
 		s = `#${s}`;
 	}
@@ -73,27 +75,27 @@ export function normalizeTagToken(input: string): string {
 }
 
 /**
- * Escapes specific characters within runtime string nodes to keep inline CSS strings clean.
+ * Escapes structural backslashes and quotes within inline runtime nodes to protect CSS generation.
  */
 export function escCssString(v: string | null | undefined): string {
 	return (v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 /**
- * Comprehensive runtime guard to guarantee a node maps to a solid HTMLElement instance.
+ * Runtime guard verifying if an abstract unknown node maps to a solid HTMLElement layout layer.
  */
 export function isHtmlElement(node: unknown): node is HTMLElement {
 	return typeof node === "object" && node !== null && (node as Node).nodeType === 1;
 }
 
 /**
- * Extracts and isolates clean anchor routes by trimming fragment identifiers and pipe aliases.
+ * Isolates core target path layouts by stripping outer wikilink notation, fragments, and alias pipes.
  */
 export function extractCleanLinkPath(rawText: string | null | undefined): string {
 	const text: string = rawText ?? "";
 	if (text.length === 0) return "";
 	
-	let cleanText: string = text.replace(/^\[\[/, "").replace(/\]\]$/, "");
+	let cleanText: string = text.replace(/^\[\[/, "").replace(/\]\]\$/, "");
 
 	if (cleanText.includes("|")) {
 		const pipeParts: string[] = cleanText.split("|");
@@ -108,21 +110,49 @@ export function extractCleanLinkPath(rawText: string | null | undefined): string
 }
 
 /**
- * 🚀 UNIFIED RUNTIME ROUTINE: Cleans and standardizes user rule values for index matching.
+ * Standardizes configuration selector match keywords into clean, lowercase strings.
  */
 export function cleanRuleValue(value: string | null | undefined): string {
 	return (value ?? "").toLowerCase().trim().replace(/^#/, "");
 }
 
 /**
- * 🚀 UNIFIED RUNTIME ROUTINE: Standardizes attribute and metadata names down to lowercase-hyphen strings.
+ * Formats user frontmatter metadata names into lower-hyphen delimitations.
  */
 export function cleanAttributeKey(name: string | null | undefined): string {
 	return (name ?? "").trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 /**
- * 🚀 UNIFIED RUNTIME ROUTINE: Sanitizes and splits space-separated metadata tokens into a clean string array.
+ * Fast-track path string normalization routine specifically tailored for queue ingestion.
+ * Converts characters to lowercase and strips leading forward slashes without regex overhead.
+ */
+export function normalizePathForQueue(input: string | null | undefined): string {
+	const text: string = input ?? "";
+	if (text.length === 0) return "";
+	
+	let trimmed: string = text.trim();
+	while (trimmed.startsWith("/")) {
+		trimmed = trimmed.substring(1);
+	}
+	
+	return trimmed.toLowerCase();
+}
+
+/**
+ * Granular linear scan processing space-separated strings via inline padding maps.
+ * ⚡ ZERO-ARRAY TRICK: Drop-in replacement for array splits to minimize GC thread sweeps.
+ */
+export function hasTagToken(rawTags: string | null | undefined, targetCleanTag: string): boolean {
+	const tags: string = (rawTags ?? "").toLowerCase();
+	if (tags.length === 0 || targetCleanTag.length === 0) return false;
+
+	const paddedTags: string = " " + tags.replace(/#/g, "") + " ";
+	return paddedTags.includes(" " + targetCleanTag + " ");
+}
+
+/**
+ * Historical fallback array wrapper preserved for internal configuration parsing.
  */
 export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): string[] {
 	const text: string = rawInput ?? "";
@@ -137,38 +167,65 @@ export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): 
 }
 
 /**
- * 🚀 UNIFIED RUNTIME ROUTINE: Assembles structural, typesafe tracking keys for layout observer matrices.
+ * Filters and compacts a list of folder prefixes to purge redundant children from memory trees.
+ * Runs on sorted array indexes allowing linear positional lookups in O(N log N) speed.
+ */
+export function compactPrefixes(prefixes: string[]): string[] {
+	if (prefixes.length === 0) return [];
+
+	const cleaned: string[] = [];
+	prefixes.forEach((p) => {
+		if (p.length === 0) return;
+		cleaned.push(p.endsWith("/") ? p : `${p}/`);
+	});
+
+	if (cleaned.length <= 1) return cleaned;
+
+	cleaned.sort();
+
+	const output: string[] = [];
+	const currentParent: string = cleaned[0] || ""; 
+	if (currentParent.length > 0) {
+		output.push(currentParent);
+	}
+
+	for (let i = 1; i < cleaned.length; i += 1) {
+		const nextPath: string = cleaned[i] || "";
+		if (nextPath.length === 0) continue;
+
+		if (!nextPath.startsWith(currentParent)) {
+			output.push(nextPath);
+		}
+	}
+
+	return output;
+}
+
+/**
+ * Compiles structural runtime index tags used to pin MutationObservers to explicit tab sheets.
  */
 export function buildObserverKey(prefix: string, index: number): string {
 	return `${prefix.trim().toLowerCase()}-${index}`;
 }
 
 /**
- * 🚀 UNIFIED UI ROUTINE: Standardizes setting queries for robust panel rows searching.
+ * Strips UI query streams to process layout rule checks across search boxes.
  */
 export function cleanSearchQuery(query: string | null | undefined): string {
 	return (query ?? "").trim().toLowerCase();
 }
 
 /**
- * Splits open control value interaction keys symmetrically.
- * 🔑 RUNTIME INDEX MATRIX: Strictly cuts the string at the VERY LAST underscore character.
- * This ensures clean extraction of CamelCase properties and sequential index numbers (e.g., 'scl_lightColor_0').
+ * Slices interface element interaction triggers symmetrically at the trailing underscore character.
+ * Prevents index alignment failures when handling multi-nested properties (e.g., 'scl_lightColor_0').
  */
 export function parseControlValueKey(key: string): { prop: string; uid: string } {
 	const rawKey = key ?? "";
-	
-	// Finn posisjonen til den aller siste understreken i strengen (skiller egenskap fra indeks)
 	const lastUnderscoreIndex = rawKey.lastIndexOf("_");
 	
 	if (lastUnderscoreIndex > 0) {
-		// Finn den første understreken (skiller 'scl' fra egenskapen)
 		const firstUnderscoreIndex = rawKey.indexOf("_");
-		
-		// Trekk ut egenskapen (f.eks. alt mellom første og siste understrek: 'lightColor')
 		const prop = rawKey.slice(firstUnderscoreIndex + 1, lastUnderscoreIndex);
-		
-		// Trekk ut indeksen eller ID-en (alt etter den siste understreken: '0')
 		const uid = rawKey.slice(lastUnderscoreIndex + 1);
 		
 		return { prop, uid };
@@ -177,6 +234,3 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 	return { prop: "", uid: "" };
 }
 
-export function normalizePath(input: string | null | undefined): string {
-	return (input ?? "").trim().replace(/^\/+/, "").toLowerCase();
-}

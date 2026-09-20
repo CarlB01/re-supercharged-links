@@ -2,7 +2,7 @@
 
 import { App, getAllTags, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/string-utils";
+import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export type AttrCache = Map<string, Record<string, string>>;
 

@@ -1,8 +1,8 @@
 // DOM-changes
-import { cleanAttributeKey, parseSpaceSeparatedTokens, norm, processValue } from "../utils/string-utils";
 import ResuperchargedLinks from "../main";
 import { CSSLink } from "../types/css-link";
 import { resolveRuleResolution } from "./rule-resolver";
+import { cleanAttributeKey, norm, parseSpaceSeparatedTokens, processValue } from "../utils/shared-utils";
 
 /**
  * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.

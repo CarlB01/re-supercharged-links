@@ -3,8 +3,8 @@
 import { App, TFile, WorkspaceLeaf } from "obsidian";
 import { updatePropertiesPane, updateContainer } from "../views/view-updaters";
 import { clearExtraAttributes } from "../processors/link-mutator";
-import { isHtmlElement, buildObserverKey } from "../utils/string-utils";
 import ResuperchargedLinks from "../main";
+import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
 
 interface ObsidianAppInternalRegistry {
 	plugins?: {

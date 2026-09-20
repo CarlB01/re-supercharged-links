@@ -1,5 +1,4 @@
 import { CSSLink } from "../types/css-link";
-import { parseSpaceSeparatedTokens, cleanRuleValue, cleanAttributeKey } from "../utils/string-utils";
 
 export interface AccumulatedStyleProfile {
 	uid: string;

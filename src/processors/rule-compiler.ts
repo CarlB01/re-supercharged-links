@@ -1,5 +1,5 @@
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, parseSpaceSeparatedTokens } from "../utils/string-utils";
+import { cleanAttributeKey, cleanRuleValue, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 

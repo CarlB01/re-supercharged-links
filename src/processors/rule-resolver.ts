@@ -1,5 +1,5 @@
+import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import { CompiledRule } from "./rule-compiler";
-import { parseSpaceSeparatedTokens } from "../utils/string-utils";
 
 export interface RuleResolution {
 	readonly hasMatch: boolean;
