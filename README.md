@@ -98,4 +98,4 @@ Respect to the original Supercharged Links idea and maintainers. Re-Supercharged
 ---
 Developed with care for real-world, high-density note systems.
 
-(The "we" in this gracious readme actually refers to myself and my eager and pleasing AI companion. Just to be up-front about that.)
+(The "we" in this gracious readme refers to me and my slightly annoying but eager and pleasing various AI companions.)
