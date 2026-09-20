@@ -40,6 +40,13 @@ Instead of plain, identical internal links, the appearance of your links instant
 
 ---
 
+**Typical display**
+
+<img src="media/details.png" alt="styling panel typical display" style="max-width: 100%; width: 280px; height: auto; border-radius: 8px;">
+<img src="media/details2.png" alt="styling details" style="max-width: 100%; width: 280px; height: auto; border-radius: 8px;">
+
+---
+
 ## Quick start
 
 1. Install and enable **Re-Supercharged Links** via Community Plugins.
