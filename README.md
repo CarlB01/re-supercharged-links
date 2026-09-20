@@ -10,7 +10,7 @@
 
 ## 🚀 Built for Enterprise-Scale Vaults (v1.0.19)
 
-If you work in a giant vault with thousands of notes, database-like tables (Bases), or heavy automation addons like **myBrain**, traditional styling plugins can slow Obsidian down to a crawl. 
+If you work in a giant vault with thousands of notes, database-like tables (Bases), or heavy automation addons like myBrain, traditional styling plugins can slow Obsidian down to a crawl. 
 
 `Re-Supercharged Links` has been entirely re-engineered to tackle the infamous "heavy vault lag." The latest architecture ensures your computer stays dead silent—even when handling massive layouts.
 
