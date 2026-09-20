@@ -1,18 +1,19 @@
-import { Plugin, debounce, TFile, Notice, App, MarkdownView } from 'obsidian';
+import { Plugin, debounce, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 import { SCLSettings } from './settings/settings';
 import SCLSettingTab from './settings/setting-tab';
 import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
 
-import { updateElLinks, updateVisibleLinks, updateContainer } from "./views/view-updaters";
+import { updateVisibleLinks } from "./views/view-updaters";
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
-import { initViewObservers, initModalObservers, disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
+import { disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
 import { CSSLink } from './types/css-link';
 import { invalidateByPath, invalidateByPrefix } from "./processors/attribute-fetcher";
 import { PluginPerformanceTracker } from './telemetry';
 import { AttributeCacheManager } from './processors/cache-manager';
 import { normalizePathForQueue, compactPrefixes } from './utils/path-utils';
+import { compileSelectors, CompiledRule } from './processors/rule-compiler';
+import { registerPluginEvents } from './observers/event-registry';
 
 interface ObsidianAppWithCustomCss {
 	customCss?: {
@@ -27,14 +28,6 @@ interface ObsidianPluginRegistry {
 	};
 }
 
-interface ObsidianMarkdownViewWithCM {
-	view: {
-		editor?: {
-			cm?: EditorView;
-		};
-	};
-}
-
 export default class ResuperchargedLinks extends Plugin {
 	declare public settings: SCLSettings;
 	public settingTab!: SCLSettingTab;
@@ -43,8 +36,9 @@ export default class ResuperchargedLinks extends Plugin {
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
 	
-	public performanceTracker!: PluginPerformanceTracker;
+	public telemetry!: PluginPerformanceTracker;
 	public cacheManager!: AttributeCacheManager;
+	public compiledRules: CompiledRule[] = [];
 	
 	private ruleConfigVersion: number = 0;
 	private readonly pendingChangedPaths: Set<string> = new Set();
@@ -54,20 +48,25 @@ export default class ResuperchargedLinks extends Plugin {
 		this.flushPendingRefresh();
 	}, 180, true);
 
-	public touchAttrCacheKey(key: string): void {
-		this.cacheManager.touchAttrCacheKey(key);
-	}
-
-	private queuePath(path: string): void {
+	// Public API for external event framework access
+	public enqueuePath(path: string): void {
 		const normalized: string = normalizePathForQueue(path);
 		if (normalized.length === 0) return;
 		this.pendingChangedPaths.add(normalized);
 	}
 
-	private queuePrefix(prefix: string): void {
+	public enqueuePrefix(prefix: string): void {
 		const normalized: string = normalizePathForQueue(prefix);
 		if (normalized.length === 0) return;
 		this.pendingChangedPrefixes.add(normalized.endsWith("/") ? normalized : `${normalized}/`);
+	}
+
+	public triggerScheduleRefresh(): void {
+		this.scheduleVisibleRefresh();
+	}
+
+	public touchAttrCacheKey(key: string): void {
+		this.cacheManager.touchAttrCacheKey(key);
 	}
 
 	private flushPendingRefresh(): void {
@@ -85,14 +84,15 @@ export default class ResuperchargedLinks extends Plugin {
 		const compactedPrefixes: string[] = compactPrefixes(changedPrefixes);
 		const prefixSet = new Set(compactedPrefixes);
 
-		const trackingActive: boolean = this.performanceTracker.getTrackingState();
-		const startMark: number = trackingActive ? performance.now() : 0;
+		const trackingActive: boolean = this.telemetry.getTrackingState();
+		const startMark: number = trackingActive ? Date.now() : 0;
 
 		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 
 		if (trackingActive) {
-			const elapsed: number = performance.now() - startMark;
-			this.performanceTracker.recordUpdateCycle(elapsed, 0);
+			const elapsed: number = Date.now() - startMark;
+			const nodesCount: number = this.telemetry.getLastNodeCount();
+			this.telemetry.recordUpdateCycle(elapsed, nodesCount);
 		}
 	}
 
@@ -106,6 +106,8 @@ export default class ResuperchargedLinks extends Plugin {
 
 	public bumpRuleConfigVersion(): void {
 		this.ruleConfigVersion += 1;
+		const selectorsArray = this.settings?.selectors ?? [];
+		this.compiledRules = compileSelectors(selectorsArray);
 		this.clearAttrCycleCache();
 	}
 
@@ -119,12 +121,28 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+	/**
+	 * Explicit command handler to avoid inline script evaluation limits.
+	 */
+	public handlePrintPerfReport(): void {
+		if (this.telemetry !== null && this.telemetry !== undefined) {
+			this.telemetry.printReport();
+		}
+	}
+
+	/**
+	 * Explicit command handler to clear telemetry buffers.
+	 */
+	public handleResetPerfMetrics(): void {
+		if (this.telemetry !== null && this.telemetry !== undefined) {
+			this.telemetry.resetMetrics();
+		}
+	}
+
 	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			const internalLeaf: ObsidianMarkdownViewWithCM = leaf as unknown as ObsidianMarkdownViewWithCM;
-			const cm: EditorView | null = internalLeaf.view?.editor?.cm ?? null;
-			
+			const cm = (leaf as any).view?.editor?.cm ?? null;
 			if (cm !== null && typeof cm.dispatch === "function") {
 				cm.dispatch({
 					effects: themeCompartment.reconfigure(currentTheme)
@@ -138,8 +156,8 @@ export default class ResuperchargedLinks extends Plugin {
 		this.modalObservers = [];
 		this.attrCycleCache = new Map();
 		
-		this.performanceTracker = new PluginPerformanceTracker(true);
-		this.cacheManager = new AttributeCacheManager(this.attrCycleCache, this.performanceTracker);
+		this.telemetry = new PluginPerformanceTracker(true);
+		this.cacheManager = new AttributeCacheManager(this.attrCycleCache, this.telemetry);
 
 		await this.cleanupLegacySnippetFile();
 		this.detectPluginCollisions();
@@ -151,46 +169,19 @@ export default class ResuperchargedLinks extends Plugin {
 		this.addSettingTab(this.settingTab);
 
 		this.addCommand({
-			id: "print-scl-perf-report",
-			name: "Print performance instrumentation report",
-			callback: () => { this.performanceTracker.printReport(); }
+			id: "scl-botteknott-rapport",
+			name: "Print styling telemetry botteknott report",
+			callback: this.handlePrintPerfReport.bind(this)
 		});
 
 		this.addCommand({
-			id: "reset-scl-perf-metrics",
-			name: "Reset performance metrics counters",
-			callback: () => { this.performanceTracker.resetMetrics(); }
+			id: "scl-reset-botteknott-metrics",
+			name: "Reset styling telemetry botteknott metrics",
+			callback: this.handleResetPerfMetrics.bind(this)
 		});
 
-		this.registerMarkdownPostProcessor((el: HTMLElement, ctx) => {
-			updateElLinks(this.app, this, el, ctx);
-		});
-
-		const updateLinksDebounced = debounce((_file: TFile | null) => {
-			this.clearAttrCycleCache();
-			
-			const trackingActive: boolean = this.performanceTracker.getTrackingState();
-			const startMark: number = trackingActive ? performance.now() : 0;
-
-			updateVisibleLinks(this.app, this);
-
-			if (trackingActive) {
-				const elapsed: number = performance.now() - startMark;
-				this.performanceTracker.recordUpdateCycle(elapsed, 0);
-			}
-
-			this.refreshEditorThemes();
-
-			const activeObservers: [MutationObserver, string, string][] = this.observers ?? [];
-			activeObservers.forEach(([_, type, ownClass]) => {
-				const leaves = this.app.workspace.getLeavesOfType(type);
-				leaves.forEach(leaf => {
-					if (leaf?.view?.containerEl) {
-						updateContainer(leaf.view.containerEl, this, ownClass);
-					}
-				});
-			});
-		}, 300, true);
+		// 🔑 DECOUPLED: All event listeners and handlers are mounted via the dedicated engine
+		registerPluginEvents(this.app, this);
 
 		const viewPluginInstance = buildCMViewPlugin(this.app, this);
 		const initialTheme = createRuntimeEditorTheme(this);
@@ -199,99 +190,6 @@ export default class ResuperchargedLinks extends Plugin {
 			Prec.lowest(viewPluginInstance),
 			themeCompartment.of(initialTheme)
 		]);
-
-		this.app.workspace.onLayoutReady((): void => {
-			this.clearAttrCycleCache();
-			initViewObservers(this);
-			initModalObservers(this, document);
-
-			updateVisibleLinks(this.app, this);
-			this.refreshEditorThemes();
-
-			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-			const activeFile = activeView?.file ?? null;
-			
-			if (activeFile !== null) {
-				window.setTimeout((): void => {
-					updateVisibleLinks(this.app, this, { paths: new Set([activeFile.path]) });
-				}, 60);
-
-				window.setTimeout((): void => {
-					updateVisibleLinks(this.app, this, { paths: new Set([activeFile.path]) });
-				}, 220);
-			}
-
-			window.setTimeout((): void => {
-				updateVisibleLinks(this.app, this);
-			}, 250);
-		});
-
-		this.registerEvent(this.app.workspace.on("window-open", (window) => {
-			if (window?.getContainer()?.doc) {
-				initModalObservers(this, window.getContainer().doc);
-			}
-		}));
-
-		this.registerEvent(this.app.workspace.on("layout-change", (): void => {
-			initViewObservers(this);
-			updateLinksDebounced(null);
-		}));
-
-		this.registerEvent(this.app.vault.on("modify", (file): void => {
-			if (!(file instanceof TFile)) return;
-
-			this.invalidateAttrCacheByPath(file.path);
-			this.cacheManager.markPathTouched(file.path);
-
-			this.queuePath(file.path);
-			this.scheduleVisibleRefresh();
-		}));
-
-		this.registerEvent(this.app.vault.on("delete", (file): void => {
-			const path = (file as { path?: string }).path ?? "";
-			if (path.length === 0) return;
-
-			this.invalidateAttrCacheByPath(path);
-			this.cacheManager.markPathTouched(path);
-
-			this.queuePath(path);
-			this.scheduleVisibleRefresh();
-		}));
-
-		this.registerEvent(this.app.vault.on("rename", (file, oldPath): void => {
-			const newPath = (file as { path?: string }).path ?? "";
-
-			if (oldPath && oldPath.length > 0) {
-				this.invalidateAttrCacheByPath(oldPath);
-				this.cacheManager.markPathTouched(oldPath);
-				this.queuePath(oldPath);
-			}
-
-			if (newPath.length > 0) {
-				this.invalidateAttrCacheByPath(newPath);
-				this.cacheManager.markPathTouched(newPath);
-				this.queuePath(newPath);
-			}
-
-			if (oldPath.endsWith("/")) {
-				this.invalidateAttrCacheByPrefix(oldPath);
-				this.queuePrefix(oldPath);
-			}
-
-			if (newPath.endsWith("/")) {
-				this.invalidateAttrCacheByPrefix(newPath);
-				this.queuePrefix(newPath);
-			}
-
-			this.scheduleVisibleRefresh();
-		}));
-
-		this.registerEvent(this.app.metadataCache.on("changed", (file: TFile): void => {
-			if (this.cacheManager.wasPathTouchedRecently(file.path)) return;
-
-			this.queuePath(file.path);
-			this.scheduleVisibleRefresh();
-		}));
 	}
 	
 	public onunload(): void {
@@ -315,6 +213,9 @@ export default class ResuperchargedLinks extends Plugin {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
+		const selectorsArray = this.settings?.selectors ?? [];
+		this.compiledRules = compileSelectors(selectorsArray);
+
 		if (dataRepaired) {
 			await this.saveSettings();
 		}
@@ -324,7 +225,7 @@ export default class ResuperchargedLinks extends Plugin {
 		await saveStrippedSettings(this, this.settings);
 	}
 	
-		private async cleanupLegacySnippetFile(): Promise<void> {
+	private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
 			const adapter = this.app.vault.adapter;
 			const configDir = this.app.vault.configDir;
@@ -334,7 +235,7 @@ export default class ResuperchargedLinks extends Plugin {
 			if (fileExists) {
 				await adapter.remove(snippetPath);
 				
-				const internalApp: ObsidianAppWithCustomCss = this.app as unknown as ObsidianAppWithCustomCss;
+				const internalApp: any = this.app;
 				if (internalApp.customCss && typeof internalApp.customCss.reloadCustomCss === "function") {
 					await internalApp.customCss.reloadCustomCss();
 				}
@@ -364,4 +265,3 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 }
-

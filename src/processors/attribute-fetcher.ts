@@ -136,8 +136,6 @@ export function fetchTargetAttributesCached(
 	addDataHref: boolean,
 	cache: AttrCache
 ): Record<string, string> {
-	// D1: versioned cache key to avoid stale attribute snapshots when rules/settings change.
-	// Falls back safely if method does not exist (during transition/refactor).
 	const ruleConfigVersion: number =
 		typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
 
@@ -146,8 +144,13 @@ export function fetchTargetAttributesCached(
 
 	if (hit !== null) {
 		plugin.touchAttrCacheKey(key);
+		// 🔑 NY LINJE: Registrer at vi fant dataene i cachen!
+		if (plugin.telemetry) plugin.telemetry.logHit();
 		return hit;
 	}
+
+	// 🔑 NY LINJE: Registrer at cachen var tom og at vi må gjøre et tungt oppslag!
+	if (plugin.telemetry) plugin.telemetry.logMiss();
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
 	cache.set(key, resolved);

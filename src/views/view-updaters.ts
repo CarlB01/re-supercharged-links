@@ -3,8 +3,7 @@ import ResuperchargedLinks from "../main";
 import { isHtmlElement, extractCleanLinkPath, normalizePath } from "../utils/string-utils";
 import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
-import { CSSLink } from "../types/css-link";
-import { resolveRuleResolution, RuleResolution } from "../processors/rule-resolver";
+import { resolveRuleResolution } from "../processors/rule-resolver";
 
 type RefreshScope = {
 	paths?: Set<string>;
@@ -39,90 +38,90 @@ export function updateContainer(
 	plugin: ResuperchargedLinks,
 	selector: string,
 	filterCollapsible = false
-): void {
-	if (!container || typeof container.findAll !== "function") return;
+): number { // 🔑 Returns incremental element count for granular instrumentation telemetry
+	if (!container || typeof container.findAll !== "function") return 0;
+	if (!container.isConnected) return 0;
 
-		// Safe guard for detached DOM only.
-		// (Do not use offsetParent visibility checks here; that can break edit/live preview styling.)
-		if (!container.isConnected) return;
+	let styledCount: number = 0;
 
-		if (plugin.settings.enableTagChips) {
-			tagChipStyles(container, plugin);
-		}
+	if (plugin.settings.enableTagChips) {
+		tagChipStyles(container, plugin);
+	}
 
-		const nodes: HTMLElement[] = container.findAll(selector) ?? [];
-		if (nodes.length === 0) return;
+	const nodes: HTMLElement[] = container.findAll(selector) ?? [];
+	if (nodes.length === 0) return 0;
 
-		const isPopupContext: boolean =
-			container.classList.contains("suggestion-container") ||
-			container.classList.contains("modal-container") ||
-			container.closest(".suggestion-container, .modal-container") !== null;
+	const isPopupContext: boolean =
+		container.classList.contains("suggestion-container") ||
+		container.classList.contains("modal-container") ||
+		container.closest(".suggestion-container, .modal-container") !== null;
 
-		// Hoist stable values once per container pass
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const selectorsConfig: CSSLink[] = plugin.settings?.selectors ?? [];
+	const isDark: boolean = document.body.classList.contains("theme-dark");
 
-		for (let i = 0; i < nodes.length; i++) {
-			const node: HTMLElement | null = nodes[i] ?? null;
-			if (node === null || !isHtmlElement(node)) continue;
+	for (let i = 0; i < nodes.length; i++) {
+		const node: HTMLElement | null = nodes[i] ?? null;
+		if (node === null || !isHtmlElement(node)) continue;
 
-			if (isPopupContext) {
-				const parentItem: Element | null = node.closest(
-					".suggestion-item, .another-quick-switcher__item, .omnisearch-result"
-				);
+		if (isPopupContext) {
+			const parentItem: Element | null = node.closest(
+				".suggestion-item, .another-quick-switcher__item, .omnisearch-result"
+			);
 
-				let resolvedPath: string = "";
-				if (parentItem instanceof HTMLElement) {
-					resolvedPath =
-						parentItem.getAttribute("data-path") ||
-						parentItem.getAttribute("data-href") ||
-						"";
-				}
-
-				if (resolvedPath.length === 0) {
-					resolvedPath = node.textContent ?? "";
-				}
-				if (resolvedPath.length === 0) continue;
-
-				const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(
-					getLinkpath(resolvedPath),
-					""
-				);
-				if (dest === null) continue;
-
-				const rawProps: Record<string, string> = fetchTargetAttributesSync(
-					plugin.app,
-					plugin,
-					dest,
-					false
-				);
-
-				const resolution: RuleResolution = resolveRuleResolution({
-					selectors: selectorsConfig,
-					resolvedAttrs: rawProps,
-					isDark,
-					includeTagMatchClasses: false
-				});
-
-				if (!resolution.hasMatch) continue;
-
-				const activeColor: string = resolution.style.color;
-				const activeBg: string = resolution.style.backgroundColor;
-
-				if (activeColor.length > 0) node.style.color = activeColor;
-				if (activeBg.length > 0 && activeBg !== "transparent") {
-					node.style.backgroundColor = activeBg;
-				}
-
-				if (activeColor.length > 0) {
-					node.setAttribute("data-link-color", activeColor);
-				}
-				node.addClass("data-link-text");
-			} else {
-				updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
+			let resolvedPath: string = "";
+			if (parentItem instanceof HTMLElement) {
+				resolvedPath =
+					parentItem.getAttribute("data-path") ||
+					parentItem.getAttribute("data-href") ||
+					"";
 			}
+
+			if (resolvedPath.length === 0) {
+				resolvedPath = node.textContent ?? "";
+			}
+			if (resolvedPath.length === 0) continue;
+
+			const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(
+				getLinkpath(resolvedPath),
+				""
+			);
+			if (dest === null) continue;
+
+			const rawProps: Record<string, string> = fetchTargetAttributesSync(
+				plugin.app,
+				plugin,
+				dest,
+				false
+			);
+
+			const resolution = resolveRuleResolution({
+				compiledRules: plugin.compiledRules,
+				resolvedAttrs: rawProps,
+				isDark,
+				includeTagMatchClasses: false
+			});
+
+			if (!resolution.hasMatch) continue;
+
+			const activeColor: string = resolution.style.color;
+			const activeBg: string = resolution.style.backgroundColor;
+
+			if (activeColor.length > 0) node.style.color = activeColor;
+			if (activeBg.length > 0 && activeBg !== "transparent") {
+				node.style.backgroundColor = activeBg;
+			}
+
+			if (activeColor.length > 0) {
+				node.setAttribute("data-link-color", activeColor);
+			}
+			node.addClass("data-link-text");
+			styledCount += 1;
+		} else {
+			updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
+			styledCount += 1;
 		}
 	}
+	return styledCount;
+}
 	
 export function updateDivExtraAttributes(
 	app: App,
@@ -157,8 +156,6 @@ export function updateDivExtraAttributes(
 export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 	const attrCache: AttrCache = new Map();
 	const links = el.querySelectorAll("a.internal-link");
-	
-	// ⚡ STRIPPED OVERHEAD: Safely look lookup text targets without regressing via loose regex match strings
 	const destName = ctx.sourcePath.endsWith(".md") ? ctx.sourcePath.slice(0, -3) : ctx.sourcePath;
 
 	links.forEach((node) => {
@@ -169,7 +166,6 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 
 		const parts = hrefAttr.split("#");
 		const linkHref = parts[0];
-		
 		if (!linkHref) return;
 
 		const dest = app.metadataCache.getFirstLinkpathDest(linkHref, destName);
@@ -184,8 +180,6 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	const rawVal = frontmatter[key];
 	if (!rawVal) return null;
 
-	// ⚡ ARCHITECTURAL CONSOLIDATION: Re-use your global extractCleanLinkPath utility cleanly.
-	// This discards manual raw pipe splits and string slicing loops entirely.
 	const matchWikilink = (entry: string): string | null => {
 		if (entry.length <= 4 || !entry.startsWith("[[") || !entry.endsWith("]]")) return null;
 		
@@ -209,10 +203,11 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	return typeof rawVal === "string" ? matchWikilink(rawVal) : null;
 }
 
-export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app: App, plugin: ResuperchargedLinks): void {
+export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app: App, plugin: ResuperchargedLinks): number {
 	const frontmatter = app.metadataCache.getCache(file.path)?.frontmatter;
-	if (!frontmatter) return;
+	if (!frontmatter) return 0;
 
+	let count: number = 0;
 	const pills = propertiesEl.querySelectorAll("div.multi-select-pill-content");
 	pills.forEach((node) => {
 		if (!isHtmlElement(node)) return;
@@ -225,6 +220,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 		const resolvedTarget = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
 		if (resolvedTarget) {
 			updateDivExtraAttributes(plugin.app, plugin, node, "", resolvedTarget);
+			count += 1;
 		}
 	});
 
@@ -240,8 +236,11 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 		const resolvedTarget = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
 		if (resolvedTarget) {
 			updateDivExtraAttributes(plugin.app, plugin, node, "", resolvedTarget);
+			count += 1;
 		}
 	});
+
+	return count;
 }
 
 interface LeafWithMarkdownView {
@@ -253,7 +252,7 @@ function updateLeafPropertiesPane(
 	plugin: ResuperchargedLinks,
 	file: TFile,
 	leaf: LeafWithMarkdownView
-): void {
+): number {
 	let metadataPane: HTMLElement | null = null;
 	const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
 	if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {
@@ -261,8 +260,9 @@ function updateLeafPropertiesPane(
 	}
 
 	if (metadataPane !== null) {
-		updatePropertiesPane(metadataPane, file, app, plugin);
+		return updatePropertiesPane(metadataPane, file, app, plugin);
 	}
+	return 0;
 }
 
 function updateLeafTabHeader(
@@ -270,7 +270,7 @@ function updateLeafTabHeader(
 	plugin: ResuperchargedLinks,
 	file: TFile,
 	leaf: unknown
-): void {
+): number {
 	let tabHeader: HTMLElement | null = null;
 	const internalLeaf = leaf as ObsidianLeafHeaderInternal;
 	if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
@@ -278,9 +278,10 @@ function updateLeafTabHeader(
 	}
 
 	if (tabHeader !== null) {
-		// Tab headers are always styled when available.
 		updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
+		return 1;
 	}
+	return 0;
 }
 
 function updateLeafInternalLinks(
@@ -289,9 +290,10 @@ function updateLeafInternalLinks(
 	file: TFile,
 	containerEl: HTMLElement,
 	attrCache: AttrCache
-): void {
+): number {
 	const cachedFile = app.metadataCache.getFileCache(file);
 	const links = cachedFile?.links ?? [];
+	let localCount: number = 0;
 
 	for (let i: number = 0; i < links.length; i++) {
 		const link = links[i];
@@ -307,9 +309,11 @@ function updateLeafInternalLinks(
 		internalLinks.forEach((node: Element): void => {
 			if (isHtmlElement(node)) {
 				setLinkNewProps(node, newProps, plugin);
+				localCount += 1;
 			}
 		});
 	}
+	return localCount;
 }
 
 function isPathInScope(path: string, scope?: RefreshScope): boolean {
@@ -322,7 +326,6 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	const prefixes: Set<string> = scope.prefixes ?? new Set<string>();
 
 	if (paths.size === 0 && prefixes.size === 0) return true;
-
 	if (paths.has(normalizedPath)) return true;
 
 	for (const prefix of prefixes) {
@@ -340,6 +343,7 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?: RefreshScope): void {
 	const attrCache: AttrCache = plugin.attrCycleCache;
+	let totalNodesStyled: number = 0;
 
 	const normalizedScope: RefreshScope | undefined = scope
 		? {
@@ -362,13 +366,19 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 		const file: TFile | null = leaf.view.file;
 		if (file === null) return;
 
-		// Scoped short-circuit: skip leaves outside changed paths/prefixes
 		if (!isPathInScope(file.path, normalizedScope)) return;
 
 		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
 
-		updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
-		updateLeafTabHeader(app, plugin, file, leaf);
-		updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
+		totalNodesStyled += updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
+		totalNodesStyled += updateLeafTabHeader(app, plugin, file, leaf);
+		totalNodesStyled += updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
 	});
+
+	if (plugin.telemetry && plugin.telemetry.getTrackingState()) {
+		const genericTracker = plugin.telemetry as unknown as Record<string, number>;
+		if (plugin.telemetry && plugin.telemetry.getTrackingState()) {
+			plugin.telemetry.setLastNodeCount(totalNodesStyled);
+		}
+	}
 }

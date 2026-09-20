@@ -3,10 +3,9 @@ import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { fetchTargetAttributesSync } from "../processors/attribute-fetcher";
+import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 import { startsWithToken, endsWithToken, extractCleanLinkPath } from "../utils/string-utils";
 import { resolveLinkFile } from "./live-preview";
-import { CSSLink } from "../types/css-link";
 import { IconWidget } from "./components/icon-widget";
 import { resolveRuleResolution } from "../processors/rule-resolver";
 
@@ -84,8 +83,8 @@ export class CMViewPlugin {
 
 		state.collectedDecos.sort((a, b) => {
 			if (a.from !== b.from) return a.from - b.from;
-			const aSide = (a.value.spec as { side?: number })?.side ?? 0;
-			const bSide = (b.value.spec as { side?: number })?.side ?? 0;
+			const aSide: number = (a.value.spec as { side?: number })?.side ?? 0;
+			const bSide: number = (b.value.spec as { side?: number })?.side ?? 0;
 			return aSide - bSide;
 		});
 
@@ -204,50 +203,55 @@ export class CMViewPlugin {
 		}
 	}
 
+	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+		// 🔑 CONSOLIDATION 1: Co-opt the shared versioned global cache instead of firing expensive sync filescans
+		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
+			this.app, 
+			this.plugin, 
+			file, 
+			true, 
+			this.plugin.attrCycleCache
+		);
+		const attributes: Record<string, string> = {};
 
-// replace only processLinkDecoration with this implementation:
-public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
-	const rawAttrs: Record<string, string> = fetchTargetAttributesSync(this.app, this.plugin, file, true);
-	const attributes: Record<string, string> = {};
-
-	for (const key in rawAttrs) {
-		if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
-			const val: string | null = rawAttrs[key] ?? null;
-			if (val !== null) {
-				attributes[`data-link-${key}`] = val;
+		for (const key in rawAttrs) {
+			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
+				const val: string = rawAttrs[key] || "";
+				if (val.length > 0) {
+					attributes[`data-link-${key}`] = val;
+				}
 			}
 		}
+
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+
+		// 🔑 CONSOLIDATION 2: Switch execution route entirely to your lightning fast O(1) compiled selectors
+		const resolution = resolveRuleResolution({
+			compiledRules: this.plugin.compiledRules,
+			resolvedAttrs: rawAttrs,
+			isDark,
+			includeTagMatchClasses: true
+		});
+
+		const classList: string[] = [...resolution.classes];
+
+		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
+			attributes[attrKey] = attrValue;
+		}
+
+		const iconBefore: string = resolution.iconBefore;
+		if (iconBefore.length > 0 && startsWithToken(linkLabel, iconBefore)) {
+			classList.push("scl-hide-before");
+		}
+
+		const iconAfter: string = resolution.iconAfter;
+		if (iconAfter.length > 0 && endsWithToken(linkLabel, iconAfter)) {
+			classList.push("scl-hide-after");
+		}
+
+		return Decoration.mark({
+			attributes,
+			class: classList.filter((c: string): boolean => c.length > 0).join(" ")
+		});
 	}
-
-	const selectorsConfig: CSSLink[] = this.plugin.settings?.selectors ?? [];
-	const isDark: boolean = document.body.classList.contains("theme-dark");
-
-	const resolution = resolveRuleResolution({
-		selectors: selectorsConfig,
-		resolvedAttrs: rawAttrs,
-		isDark,
-		includeTagMatchClasses: true
-	});
-
-	const classList: string[] = [...resolution.classes];
-
-	for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
-		attributes[attrKey] = attrValue;
-	}
-
-	const iconBefore: string = resolution.iconBefore;
-	if (iconBefore.length > 0 && startsWithToken(linkLabel, iconBefore)) {
-		classList.push("scl-hide-before");
-	}
-
-	const iconAfter: string = resolution.iconAfter;
-	if (iconAfter.length > 0 && endsWithToken(linkLabel, iconAfter)) {
-		classList.push("scl-hide-after");
-	}
-
-	return Decoration.mark({
-		attributes,
-		class: classList.filter((c: string): boolean => c.length > 0).join(" ")
-	});
-}
 }

@@ -106,7 +106,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	const isDark: boolean = document.body.classList.contains("theme-dark");
 
 	const resolution = resolveRuleResolution({
-		selectors: selectorsConfig,
+		compiledRules: plugin.compiledRules, 
 		resolvedAttrs: newProps,
 		isDark,
 		includeTagMatchClasses: true

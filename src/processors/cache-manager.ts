@@ -8,7 +8,7 @@ export class AttributeCacheManager {
 	private readonly attrCycleCache: Map<string, Record<string, string>>;
 	private readonly attrCacheTouchedAt: Map<string, number> = new Map();
 	private readonly recentPathTouches: Map<string, number> = new Map();
-	private readonly performanceTracker: PluginPerformanceTracker;
+	private readonly telemetry: PluginPerformanceTracker; // 🔑 Endret fra performanceTracker til telemetry
 
 	private readonly ATTR_CACHE_TTL_MS: number = 5 * 60 * 1000; // 5 min
 	private readonly ATTR_CACHE_MAX_ENTRIES: number = 4000;
@@ -21,7 +21,7 @@ export class AttributeCacheManager {
 		tracker: PluginPerformanceTracker
 	) {
 		this.attrCycleCache = cacheMap;
-		this.performanceTracker = tracker;
+		this.telemetry = tracker; // 🔑 Endret her
 	}
 
 	public touchAttrCacheKey(key: string): void {

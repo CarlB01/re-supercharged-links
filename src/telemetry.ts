@@ -6,6 +6,7 @@ export class PluginPerformanceTracker {
 	private isEnabled: boolean = false;
 	private cacheHits: number = 0;
 	private cacheMisses: number = 0;
+	private lastNodeCount: number = 0;
 
 	private readonly updateTimingsMs: number[] = [];
 	private readonly processedElementsCount: number[] = [];
@@ -13,6 +14,14 @@ export class PluginPerformanceTracker {
 
 	constructor(initialState: boolean) {
 		this.isEnabled = initialState;
+	}
+
+	public setLastNodeCount(count: number): void {
+		this.lastNodeCount = count;
+	}
+
+	public getLastNodeCount(): number {
+		return this.lastNodeCount;
 	}
 
 	public setTrackingState(state: boolean): void {
@@ -79,13 +88,13 @@ export class PluginPerformanceTracker {
 			? (this.processedElementsCount[lastElementIndex] || 0)
 			: 0;
 
-		console.log(
-			`%c[Supercharged Links Perf]%c \n` +
+		// 🔑 FLATTET UT: Ingen mystiske linjeskift som kan lure esbuild under kompilering!
+		const reportText: string = "[Supercharged Links Perf]\n" +
 			`• Cache Hit Rate: ${hitRate}% (${this.cacheHits}/${totalRequests})\n` +
 			`• Average execution: ${avgTimeMs}ms\n` +
-			`• Average links styled: ${avgElements} nodes (Last frame: ${lastRunCount})`,
-			"color: #ff6600; font-weight: bold;",
-			"color: default;"
-		);
+			`• Average links styled: ${avgElements} nodes (Last frame: ${lastRunCount})`;
+
+		console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
 	}
+
 }
