@@ -8,94 +8,82 @@
 [![Downloads](https://img.shields.io/github/downloads/CarlB01/re-supercharged-links/total)](https://github.com/CarlB01/re-supercharged-links/releases)
 [![Stars](https://img.shields.io/github/stars/CarlB01/re-supercharged-links)](https://github.com/CarlB01/re-supercharged-links/stargazers)
 
-## 🚀 Built for Enterprise-Scale Vaults (v1.0.19)
-
-If you work in a giant vault with thousands of notes, database-like tables (Bases), or heavy automation addons like myBrain, traditional styling plugins can slow Obsidian down to a crawl. 
-
-`Re-Supercharged Links` has been entirely re-engineered to tackle the infamous "heavy vault lag." The latest architecture ensures your computer stays dead silent—even when handling massive layouts.
-
-### 📊 Real-World Telemetry Results
-Under heavy production stress (scrolling large tables and bulk-updating 700+ links simultaneously), the core engine achieved unprecedented efficiency benchmarks:
-
-* **0.0% to 0.2% Idle CPU Load:** No more infinite background render loops or battery drain. When you stop typing, the plugin completely falls asleep.
-* **99.2% Cache Hit Rate:** Over **150,000 requests** handled instantly in a matter of milliseconds. The plugin remembers your metadata styling, eliminating repetitive disk read lag.
-* **Sub-Millisecond Execution:** Average metadata resolution takes just **0.63ms to 1.11ms**, keeping Obsidian completely stutter-free.
+Dynamic metadata-driven link styling engine for Obsidian, engineered for ultra-low runtime overhead across high-density layouts.
 
 ---
 
-## What this plugin does
+## 🚀 Enterprise-Scale Vault Architecture (v2.0.0)
 
-Re-Supercharged Links turns invisible metadata into rich visual context across your entire Obsidian UI. 
+When operating inside heavy production environments containing tens of thousands of structural notes, deep automation layers (e.g., **myBrain**), or high-density datatables (**Bases**), traditional DOM-scanning layout patterns inherently degrade system responsiveness. 
 
-Instead of plain, identical internal links, the appearance of your links instantly tells you what's on the other side:
+`Re-Supercharged Links` bypasses conventional disc-bound CSS generation and synchronous repaints by decoupling metadata resolution from the main layout thread. 
 
-- **Status tracking:** (`#todo` 🟥, `#doing` 🟨, `#done` 🟩)
-- **Note profiles:** Style links differently depending on whether they lead to a `person`, a `project`, or a `daily-note`.
-- **Visual indicators:** Automatically inject telephone emojis (☎️) before contacts you need to call, or exclamation marks (⚠️) before overdue tasks.
+### 📊 Real-World Telemetry Metrics
+Under high-density stress testing (concurrently processing rapid viewpoint scrolling alongside bulk mutations of 700+ individual nodes), the execution engine logs the following benchmarks:
 
-### Core Features
-1. **Tag Selection:** Target notes using clean tag configurations (no leading `#` required).
-2. **Attribute Matching:** Create powerful rule maps based on YAML frontmatter or Dataview inline fields.
-3. **Path Rules:** Apply parent folder aesthetics automatically (e.g., style all notes inside your `Daily Logs/` directory).
+* **0.0% – 0.2% Main Thread Load:** Elimination of infinite background mutation cycles. The engine enters a passive state immediately upon layout stabilization.
+* **99.2% Cache Multi-Hit Efficiency:** More than **150,000 requests** resolved via memory-mapped cache tracks, omitting redundant metadata database operations.
+* **Sub-Millisecond Computation Boundaries:** Average rule evaluation and style resolution spans a strict **0.63ms to 1.11ms** execution window.
 
 ---
 
-**Typical display**
+## Technical Features
+
+The plugin parses structural metadata blocks to overlay persistent visual context across the entire Obsidian UI surface area (Live Preview, Reading Mode, and File Explorer layout layers).
+
+- **Tag Evaluation:** Matches clean tag configurations omitting leading delimiter tokens.
+- **Attribute Processing:** Targets YAML frontmatter mappings or Dataview-backed inline field matrices.
+- **Path Token Queries:** Evaluates parent directories and file path syntax parameters to enforce layout-wide aesthetics automatically.
+
+---
+
+**Typical Display Mappings**
 
 <img src="media/details.png" alt="styling panel typical display" style="max-width: 100%; width: 280px; height: auto; border-radius: 8px;">
 <img src="media/details2.png" alt="styling details" style="max-width: 100%; width: 280px; height: auto; border-radius: 8px;">
 
 ---
 
-## Quick start
+## 🛠️ System Architecture & Core Technologies
 
-1. Install and enable **Re-Supercharged Links** via Community Plugins.
-2. Open the plugin settings and add a new rule selector.
-3. Define your target (`Tag`, `Attribute`, or `Path`), input your match keyword, and choose your color/icon preferences.
-4. Save — your links across Live Preview, Reading Mode, and your File Explorer will supercharge instantly!
+The rendering pipeline abandons destructive "refresh-all" layouts in favor of an idempotent, event-driven streaming model:
 
----
-
-## 🛠️ The Technology
-
-We threw out traditional "repaint-everything" models and built an intelligent, reactive rendering pipeline:
-
-* **The Immutability Guard:** The plugin checks your links *before* doing any heavy lifting. If a link already has the correct colors and icons, the engine steps away instantly (`scl-processed`). This completely kills infinite layout race conditions.
-* **Asynchronous DOM Batching:** Pushing 700 styling updates to your screen at the same fraction of a second causes massive stutter. Our engine queues mutations and feeds them to Obsidian in bite-sized chunks (max 25 items per frame), securing a **fluid 60 FPS scrolling experience**.
-* **Smart Rule Pre-Compilation:** Rules are compiled into optimized machine-level matcher functions once during startup. Your processor never spends cycles evaluating rules while you are typing.
-* **Decoupled Housekeeping:** Memory pruning and cache cleaning are moved out of your typing flow entirely, running passively in the background every 30 seconds via native Obsidian timers.
+* **In-Memory CodeMirror Extensions:** Legacy styling models relied on writing physical `.css` files to disk and triggering volatile CSS snippets reloads. The modern engine compiles rules into memory and injects them natively into the editor state via a decoupled **CodeMirror 6 Compartment configuration extension**, eliminating file I/O overhead.
+* **The Idempotent Immutability Guard:** The modification path executes an analytical state-check on target elements before triggering destructive DOM rewrites. If class structures and color data match active rule configurations, execution terminates (`scl-processed`), entirely isolating layout race conditions.
+* **Asynchronous Mutation Batching:** Synchronous rendering of hundreds of concurrent DOM alterations generates severe thread blocking. The updated pipeline implements a frame-throttled queue via `requestAnimationFrame`. Element mutations are chunked into precise slices (capped at 25 elements per frame) to preserve a **fluid 60 FPS scrolling experience**.
+* **Pre-Compiled Selectors Strategy:** Rules are evaluated once during configuration bounds updates and compiled into structural matcher predicates. The plugin avoids regex generation or string-cleansing loops inside critical editing paths.
+* **Isolated Thread Housekeeping:** Memory caps, TTL verification, and cache pruning loops are extracted from real-time events and delegated to native Obsidian intervals running passively every 30 seconds.
 
 ---
 
-## ⚖️ Architectural Evolution vs. Original Plugin
+## ⚖️ Architectural Paradigm Comparison
 
-`Re-Supercharged Links` is built upon the brilliant foundational concepts of the original `Supercharged Links` repository. However, to support metadata-heavy enterprise environments and complex dashboard setups (like the **myBrain** workflow or extensive **Bases** tables), the underlying runtime execution layout has been completely redesigned.
+To illuminate the engineering trade-offs between different design systems, the table below highlights the contrasts between the traditional monolithic approach and the updated asynchronous model.
 
-Below is an honest, technical side-by-side comparison highlighting where each implementation shines, and the engineering tradeoffs involved.
-
-| Comparison Vector | Original `Supercharged Links` | `Re-Supercharged Links (v1.0.19+)` |
+| Evaluation Vector | Monolithic Legacy Approach | Asynchronous Streaming Engine (v1.0.19+) |
 | :--- | :--- | :--- |
-| **🟢 Strengths & Praise** | **• High Flexibility:** Built-in context menu triggers allowing live adjustments of metadata straight from links.<br>**• Ecosystem Anchor:** The foundational pioneer that established standard CSS data-attribute link styling conventions. | **• Enterprise Scalability:** Zero-lag UI operations over tens of thousands of notes.<br>**• Deterministic Predictability:** Elimination of background render ghost cycles and memory-degrading leaks.<br>**• Tailored Automation:** Seamless native synchronization pipeline built specifically for advanced tracking frameworks. |
-| **🔴 Limitations & Tradeoffs** | **• Rendering Peaks:** Monolithic synchronous style pushes can cause temporary interface freezes under dense multi-link refreshes.<br>**• Volatile Cache Eviction:** Aggressive global cache resets generate repetitive computation overhead during persistent file operations.<br>**• Live Preview Drift:** Uncontrolled state reads may occasionally trigger layout race conditions inside active editor frames. | **• Focused Scope:** Deprecated the legacy link context menu modifiers to maintain a lightweight, streamlined core profile.<br>**• Architectural Complexity:** Employs an asynchronous queue layout requiring stricter boundary rules during custom pipeline additions.<br>**• Structural Slicing:** Strict caching structures mean manual refresh palette actions are needed during deep manual filesystem hacks. |
-| **⚙️ Mutation Method** | **Synchronous Monolith:** Forces absolute DOM rebuilding immediately across active views. | **Asynchronous Batching:** Throttles changes down into thread-safe micro-slices (max 25 per frame). |
-| **💾 Cache Invalidation** | **Broad Sweep:** Wipes large cache matrices during standard vault file mutations. | **Granular Lifecycle:** Targets discrete keys by path/prefix maps, paired with timer controlled background pruning. |
+| **🟢 Primary Technical Merits** | • Direct context-menu abstraction layers for inline data changes.<br>• Uncomplicated global repaint triggers ensuring immediate visual cohesion. | • High scalability across enterprise hvelv architectures.<br>• Deterministic execution with zero background ghost-cycles.<br>• Thread-safe decoupling protecting editor focus and cursor stability. |
+| **🔴 System Trade-offs** | • Monolithic blocking sweeps causing frame drops under high density updates.<br>• Volatile cache evictions enforcing full re-scans on minor filesystem events.<br>• Propensity for editor layout thrashing inside active Live Preview viewports. | • Streamlined core scope omitting non-essential UI interaction panels.<br>• Elevated codebase complexity introducing multi-stage queues.<br>• Deep cache isolation requires strict workspace event tracking to surface external structural hacks. |
+| **⚙️ DOM Processing** | **Synchronous Monolith:** Forces absolute layout rebuilding on active panes. | **Asynchronous Batching:** Distributes mutations into frame-capped slices (max 25 per frame). |
+| **💾 Stylesheet Delivery** | **Disk-Bound Snippets:** Generates raw CSS files, causing structural layout re-evaluation. | **Native Runtime Extensions:** Injected as in-memory state compartments directly via CodeMirror. |
+| **🧹 Cache Lifecycle** | **Broad Sweeps:** Full cache clear operations triggered on file system interactions. | **Granular Invalidation:** Selective target purging via path/prefix indexes, with separate timed pruning. |
 
 ---
 
 ## Contributing / Feedback
 
-We actively monitor performance data and real-world edge cases. Issues and optimization ideas are highly appreciated:
-- Obsidian profiling traces
-- Complex frontmatter/Dataview edge-case setups
-- UI/UX polish requests for the settings layout
+"We"** actively monitor telemetry logs and high-density performance bounds. Technical edge cases, profile traces, and architectural requests are welcome:
+- Obsidian performance profiling traces
+- Multi-layered frontmatter/Dataview edge-case matrices
+- UI/UX refinements for complex settings tab trees
 
 ---
 
 ## Credits
 
-Respect to the original Supercharged Links idea and maintainers. Re-Supercharged Links pushes that core vision forward with a modernized runtime environment and ongoing production-grade performance tuning.
+Respect to the original community framework concepts that pioneered metadata link decoration within the Obsidian ecosystem. This iteration continues that fundamental vision with a modernized, production-grade runtime environment.
 
 ---
 Developed with care for real-world, high-density note systems.
 
-(The "we" in this gracious readme refers to me and my slightly annoying but eager and pleasing various AI companions.)
+*(The "we" in this technical layout refers to the primary maintainer alongside a curated panel of slightly repetitive but dutifully aligned AI engineering companions.)*
