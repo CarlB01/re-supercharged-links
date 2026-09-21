@@ -65,8 +65,3 @@ export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitize
 
   return { sanitized, hasChanges };
 }
-
-interface IconMatchResult {
-  iconBefore: string;
-  iconAfter: string;
-}

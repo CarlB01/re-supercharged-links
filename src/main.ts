@@ -1,5 +1,7 @@
-import { Plugin, debounce, Notice, App } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, debounce, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+
 import { SCLSettings } from './settings/settings';
 import SCLSettingTab from './settings/setting-tab';
 import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
@@ -15,10 +17,12 @@ import { normalizePathForQueue, compactPrefixes } from './utils/shared-utils';
 import { compileSelectors, CompiledRule } from './processors/rule-compiler';
 import { registerPluginEvents } from './observers/event-registry';
 
-interface ObsidianAppWithCustomCss {
-	customCss?: {
-		getSnippets(): string[];
-		reloadCustomCss(): Promise<void>;
+/**
+ * Structural bridge representing Obsidian's internal Markdown editor view state layout.
+ */
+interface ObsidianInternalMarkdownView extends View {
+	editor?: {
+		cm?: EditorView | null;
 	};
 }
 
@@ -148,14 +152,27 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+/**
+	 * Dynamically reconfigures structural runtime styling tokens across all active editor viewports.
+	 * ⚡ ZERO-ANY GUARD: Interrogates internal CodeMirror instances typesafely via decoupled structural casing.
+	 */
 	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			const cm = (leaf as any).view?.editor?.cm ?? null;
-			if (cm !== null && typeof cm.dispatch === "function") {
-				cm.dispatch({
-					effects: themeCompartment.reconfigure(currentTheme)
-				});
+		
+		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			const view = leaf.view ?? null;
+			if (view === null) return;
+
+			// Safe structural boundary check: verify we are dealing with a view that actually contains an editor layout
+			if (view.getViewType() === "markdown") {
+				const markdownView = view as ObsidianInternalMarkdownView;
+				const cm = markdownView.editor?.cm ?? null;
+				
+				if (cm !== null && typeof cm.dispatch === "function") {
+					cm.dispatch({
+						effects: themeCompartment.reconfigure(currentTheme)
+					});
+				}
 			}
 		});
 	}

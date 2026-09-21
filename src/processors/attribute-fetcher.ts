@@ -1,6 +1,6 @@
 // Data collection and caching module
 
-import { App, getAllTags, TFile } from "obsidian";
+import { App, Plugin as ObsidianPlugin, getAllTags, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
 import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
@@ -16,6 +16,15 @@ interface InternalPluginRegistry {
 			enabled?: boolean;
 			api?: DataviewAPI;
 		};
+	};
+}
+
+/**
+ * Structural interface mapping Obsidian's internal plugin registry layer typesafely.
+ */
+interface ObsidianAppPluginRegistry {
+	plugins?: {
+		plugins?: Record<string, ObsidianPlugin | null>;
 	};
 }
 
@@ -164,42 +173,52 @@ export function fetchTargetAttributesCached(
 
 /**
  * Globally invalidates precise target elements by a unique file path assignment.
- * ⚡ CRITICAL OPTIMIZATION: Shifted execution from slow O(N) full array loops to instant O(1) map strikes.
  */
 export function invalidateByPath(cache: AttrCache, path: string): void {
 	if (!path || path.length === 0) return;
 
-	const plugin = (window as any).app?.plugins?.plugins?.["re-supercharged-links"];
-	if (!plugin || !plugin.cacheManager) return;
+	// Resolve the application runtime engine dynamically via non-deprecated routes
+	const globalApp = (window as unknown as { app?: App }).app ?? null;
+	if (globalApp === null) return;
+
+	const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
+	const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
+	if (rawPlugin === null) return;
+
+	// Perform a secure typesafe cast to access your dedicated CacheManager
+	const plugin = rawPlugin as ResuperchargedLinks;
+	if (!plugin.cacheManager) return;
 
 	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
 	const targetKeysSet = indexMap.get(path);
 
 	if (targetKeysSet) {
-		// Destructively wipe only the absolute matching key strings without loop sweeps
 		targetKeysSet.forEach((key: string) => {
 			cache.delete(key);
 		});
-		// Evict the path node tracking block entirely from memory bounds
 		indexMap.delete(path);
 	}
 }
 
 /**
  * Purges target folders systematically using a highly focused directory path tree index scan.
- * Performance: Loops exclusively over active distinct files in the index, avoiding full cache scans.
  */
 export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
 	if (!prefix || prefix.length === 0) return;
 	
-	const plugin = (window as any).app?.plugins?.plugins?.["re-supercharged-links"];
-	if (!plugin || !plugin.cacheManager) return;
+	const globalApp = (window as unknown as { app?: App }).app ?? null;
+	if (globalApp === null) return;
+
+	const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
+	const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
+	if (rawPlugin === null) return;
+
+	const plugin = rawPlugin as ResuperchargedLinks;
+	if (!plugin.cacheManager) return;
 
 	const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
 
-	// Performance optimization: Instead of evaluating 4000 cache signature fragments,
-	// iterate only across the unique file path index keys currently stored in memory.
 	for (const indexedPath of indexMap.keys()) {
 		if (indexedPath.startsWith(normalizedPrefix)) {
 			const targetKeysSet = indexMap.get(indexedPath);

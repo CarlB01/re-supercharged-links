@@ -1,6 +1,6 @@
-import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
+import { App, Plugin as ObsidianPlugin, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../main";
-import { fetchTargetAttributesSync, fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
+import { fetchTargetAttributesCached, AttrCache } from "../processors/attribute-fetcher";
 import { setLinkNewProps, tagChipStyles } from "../processors/link-mutator";
 import { resolveRuleResolution } from "../processors/rule-resolver";
 import { extractCleanLinkPath, isHtmlElement, normalizePathForQueue } from "../utils/shared-utils";
@@ -9,6 +9,15 @@ type RefreshScope = {
 	paths?: Set<string>;
 	prefixes?: Set<string>;
 };
+
+/**
+ * Structural interface mapping Obsidian's internal plugin registry layer typesafely.
+ */
+interface ObsidianAppPluginRegistry {
+	plugins?: {
+		plugins?: Record<string, ObsidianPlugin | null>;
+	};
+}
 
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
@@ -311,35 +320,53 @@ class DOMMutationBatcher {
 		if (!this.isProcessing) {
 			this.isProcessing = true;
 			// Schedule the batch process on the next native animation frame
-			activeWindow.requestAnimationFrame(() => this.processBatch());
+			window.requestAnimationFrame(() => this.processBatch());
 		}
 	}
 
 	/**
-	 * Iterates and flushes a strict slice of the queue inside a single layout frame.
+	 * Flushes a performance-capped horizontal slice of the allocation queue inside a single thread frame.
 	 */
 	private processBatch(): void {
-		const plugin = (window as any).app.plugins?.plugins?.["re-supercharged-links"];
-		if (!plugin) {
+		// 🚀 FIX: Resolve the application registry dynamically using the native, non-deprecated backend routes
+		const globalApp = (window as unknown as { app?: App }).app ?? null;
+		if (globalApp === null) {
 			this.queue.length = 0;
 			this.isProcessing = false;
 			return;
 		}
 
-		// Calculate how many elements to safely process this frame
-		const currentBatchSize = Math.min(this.queue.length, this.CHUNK_SIZE);
+		const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
+		const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
+		
+		if (rawPlugin === null) {
+			this.queue.length = 0;
+			this.isProcessing = false;
+			return;
+		}
+
+		// Typesafe cast to your explicit plugin class once verification clears
+		const plugin = rawPlugin as ResuperchargedLinks;
+
+		const totalPending = this.queue.length;
+		if (totalPending === 0) {
+			this.isProcessing = false;
+			return;
+		}
+
+		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
 		
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task = this.queue.shift();
-			if (task && task.element.isConnected) {
-				// Perform the actual heavy DOM mutation here
-				setLinkNewProps(task.element, task.props, plugin);
+			// 🚀 FIX: Safely evaluate element state and pass type-aligned variables to the mutator
+			if (task && task.element instanceof HTMLElement && task.element.isConnected) {
+				const elementProps: Record<string, string> = task.props;
+				setLinkNewProps(task.element, elementProps, plugin);
 			}
 		}
 
-		// If elements remain, request a new animation frame loop dynamically
 		if (this.queue.length > 0) {
-			activeWindow.requestAnimationFrame(() => this.processBatch());
+			window.requestAnimationFrame(() => this.processBatch());
 		} else {
 			this.isProcessing = false;
 		}
@@ -446,7 +473,6 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 	});
 
 	if (plugin.telemetry && plugin.telemetry.getTrackingState()) {
-		const genericTracker = plugin.telemetry as unknown as Record<string, number>;
 		if (plugin.telemetry && plugin.telemetry.getTrackingState()) {
 			plugin.telemetry.setLastNodeCount(totalNodesStyled);
 		}

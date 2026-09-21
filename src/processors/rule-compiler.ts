@@ -27,7 +27,7 @@ export function compileSelectors(selectors: readonly CSSLink[]): CompiledRule[] 
 		const s: CSSLink | null = selectors[i] ?? null;
 		if (s === null) continue;
 
-		const type: CompiledRuleType = s.type as CompiledRuleType;
+		const type: CompiledRuleType = s.type;
 		const cleanValue: string = cleanRuleValue(s.value);
 		if (cleanValue.length === 0) continue;
 

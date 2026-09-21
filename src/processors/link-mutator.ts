@@ -1,8 +1,7 @@
 // DOM-changes
 import ResuperchargedLinks from "../main";
-import { CSSLink } from "../types/css-link";
 import { resolveRuleResolution } from "./rule-resolver";
-import { cleanAttributeKey, endsWithToken, norm, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
+import { cleanAttributeKey, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
 
 /**
  * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.
@@ -164,30 +163,35 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			}
 		}
 
+		// 🚀 FIX: Invoke Obsidian's native element-level helpers directly on the 'link' instance.
+		// This bypasses window-scoped document allocation and natively clears the 'obsidianmd/prefer-create-el' rule.
 		if (iconBefore.length > 0 && !skipBefore) {
-			const spanBefore = activeWindow.createEl("span", {
+			const spanBefore: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
 			});
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
 
-			const firstChild = link.firstChild;
-			if (firstChild !== null) {
+			// Relocate the node to the front of the inner sequence if existing children live within the frame
+			const firstChild: ChildNode | null = link.firstChild;
+			if (firstChild !== null && firstChild !== spanBefore) {
 				link.insertBefore(spanBefore, firstChild);
 			}
 		}
 
 		if (iconAfter.length > 0 && !skipAfter) {
-			const spanAfter = activeWindow.createEl("span", {
+			const spanAfter: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
 			});
 			spanAfter.setAttribute("contenteditable", "false");
 			spanAfter.setCssStyles({ display: "inline-block" });
-
+			
+			// Append operations natively push the child directly to the trailing edge of the node layer
 			link.appendChild(spanAfter);
 		}
+
 
 		// Inject attributes securely
 		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
