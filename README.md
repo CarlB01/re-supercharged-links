@@ -12,7 +12,7 @@ Dynamic metadata-driven link styling engine for Obsidian, engineered for ultra-l
 
 ---
 
-## 🚀 Enterprise-Scale Vault Architecture (v2.0.0)
+## 🚀 Enterprise-Scale Vault Architecture (v1.0.19)
 
 When operating inside heavy production environments containing tens of thousands of structural notes, deep automation layers (e.g., **myBrain**), or high-density datatables (**Bases**), traditional DOM-scanning layout patterns inherently degrade system responsiveness. 
 
