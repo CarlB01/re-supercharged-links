@@ -144,49 +144,71 @@ export function fetchTargetAttributesCached(
 
 	if (hit !== null) {
 		plugin.touchAttrCacheKey(key);
-		// 🔑 NY LINJE: Registrer at vi fant dataene i cachen!
 		if (plugin.telemetry) plugin.telemetry.logHit();
 		return hit;
 	}
 
-	// 🔑 NY LINJE: Registrer at cachen var tom og at vi må gjøre et tungt oppslag!
 	if (plugin.telemetry) plugin.telemetry.logMiss();
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
 	cache.set(key, resolved);
+	
+	// 🚀 FIX: Feed the inverted index registry immediately during tracking allocation
 	plugin.touchAttrCacheKey(key);
+	if (plugin.cacheManager) {
+		plugin.cacheManager.registerIndexedKey(dest.path, key);
+	}
 
 	return resolved;
 }
 
+/**
+ * Globally invalidates precise target elements by a unique file path assignment.
+ * ⚡ CRITICAL OPTIMIZATION: Shifted execution from slow O(N) full array loops to instant O(1) map strikes.
+ */
 export function invalidateByPath(cache: AttrCache, path: string): void {
 	if (!path || path.length === 0) return;
 
-	// Match both legacy and versioned keys:
-	// - "path::0/1"
-	// - "vN::path::0/1"
-	const suffixA = `${path}::0`;
-	const suffixB = `${path}::1`;
+	const plugin = (window as any).app?.plugins?.plugins?.["re-supercharged-links"];
+	if (!plugin || !plugin.cacheManager) return;
 
-	for (const key of cache.keys()) {
-		if (key === suffixA || key === suffixB || key.endsWith(`::${suffixA}`) || key.endsWith(`::${suffixB}`)) {
+	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
+	const targetKeysSet = indexMap.get(path);
+
+	if (targetKeysSet) {
+		// Destructively wipe only the absolute matching key strings without loop sweeps
+		targetKeysSet.forEach((key: string) => {
 			cache.delete(key);
-		}
+		});
+		// Evict the path node tracking block entirely from memory bounds
+		indexMap.delete(path);
 	}
 }
 
+/**
+ * Purges target folders systematically using a highly focused directory path tree index scan.
+ * Performance: Loops exclusively over active distinct files in the index, avoiding full cache scans.
+ */
 export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
 	if (!prefix || prefix.length === 0) return;
-	const normalized = prefix.endsWith("/") ? prefix : `${prefix}/`;
+	
+	const plugin = (window as any).app?.plugins?.plugins?.["re-supercharged-links"];
+	if (!plugin || !plugin.cacheManager) return;
 
-	for (const key of cache.keys()) {
-		// Key format:
-		// - "some/path.md::0"
-		// - "v12::some/path.md::0"
-		const raw = key.startsWith("v") ? key.split("::").slice(1).join("::") : key;
-		// raw is now typically "path::0" or "path::1"
-		if (raw.startsWith(normalized)) {
-			cache.delete(key);
+	const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
+
+	// Performance optimization: Instead of evaluating 4000 cache signature fragments,
+	// iterate only across the unique file path index keys currently stored in memory.
+	for (const indexedPath of indexMap.keys()) {
+		if (indexedPath.startsWith(normalizedPrefix)) {
+			const targetKeysSet = indexMap.get(indexedPath);
+			if (targetKeysSet) {
+				targetKeysSet.forEach((key: string) => {
+					cache.delete(key);
+				});
+			}
+			indexMap.delete(indexedPath);
 		}
 	}
 }
