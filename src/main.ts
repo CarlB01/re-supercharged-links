@@ -32,6 +32,16 @@ interface ObsidianPluginRegistry {
 	};
 }
 
+/**
+ * Explicit bridge contract mapping Obsidian's hidden stylesheet reload capabilities.
+ * Named uniquely to prevent semantic namespace collisions with core application types.
+ */
+interface LegacyStyleSystemApp {
+	customCss?: {
+		reloadCustomCss(): Promise<void>; // The single operational contract line we actually require
+	};
+}
+
 export default class ResuperchargedLinks extends Plugin {
 	declare public settings: SCLSettings;
 	public settingTab!: SCLSettingTab;
@@ -261,6 +271,11 @@ export default class ResuperchargedLinks extends Plugin {
 		await saveStrippedSettings(this, this.settings);
 	}
 	
+
+	/**
+	 * Purges deprecated physical style assets from historical vault structures safely.
+	 * ⚡ ZERO-ANY GUARD: Executes clean decoupled interface mapping to clear compiler overhead.
+	 */
 	private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
 			const adapter = this.app.vault.adapter;
@@ -271,9 +286,11 @@ export default class ResuperchargedLinks extends Plugin {
 			if (fileExists) {
 				await adapter.remove(snippetPath);
 				
-				const internalApp: any = this.app;
+				// 🚀 THE ELEGANT ROUTE: Cast cleanly via 'unknown' into our uniquely named utility contract
+				const internalApp = this.app as unknown as LegacyStyleSystemApp;
+				
 				if (internalApp.customCss && typeof internalApp.customCss.reloadCustomCss === "function") {
-					await internalApp.customCss.reloadCustomCss();
+					await internalApp.customCss.reloadCustomCss(); // Safe, non-colliding execution frame
 				}
 			}
 		} catch (error) {

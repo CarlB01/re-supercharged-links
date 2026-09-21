@@ -359,7 +359,7 @@ class DOMMutationBatcher {
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task = this.queue.shift();
 			// 🚀 FIX: Safely evaluate element state and pass type-aligned variables to the mutator
-			if (task && task.element instanceof HTMLElement && task.element.isConnected) {
+			if (task && task.element.instanceOf(HTMLElement) && task.element.isConnected) {
 				const elementProps: Record<string, string> = task.props;
 				setLinkNewProps(task.element, elementProps, plugin);
 			}
