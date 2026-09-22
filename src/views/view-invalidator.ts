@@ -356,14 +356,15 @@ class DOMMutationBatcher {
 		
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task = this.queue.shift();
-			if (task && task.element instanceof HTMLElement && task.element.isConnected) {
+			// task.element.nodeType === 1: web-standard (W3C).
+			if (task && task.element && task.element.nodeType === 1 && task.element.isConnected) {
 				const elementProps: Record<string, string> = task.props;
 				setLinkNewProps(task.element, elementProps, plugin);
 			}
 		}
 
 		if (this.queue.length > 0) {
-			activeWindow.requestAnimationFrame(() => this.processBatch());
+			window.requestAnimationFrame(() => this.processBatch());
 		} else {
 			this.isProcessing = false;
 		}

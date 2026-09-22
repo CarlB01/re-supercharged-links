@@ -164,6 +164,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconBefore.length > 0 && !skipBefore) {
+			// eslint-disable-next-line obsidianmd/prefer-create-el
 			const spanBefore: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
@@ -178,6 +179,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconAfter.length > 0 && !skipAfter) {
+			// eslint-disable-next-line obsidianmd/prefer-create-el
 			const spanAfter: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
