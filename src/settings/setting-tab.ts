@@ -462,7 +462,7 @@ export default class SCLSettingTab extends PluginSettingTab {
         const iconAfter: string = (rule.iconAfter ?? "").trim();
 
         if (iconBefore.length > 0) {
-          const spanBefore: HTMLElement = noteEl.win.createEl("span", {
+          const spanBefore = noteEl.win.createSpan({
             cls: "scl-inline-icon scl-inline-icon-before",
             text: iconBefore
           });
@@ -471,7 +471,7 @@ export default class SCLSettingTab extends PluginSettingTab {
         }
 
         if (iconAfter.length > 0) {
-          const spanAfter: HTMLElement = noteEl.win.createEl("span", {
+          const spanAfter = noteEl.win.createSpan({
             cls: "scl-inline-icon scl-inline-icon-after",
             text: iconAfter
           });

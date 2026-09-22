@@ -18,7 +18,7 @@ export class IconWidget extends WidgetType {
 	 */
 	public toDOM(): HTMLElement {
 
-		const span: HTMLSpanElement = createEl("span", {
+		const span = createSpan({
 			cls: this.isBefore ? "scl-inline-icon scl-inline-icon-before" : "scl-inline-icon scl-inline-icon-after",
 			text: this.icon
 		});

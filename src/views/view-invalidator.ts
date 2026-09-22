@@ -376,7 +376,7 @@ class DOMMutationBatcher {
 const domBatcher = new DOMMutationBatcher();
 
 /**
- * Scans view links and routes them via the async mutation batcher to maintain fluid frame rates.
+ * Scans internal file anchors typesafely and handles multi-select pill scenarios cleanly.
  */
 function updateLeafInternalLinks(
 	app: App,
@@ -385,31 +385,53 @@ function updateLeafInternalLinks(
 	containerEl: HTMLElement,
 	attrCache: AttrCache
 ): number {
-	const cachedFile = app.metadataCache.getFileCache(file);
-	const links = cachedFile?.links ?? [];
+	const cachedFile = app.metadataCache.getFileCache(file) ?? null;
+	if (cachedFile === null || !cachedFile.links) return 0;
+	
+	const links = cachedFile.links;
+	const linksCount = links.length;
 	let localCount = 0;
 
-	for (let i = 0; i < links.length; i++) {
+	for (let i = 0; i < linksCount; i++) {
 		const link = links[i];
 		if (!link) continue;
 
-		const dest = app.metadataCache.getFirstLinkpathDest(link.link, file.basename);
-		if (!dest) continue;
-
-		const newProps = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
 		const escapedHref: string = CSS.escape(link.link);
-		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(`a.internal-link[href="${escapedHref}"]`);
+		
+		// Target both standard anchor elements and your custom multi-select pills safely
+		const selector = `a.internal-link[href="${escapedHref}"], .multi-select-pill-content[data-href="${escapedHref}"]`;
+		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(selector);
+		const foundNodesCount = internalLinks.length;
 
-		for (let j = 0; j < internalLinks.length; j++) {
-			const node = internalLinks[j];
-			if (node && isHtmlElement(node)) {
-				domBatcher.enqueue(node, newProps);
-				localCount += 1;
+		for (let j = 0; j < foundNodesCount; j++) {
+			const node = internalLinks[j] ?? null;
+			
+			// Strict structural boundary check replacing speculative type casts
+			if (node !== null && node instanceof HTMLElement && node.nodeType === 1 && node.isConnected) {
+				// 🚀 EXPLICIT ISOLATION channel: Read directly from the actual node hand context
+				const rawHref: string | null = node.getAttribute("data-href");
+				const rawText: string | null = node.textContent;
+				
+				// Handle missing parameters via clean, defensive fallbacks to null
+				const runtimeHref: string = rawHref !== null ? rawHref : (rawText !== null ? rawText : link.link);
+				const cleanRuntimeHref: string = extractCleanLinkPath(runtimeHref);
+				
+				const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(cleanRuntimeHref, file.basename) ?? null;
+				
+				if (dest !== null) {
+					// Extract an isolated memory block unique to THIS explicit file node assignment
+					const currentProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
+					
+					// Transfer execution safely to the thread-capped frame queue
+					domBatcher.enqueue(node, currentProps);
+					localCount += 1;
+				}
 			}
 		}
 	}
 	return localCount;
 }
+
 
 function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	if (!scope) return true;

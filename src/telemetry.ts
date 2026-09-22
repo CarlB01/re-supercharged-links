@@ -94,7 +94,7 @@ export class PluginPerformanceTracker {
 			`• Average execution: ${avgTimeMs}ms\n` +
 			`• Average links styled: ${avgElements} nodes (Last frame: ${lastRunCount})`;
 
-		console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
+		// console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
 	}
 
 }
