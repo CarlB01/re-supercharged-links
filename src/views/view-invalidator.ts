@@ -328,7 +328,6 @@ class DOMMutationBatcher {
 	 * Flushes a performance-capped horizontal slice of the allocation queue inside a single thread frame.
 	 */
 	private processBatch(): void {
-		// 🚀 FIX: Resolve the application registry dynamically using the native, non-deprecated backend routes
 		const globalApp = (window as unknown as { app?: App }).app ?? null;
 		if (globalApp === null) {
 			this.queue.length = 0;
@@ -345,7 +344,6 @@ class DOMMutationBatcher {
 			return;
 		}
 
-		// Typesafe cast to your explicit plugin class once verification clears
 		const plugin = rawPlugin as ResuperchargedLinks;
 
 		const totalPending = this.queue.length;
@@ -358,19 +356,19 @@ class DOMMutationBatcher {
 		
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task = this.queue.shift();
-			// 🚀 FIX: Safely evaluate element state and pass type-aligned variables to the mutator
-			if (task && task.element.instanceOf(HTMLElement) && task.element.isConnected) {
+			if (task && task.element instanceof HTMLElement && task.element.isConnected) {
 				const elementProps: Record<string, string> = task.props;
 				setLinkNewProps(task.element, elementProps, plugin);
 			}
 		}
 
 		if (this.queue.length > 0) {
-			window.requestAnimationFrame(() => this.processBatch());
+			activeWindow.requestAnimationFrame(() => this.processBatch());
 		} else {
 			this.isProcessing = false;
 		}
 	}
+
 }
 
 // Global instance allocated statically to optimize memory footprint
@@ -404,7 +402,6 @@ function updateLeafInternalLinks(
 		for (let j = 0; j < internalLinks.length; j++) {
 			const node = internalLinks[j];
 			if (node && isHtmlElement(node)) {
-				// 🚀 BREAK SYNCHRONOUS BOTTLENECK: Deflect mutations to the asynchronous chunk engine
 				domBatcher.enqueue(node, newProps);
 				localCount += 1;
 			}

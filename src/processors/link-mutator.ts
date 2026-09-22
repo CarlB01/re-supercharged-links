@@ -163,15 +163,11 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			}
 		}
 
-		// 🚀 FIX: Invoke the helper via an indexed string property lookup matrix.
-		// This bypasses the rigid AST regex scanner of the Obsidian linter while maintaining pure window safety.
 		if (iconBefore.length > 0 && !skipBefore) {
-			const createFn = link["createEl"].bind(link);
-			const spanBefore = createFn("span", {
+			const spanBefore: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
-			}) as HTMLSpanElement;
-			
+			});
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
 
@@ -182,12 +178,10 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconAfter.length > 0 && !skipAfter) {
-			const createFn = link["createEl"].bind(link);
-			const spanAfter = createFn("span", {
+			const spanAfter: HTMLSpanElement = link.createEl("span", {
 				cls: "scl-inline-icon scl-inline-icon-after",
 				text: iconAfter
-			}) as HTMLSpanElement;
-			
+			});
 			spanAfter.setAttribute("contenteditable", "false");
 			spanAfter.setCssStyles({ display: "inline-block" });
 			
