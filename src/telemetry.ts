@@ -35,12 +35,10 @@ export class PluginPerformanceTracker {
 	}
 
 	public logHit(): void {
-		if (!this.isEnabled) return;
 		this.cacheHits += 1;
 	}
 
 	public logMiss(): void {
-		if (!this.isEnabled) return;
 		this.cacheMisses += 1;
 	}
 
