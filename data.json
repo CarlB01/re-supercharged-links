@@ -60,7 +60,7 @@
     },
     {
       "type": "tag",
-      "value": "sasd",
+      "value": "lege",
       "iconAfter": "⚕️",
       "lightColor": "#b97cd0",
       "fontStyle": "line-through"
@@ -97,6 +97,20 @@
       "iconBefore": "🏥",
       "lightBgColor": "#dad8d8",
       "lightColor": "#1a8c18"
+    },
+    {
+      "type": "tag",
+      "value": "psykisk",
+      "lightColor": "#dd8f36",
+      "darkColor": "#c38cf2",
+      "lightBgColor": "#f0ddf9"
+    },
+    {
+      "type": "tag",
+      "value": "fri",
+      "lightColor": "#f7f3f3",
+      "darkColor": "#f2918c",
+      "lightBgColor": "#44e141"
     }
   ],
   "scl_value_10": "haha",

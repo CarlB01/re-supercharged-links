@@ -1,8 +1,8 @@
 import { Plugin } from "obsidian";
 import { SCLSettings, DEFAULT_SETTINGS } from "./settings";
 import { CSSLink } from "../types/css-link";
-import { sanitizeRuleset } from "../processors/rule-sanitizer";
 import { cloneSettingsObject } from "../utils/shared-utils";
+import { sanitizeRuleset } from "../processors/rule-engine";
 
 /**
  * 🔑 CONDUIT PROPERTY DICTIONARY

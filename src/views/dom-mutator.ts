@@ -1,34 +1,57 @@
-// DOM-changes
-import ResuperchargedLinks from "../main";
-import { resolveRuleResolution } from "./rule-resolver";
+// views/dom-mutator
+
+import ResuperchargedLinks from "../core/main";
+import { resolveRuleResolution } from "../processors/rule-engine";
 import { cleanAttributeKey, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
 
 /**
- * High-performance modifier cleanup. Drops data attributes and internal icon spans backwards safely.
- * Strips obsolete semantic matching flags and standardized icon components to prevent layout memory leaks.
- * ⚡ PURGED OVERHEAD: Completely removed all internal .scl-rule-[UID] tracking loops from Read Mode cleanup routines.
+ * Completely purges all supercharged style properties, inline icon spans, and data-link attributes.
+ * ⚡ LEAK REMOVER: Iterates backward over element attributes to clear out stale values before fresh writes.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
 	const attrs: NamedNodeMap = link.attributes;
-	for (let i: number = attrs.length - 1; i >= 0; i--) {
-		const attr: Attr | null = attrs[i] ?? null;
-		if (attr !== null && attr.name.includes("data-link")) {
-			link.removeAttribute(attr.name);
+	let i: number = attrs.length;
+	
+	// 🚀 FIXED UNDEFINED POTENTIAL: Strict backward loop iteration with concrete null checks
+	while (i--) {
+		const attr: Attr | null = attrs.item(i);
+		if (attr !== null) {
+			const name: string = attr.name;
+			if (name.includes("data-link") || name.startsWith("data-scl-")) {
+				link.removeAttribute(name);
+			}
 		}
 	}
 	
 	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
-	for (let i: number = 0; i < oldIcons.length; i++) {
-		const iconEl: HTMLElement | null = oldIcons[i] ?? null;
+	const oldIconsCount: number = oldIcons.length;
+	for (let j = 0; j < oldIconsCount; j++) {
+		const iconEl: HTMLElement | null = oldIcons[j] ?? null;
 		if (iconEl !== null) {
 			iconEl.remove();
 		}
 	}
 
-	const classesToRemove: string[] = Array.from(link.classList).filter((cls: string): boolean => cls.startsWith("scl-match-") || cls.startsWith("scl-rule-"));
-	for (const cls of classesToRemove) {
-		link.classList.remove(cls);
+	// 1. Gather all dynamic supercharged classes that need to be evicted
+	const classesToRemove: string[] = [];
+	const currentClasses: DOMTokenList = link.classList;
+	const currentClassesCount: number = currentClasses.length;
+
+	for (let k = 0; k < currentClassesCount; k++) {
+		const cls: string | null = currentClasses.item(k);
+		if (cls !== null && (cls.startsWith("scl-match-") || cls.startsWith("scl-rule-"))) {
+			classesToRemove.push(cls);
+		}
 	}
+
+	const classesToRemoveCount: number = classesToRemove.length;
+	for (let m = 0; m < classesToRemoveCount; m++) {
+		const targetClass: string | null = classesToRemove[m] ?? null;
+		if (targetClass !== null) {
+			link.classList.remove(targetClass);
+		}
+	}
+
 
 	link.setCssStyles({
 		color: "",
@@ -73,7 +96,9 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 	if (!plugin.settings.enableTagChips) return;
 
 	const tagNodes: NodeListOf<Element> = container.querySelectorAll("a.tag");
-	for (let i: number = 0; i < tagNodes.length; i++) {
+	const tagNodesCount: number = tagNodes.length;
+
+	for (let i = 0; i < tagNodesCount; i++) {
 		const n: Element | null = tagNodes[i] ?? null;
 		if (n !== null && n.nodeType === 1) {
 			const htmlEl: HTMLElement = n as HTMLElement;
@@ -108,9 +133,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	});
 
 	// Compute a unique signature string for this specific resolution state
-	const targetColor = resolution.style.color || "";
-	const targetBg = resolution.style.backgroundColor || "";
-	const currentTrackedColor = link.getAttribute("data-link-color") || "";
+	const targetColor: string = resolution.style.color || "";
+	const targetBg: string = resolution.style.backgroundColor || "";
+	const currentTrackedColor: string = link.getAttribute("data-link-color") || "";
 
 	// 🚀 IMMUTABILITY GUARD: If the element is already correctly styled by a previous execution frame, 
 	// abort immediately. This snaps the infinite mutation/observer chain instantly.
@@ -142,20 +167,21 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		link.setCssStyles(targetStyles);
 
 		// Apply target compiled system classes
-		for (let i = 0; i < resolution.classes.length; i++) {
-			const cls = resolution.classes[i];
-			if (cls && cls.length > 0 && cls !== "data-link-text") {
+		const classesLen: number = resolution.classes.length;
+		for (let i = 0; i < classesLen; i++) {
+			const cls: string | null = resolution.classes[i] ?? null;
+			if (cls !== null && cls.length > 0 && cls !== "data-link-text") {
 				link.addClass(cls);
 			}
 		}
 
 		// Icon insertion prevention routines using high-performance token processing
-		const visibleText = (link.textContent ?? "").trim();
-		const iconBefore = resolution.iconBefore;
-		const iconAfter = resolution.iconAfter;
+		const visibleText: string = (link.textContent ?? "").trim();
+		const iconBefore: string = resolution.iconBefore;
+		const iconAfter: string = resolution.iconAfter;
 
-		const skipBefore = iconBefore.length > 0 && startsWithToken(visibleText, iconBefore);
-		let skipAfter = iconAfter.length > 0 && endsWithToken(visibleText, iconAfter);
+		const skipBefore: boolean = iconBefore.length > 0 && startsWithToken(visibleText, iconBefore);
+		let skipAfter: boolean = iconAfter.length > 0 && endsWithToken(visibleText, iconAfter);
 
 		if (iconAfter.length > 0 && !skipAfter && visibleText.length > 1) {
 			if (/[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]\$/u.test(visibleText)) {
@@ -188,10 +214,17 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			link.appendChild(spanAfter);
 		}
 
-		// Inject attributes securely
-		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
-			if (attrValue.length > 0) {
-				link.setAttribute(attrKey, attrValue);
+		// Inject attributes securely and guard against undefined loop entries
+		const resolutionAttributes = Object.entries(resolution.attributes);
+		const resolutionAttributesCount = resolutionAttributes.length;
+		for (let i = 0; i < resolutionAttributesCount; i++) {
+			const entry = resolutionAttributes[i];
+			if (entry) {
+				const attrKey: string = entry[0];
+				const attrValue: string = entry[1];
+				if (attrValue.length > 0) {
+					link.setAttribute(attrKey, attrValue);
+				}
 			}
 		}
 		
@@ -201,18 +234,26 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	}
 
 	// Downstream data tracking integrity export logic
-	for (const [key, propValue] of Object.entries(newProps)) {
-		const domKey = cleanAttributeKey(key);
-		const attributeName = `data-link-${domKey}`;
-		let newValue: string | null = processValue(key, propValue);
+	const newPropsEntries = Object.entries(newProps);
+	const newPropsEntriesCount = newPropsEntries.length;
+	for (let i = 0; i < newPropsEntriesCount; i++) {
+		const entry = newPropsEntries[i];
+		if (entry) {
+			const key: string = entry[0];
+			const propValue: string = entry[1];
+			
+			const domKey: string = cleanAttributeKey(key);
+			const attributeName = `data-link-${domKey}`;
+			let newValue: string | null = processValue(key, propValue);
 
-		if (domKey === "tags" && newValue !== null) {
-			const cleanTokens = parseSpaceSeparatedTokens(newValue);
-			newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
-		}
+			if (domKey === "tags" && newValue !== null) {
+				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
+				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
+			}
 
-		if (newValue !== null) {
-			link.setAttribute(attributeName, newValue);
+			if (newValue !== null) {
+				link.setAttribute(attributeName, newValue);
+			}
 		}
 	}
 
@@ -220,4 +261,3 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed"); // 🚀 LOCK FLAG: Prevents re-processing if states remain unchanged
 }
-

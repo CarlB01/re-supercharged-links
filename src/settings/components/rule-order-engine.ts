@@ -1,5 +1,5 @@
+import ResuperchargedLinks from "../../core/main";
 import { CSSLink } from "../../types/css-link";
-import ResuperchargedLinks from "../../main";
 
 interface MoveRuleOptions {
 	onAfterMove: () => void;

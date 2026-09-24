@@ -1,10 +1,10 @@
-// lifecycle/observation
+// observers/observer-engine
 
-import { App, TFile, WorkspaceLeaf } from "obsidian";
-import { updatePropertiesPane, updateContainer } from "../views/view-invalidator";
-import { clearExtraAttributes } from "../processors/link-mutator";
-import ResuperchargedLinks from "../main";
+import { App, TFile, WorkspaceLeaf, View } from "obsidian";
+import { clearExtraAttributes } from "../views/dom-mutator";
 import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
+import { updateContainer } from "../processors/dom-reconciler";
+import ResuperchargedLinks from "../core/main";
 
 interface ObsidianAppInternalRegistry {
 	plugins?: {
@@ -13,23 +13,9 @@ interface ObsidianAppInternalRegistry {
 }
 
 const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTMLElement, number>();
-
-/**
- * Tracks active observer bindings per container and logical observer key.
- * Prevents duplicate observers from being attached across repeated layout cycles.
- */
 const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = new WeakMap<HTMLElement, Map<string, MutationObserver>>();
-
-/**
- * Tracks one modal observer per document instance.
- * Prevents duplicate modal observers during repeated window/layout initialization.
- */
 const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
 
-/**
- * Schedules a high-performance DOM update bound to the browser's repaint cycle.
- * Prevents layout thrashing by collapsing multiple rapid mutations into a single frame.
- */
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 	const prev: number | undefined = scheduledContainerUpdates.get(container);
 	if (prev !== undefined) {
@@ -44,25 +30,17 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 }
 
 /**
- * RE-ARCHITECTED OBSERVATION CONTROLLER
- * Synchronously activates styling engines globally across all known Obsidian boundaries.
- * ⚡ AUTO-DETECTION PROTOCOL: Automatically maps and hooks active third-party extensions on boot.
+ * LIGHTWEIGHT IDEMPOTENT OBSERVATION CONTROLLER
+ * Synchronously activates styling engines globally across static workspace fragments.
+ * ⚡ SINGLE SOURCE OF TRUTH: Commits 'markdown' and 'bases' text bodies exclusively 
+ * to CodeMirror extensions and native Post Processors, completely eliminating thread friction.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
 	if (pluginInstance === null) return;
 
-	const activeObservers: [MutationObserver, string, string][] = pluginInstance.observers ?? [];
-	for (let i: number = 0; i < activeObservers.length; i++) {
-		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
-		if (entry !== null) {
-			entry[0].disconnect();
-		}
-	}
-	pluginInstance.observers = [];
-
 	// =========================================================================
-	// 🎯 LAYER 1: UNIVERSAL OBSERVATION CHANNELS (Always Active - 100% Automatic)
+	// 🎯 LAYER 1: STATIC SIDEBAR ENVIRONMENT (Passive Layout Trees Only)
 	// =========================================================================
 	registerViewType("backlink", pluginInstance, ".tree-item-inner", true);
 	registerViewType("outgoing-link", pluginInstance, ".tree-item-inner", true);
@@ -71,14 +49,12 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("file-explorer", pluginInstance, ".nav-file-title-content");
 	registerViewType("recent-files", pluginInstance, ".nav-file-title-content");
 	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
-	registerViewType("file-properties", pluginInstance, "div.internal-link.multi-select-pill-content");
 	registerViewType("tab-header", pluginInstance, ".tab-header-inner-title");
 
-	// 🧠 Layer 2: Deep myBrain Integration Handshake
+	// Layer 2: Deep myBrain Integration Handshake
 	registerViewType("mybrain-view", pluginInstance, ".focusable-note-link", true);
 
-	// 🔌 Layer 3: Universal Third-Party Ecosystem Mapping (Bases, Breadcrumbs, etc.)
-	// By registering these unconditionally, we guarantee stability across all workspace layouts
+	// LAYER 3: THIRD-PARTY CUSTOM DOM INTERFACES (Bases, Tables, etc.)
 	registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
 	registerViewType("markdown", pluginInstance, ".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]");
 	
@@ -90,40 +66,17 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 			registerViewType("bc-matrix-view", pluginInstance, "span.internal-link");
 			registerViewType("BC-ducks", pluginInstance, ".internal-link");
 			registerViewType("bc-tree-view", pluginInstance, "span.internal-link");
-			registerViewType("markdown", pluginInstance, ".BC-page-views span.internal-link, .BC-codeblock-tree span.internal-link, .nodes a.internal-link");
 		}
 		if (pluginRegistry["folder-notes"]) {
 			registerViewType("file-explorer", pluginInstance, ".has-folder-note .tree-item-inner");
-		}
-		if (pluginRegistry["similar-notes"]) {
-			registerViewType("markdown", pluginInstance, ".similar-notes-pane .tree-item-inner", true);
 		}
 		if (pluginRegistry["notebook-navigator"]) {
 			registerViewType("notebook-navigator", pluginInstance, "span.nn-shortcut-label");
 			registerViewType("notebook-navigator", pluginInstance, "div.nn-file-name");
 		}
 	}
-
-	// =========================================================================
-	// 🔑 LAYER 4: FAST-TRACK SYNCHRONOUS PROPERTIES PANE RE-PAINT
-	// =========================================================================
-	const propertyLeaves: WorkspaceLeaf[] = pluginInstance.app.workspace.getLeavesOfType("file-properties") ?? [];
-	for (let i: number = 0; i < propertyLeaves.length; i++) {
-		const leaf: WorkspaceLeaf | null = propertyLeaves[i] ?? null;
-		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
-		if (container === null) continue;
-
-		const activeFile: TFile | null = pluginInstance.app.workspace.getActiveFile();
-		if (activeFile !== null) {
-			updatePropertiesPane(container, activeFile, pluginInstance.app, pluginInstance);
-		}
-	}
 }
 
-
-/**
- * Automates query lookups and binds native view leaf trees to mutation watchers.
- */
 export function registerViewType(
 	viewTypeName: string,
 	plugin: ResuperchargedLinks,
@@ -132,27 +85,29 @@ export function registerViewType(
 	filterCollapsible = false
 ): void {
 	const leaves: WorkspaceLeaf[] = plugin.app.workspace.getLeavesOfType(viewTypeName) ?? [];
-	for (let i: number = 0; i < leaves.length; i++) {
+	const leavesCount = leaves.length;
+
+	for (let i = 0; i < leavesCount; i++) {
 		const leaf: WorkspaceLeaf | null = leaves[i] ?? null;
 		const container: HTMLElement | null = leaf?.view?.containerEl ?? null;
 		if (container === null) continue;
 
 		const uniqueViewKey: string = buildObserverKey(viewTypeName, i);
+		const observerKey: string = `${uniqueViewKey}|${selector}|${filterCollapsible ? "1" : "0"}|${updateDynamic ? "dynamic" : "static"}`;
+
+		const reg = observerRegistry.get(container) ?? null;
+		if (reg !== null && reg.has(observerKey)) {
+			continue;
+		}
 
 		if (updateDynamic) {
-			watchContainerDynamic(uniqueViewKey, container, plugin, selector);
+			watchContainerDynamic(uniqueViewKey, observerKey, container, plugin, selector);
 		} else {
-			watchContainer(uniqueViewKey, container, plugin, selector, filterCollapsible);
+			watchContainer(uniqueViewKey, observerKey, container, plugin, selector, filterCollapsible);
 		}
 	}
 }
 
-/**
- * SUGGESTION POPUP & MODAL CONTROLLER
- * Listens to document injections to style the Quick Switcher, Omnisearch, and Link Suggestor popups.
- * ⚡ STRIPPED TOGGLES: Removed obsolete enableQuickSwitcher and enableSuggestor toggles.
- * The styling now dynamically penetrates all active suggestion modales natively.
- */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const existing: MutationObserver | null = modalObserverRegistry.get(doc) ?? null;
 	if (existing !== null) {
@@ -168,14 +123,14 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
-		for (let i: number = 0; i < records.length; i++) {
+		const recordsCount = records.length;
+		for (let i = 0; i < recordsCount; i++) {
 			const mutation: MutationRecord | null = records[i] ?? null;
 			if (mutation === null || mutation.type !== "childList") continue;
 
 			mutation.addedNodes.forEach((node: Node): void => {
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
-
 					const isModal: boolean = list.contains("modal-container");
 					const isSuggest: boolean = list.contains("suggestion-container");
 
@@ -184,9 +139,10 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 						if (isSuggest) {
 							selector = ".suggestion-title, .suggestion-note";
 						}
-
 						updateContainer(node, plugin, selector);
-						watchContainer(null, node, plugin, selector);
+						
+						const modalKey = `modal-observer-${selector}`;
+						watchContainer(null, modalKey, node, plugin, selector);
 					}
 				}
 			});
@@ -198,26 +154,28 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	plugin.modalObservers.push(observer);
 }
 
-/**
- * Standard tree observer that monitors static elements for layout additions or tree drops.
- */
 function watchContainer(
 	viewType: string | null,
+	observerKey: string,
 	container: HTMLElement,
 	plugin: ResuperchargedLinks,
 	selector: string,
 	filterCollapsible = false
 ): void {
-	const keyViewType: string = viewType !== null ? viewType : "modal";
-	const observerKey: string = `${keyViewType}|${selector}|${filterCollapsible ? "1" : "0"}|static`;
-
 	disconnectExistingObserver(container, observerKey);
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
-		const hasRelevantMutation: boolean = records.some(
-			(m: MutationRecord): boolean => m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)
-		);
-		if (!hasRelevantMutation) return;
+		const recordsCount = records.length;
+		let relevantChangeDetected = false;
+
+		for (let i = 0; i < recordsCount; i++) {
+			const m = records[i];
+			if (m && m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
+				relevantChangeDetected = true;
+				break;
+			}
+		}
+		if (!relevantChangeDetected) return;
 
 		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector, filterCollapsible);
@@ -234,19 +192,25 @@ function watchContainer(
 
 function watchContainerDynamic(
 	viewType: string,
+	observerKey: string,
 	container: HTMLElement,
 	plugin: ResuperchargedLinks,
 	selector: string
 ): void {
-	const observerKey: string = `${viewType}|${selector}|0|dynamic`;
-
 	disconnectExistingObserver(container, observerKey);
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
-		const hasRelevantMutation: boolean = records.some(
-			(m: MutationRecord): boolean => m.type === "childList" && m.addedNodes.length > 0
-		);
-		if (!hasRelevantMutation) return;
+		const recordsCount = records.length;
+		let relevantChangeDetected = false;
+
+		for (let i = 0; i < recordsCount; i++) {
+			const m = records[i];
+			if (m && m.type === "childList" && m.addedNodes.length > 0) {
+				relevantChangeDetected = true;
+				break;
+			}
+		}
+		if (!relevantChangeDetected) return;
 
 		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector);
@@ -258,12 +222,11 @@ function watchContainerDynamic(
 	plugin.observers.push([observer, viewType, selector]);
 }
 
-/**
- * Tears down all global tracking loops to ensure zero background leaks during plugin unload cycles.
- */
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
-	for (let i: number = 0; i < activeObservers.length; i++) {
+	const activeObserversCount = activeObservers.length;
+
+	for (let i = 0; i < activeObserversCount; i++) {
 		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
 		if (entry !== null) {
 			const observer: MutationObserver | null = entry[0] ?? null;
@@ -274,31 +237,27 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	}
 
 	const modalObservers: MutationObserver[] = plugin.modalObservers ?? [];
-	for (let i: number = 0; i < modalObservers.length; i++) {
+	const modalObserversCount = modalObservers.length;
+
+	for (let i = 0; i < modalObserversCount; i++) {
 		const observer: MutationObserver | null = modalObservers[i] ?? null;
 		if (observer !== null) {
 			observer.disconnect();
 		}
 	}
 
-	// Best-effort cleanup for known documents
 	const rootDoc: Document = document;
-	const rootModal: MutationObserver | null = modalObserverRegistry.get(rootDoc) ?? null;
-	if (rootModal !== null) {
-		modalObserverRegistry.delete(rootDoc);
-	}
+	modalObserverRegistry.delete(rootDoc);
 
-	// Reset plugin-level observer lists to avoid stale references after disconnect.
 	plugin.observers = [];
 	plugin.modalObservers = [];
 }
 
-/**
- * Resets the DOM state completely when the plugin is deactivated by the user.
- */
 export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
-	for (let i: number = 0; i < activeObservers.length; i++) {
+	const activeObserversCount = activeObservers.length;
+
+	for (let i = 0; i < activeObserversCount; i++) {
 		const entry: [MutationObserver, string, string] | null = activeObservers[i] ?? null;
 		if (entry === null) continue;
 
@@ -307,14 +266,18 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 
 		if (type.length === 0 || ownClass.length === 0) continue;
 
-		const leaves: WorkspaceLeaf[] = plugin.app.workspace.getLeavesOfType(type) ?? [];
-		for (let j: number = 0; j < leaves.length; j++) {
-			const leaf: WorkspaceLeaf | null = leaves[j] ?? null;
+		const leaves = plugin.app.workspace.getLeavesOfType(type) ?? [];
+		const leavesCount = leaves.length;
+
+		for (let j = 0; j < leavesCount; j++) {
+			const leaf = leaves[j] ?? null;
 			if (leaf !== null && leaf.view?.containerEl) {
 				const nodes: HTMLElement[] = leaf.view.containerEl.findAll(ownClass) ?? [];
-				for (let k: number = 0; k < nodes.length; k++) {
-					const node: HTMLElement | null = nodes[k] ?? null;
-					if (node !== null && isHtmlElement(node)) {
+				const nodesCount = nodes.length;
+
+				for (let k = 0; k < nodesCount; k++) {
+					const node = nodes[k] ?? null;
+					if (node !== null && node instanceof HTMLElement && node.nodeType === 1) {
 						clearExtraAttributes(node);
 					}
 				}

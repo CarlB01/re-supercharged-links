@@ -2,20 +2,20 @@ import { WorkspaceLeaf, View, Plugin, debounce, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
-import { SCLSettings } from './settings/settings';
-import SCLSettingTab from './settings/setting-tab';
-import { loadAndSanitizeSettings, saveStrippedSettings } from "./settings/settings-manager";
+import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 
-import { updateVisibleLinks } from "./views/view-invalidator";
-import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from './views/live-preview';
-import { disconnectAllObservers, removeStylingFromViews } from './observers/observer-engine';
-import { CSSLink } from './types/css-link';
-import { invalidateByPath, invalidateByPrefix } from "./processors/attribute-fetcher";
-import { PluginPerformanceTracker } from './telemetry';
-import { AttributeCacheManager } from './processors/cache-manager';
-import { normalizePathForQueue, compactPrefixes } from './utils/shared-utils';
-import { compileSelectors, CompiledRule } from './processors/rule-compiler';
-import { registerPluginEvents } from './observers/event-registry';
+import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
+import { disconnectAllObservers, removeStylingFromViews } from '../observers/observer-engine';
+import { PluginPerformanceTracker } from '../telemetry';
+import { CompiledRule, compileSelectors } from '../processors/rule-engine';
+import { invalidateByPath, invalidateByPrefix } from '../attribute-fetcher';
+import { updateVisibleLinks } from '../processors/dom-reconciler';
+import SCLSettingTab from '../settings/setting-tab';
+import { SCLSettings } from '../settings/settings';
+import { CSSLink } from '../types/css-link';
+import { AttributeCacheManager } from '../processors/cache-manager';
+import { compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
+import { registerPluginEvents } from './event-registry';
 
 /**
  * Structural bridge representing Obsidian's internal Markdown editor view state layout.

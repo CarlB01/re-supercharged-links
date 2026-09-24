@@ -1,8 +1,6 @@
-// Data collection and caching module
-
 import { App, Plugin as ObsidianPlugin, getAllTags, TFile } from "obsidian";
-import ResuperchargedLinks from "../main";
-import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { cleanAttributeKey, parseSpaceSeparatedTokens } from "./utils/shared-utils";
+import ResuperchargedLinks from "./core/main";
 
 export type AttrCache = Map<string, Record<string, string>>;
 
@@ -19,9 +17,6 @@ interface InternalPluginRegistry {
 	};
 }
 
-/**
- * Structural interface mapping Obsidian's internal plugin registry layer typesafely.
- */
 interface ObsidianAppPluginRegistry {
 	plugins?: {
 		plugins?: Record<string, ObsidianPlugin | null>;
@@ -32,7 +27,6 @@ let cachedDvApi: DataviewAPI | null = null;
 
 function getDataviewApi(app: App): DataviewAPI | null {
 	if (cachedDvApi !== null) return cachedDvApi;
-	
 	const internalPlugins: InternalPluginRegistry = (app as unknown as { plugins: InternalPluginRegistry }).plugins ?? {};
 	const dv = internalPlugins.plugins?.dataview ?? null;
 	
@@ -45,7 +39,7 @@ function getDataviewApi(app: App): DataviewAPI | null {
 
 /**
  * Gathers and compiles all targeted user metadata attributes synchronously from a document instance.
- * ⚡ STRIPPED OVERHEAD: Collects entirely clean text tokens without generating redundant '#' markers.
+ * ⚡ ZERO-BLEED CORE: Generates clean, isolated property blocks unique to the structural file layout.
  */
 export function fetchTargetAttributesSync(
 	app: App,
@@ -65,7 +59,6 @@ export function fetchTargetAttributesSync(
 	const activeAttributes: Set<string> = pluginInstance.activeAttributesSet ?? new Set<string>();
 	const dynamicTagsList: string[] = [];
 
-	// 1. Extract structural Frontmatter block fields safely
 	if (cache.frontmatter && activeAttributes.size > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		for (const attribute of activeAttributes) {
@@ -74,7 +67,7 @@ export function fetchTargetAttributesSync(
 
 			if (attribute === "tag" || attribute === "tags") {
 				const frontmatterTags: string[] = parseSpaceSeparatedTokens(String(value));
-				for (let j: number = 0; j < frontmatterTags.length; j++) {
+				for (let j = 0; j < frontmatterTags.length; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
 					if (t !== null && t.length > 0) {
 						dynamicTagsList.push(t);
@@ -86,13 +79,12 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	// 2. Map standard indexed tag cache tokens seamlessly (Now default O(N) execution route)
 	const allTags: string[] = getAllTags(cache) ?? [];
-	for (let j: number = 0; j < allTags.length; j++) {
+	for (let j = 0; j < allTags.length; j++) {
 		const rawTagNode: string | null = allTags[j] ?? null;
 		if (rawTagNode !== null) {
 			const cacheTags: string[] = parseSpaceSeparatedTokens(rawTagNode);
-			for (let k: number = 0; k < cacheTags.length; k++) {
+			for (let k = 0; k < cacheTags.length; k++) {
 				const cleanCacheTag: string | null = cacheTags[k] ?? null;
 				if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
 					dynamicTagsList.push(cleanCacheTag);
@@ -110,7 +102,6 @@ export function fetchTargetAttributesSync(
 	}
 	newProps.path = dest.path;
 
-	// 3. Parse experimental third-party Dataview inline nodes fully typesafe
 	if (settings.getFromInlineField) {
 		const api: DataviewAPI | null = getDataviewApi(app);
 		if (api !== null) {
@@ -126,7 +117,6 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	// 4. Flatten arrays and keys into hyphenated properties using the global cleaner hook
 	const hyphenatedProps: Record<string, string> = {};
 	for (const [key, value] of Object.entries(newProps)) {
 		const cleanKey: string = cleanAttributeKey(key);
@@ -145,24 +135,18 @@ export function fetchTargetAttributesCached(
 	addDataHref: boolean,
 	cache: AttrCache
 ): Record<string, string> {
-	const ruleConfigVersion: number =
-		typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
-
+	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
 	const key: string = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
 	const hit: Record<string, string> | null = cache.get(key) ?? null;
 
 	if (hit !== null) {
 		plugin.touchAttrCacheKey(key);
-		if (plugin.telemetry) plugin.telemetry.logHit();
 		return hit;
 	}
-
-	if (plugin.telemetry) plugin.telemetry.logMiss();
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
 	cache.set(key, resolved);
 	
-	// 🚀 FIX: Feed the inverted index registry immediately during tracking allocation
 	plugin.touchAttrCacheKey(key);
 	if (plugin.cacheManager) {
 		plugin.cacheManager.registerIndexedKey(dest.path, key);
@@ -171,13 +155,8 @@ export function fetchTargetAttributesCached(
 	return resolved;
 }
 
-/**
- * Globally invalidates precise target elements by a unique file path assignment.
- */
 export function invalidateByPath(cache: AttrCache, path: string): void {
 	if (!path || path.length === 0) return;
-
-	// Resolve the application runtime engine dynamically via non-deprecated routes
 	const globalApp = (window as unknown as { app?: App }).app ?? null;
 	if (globalApp === null) return;
 
@@ -185,7 +164,6 @@ export function invalidateByPath(cache: AttrCache, path: string): void {
 	const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
 	if (rawPlugin === null) return;
 
-	// Perform a secure typesafe cast to access your dedicated CacheManager
 	const plugin = rawPlugin as ResuperchargedLinks;
 	if (!plugin.cacheManager) return;
 
@@ -193,19 +171,13 @@ export function invalidateByPath(cache: AttrCache, path: string): void {
 	const targetKeysSet = indexMap.get(path);
 
 	if (targetKeysSet) {
-		targetKeysSet.forEach((key: string) => {
-			cache.delete(key);
-		});
+		targetKeysSet.forEach((key: string) => { cache.delete(key); });
 		indexMap.delete(path);
 	}
 }
 
-/**
- * Purges target folders systematically using a highly focused directory path tree index scan.
- */
 export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
 	if (!prefix || prefix.length === 0) return;
-	
 	const globalApp = (window as unknown as { app?: App }).app ?? null;
 	if (globalApp === null) return;
 
@@ -223,9 +195,7 @@ export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
 		if (indexedPath.startsWith(normalizedPrefix)) {
 			const targetKeysSet = indexMap.get(indexedPath);
 			if (targetKeysSet) {
-				targetKeysSet.forEach((key: string) => {
-					cache.delete(key);
-				});
+				targetKeysSet.forEach((key: string) => { cache.delete(key); });
 			}
 			indexMap.delete(indexedPath);
 		}

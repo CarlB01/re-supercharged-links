@@ -1,6 +1,6 @@
 import { Setting, setIcon } from "obsidian";
 import { CSSLink } from "../../types/css-link";
-import ResuperchargedLinks from "../../main";
+import ResuperchargedLinks from "../../core/main";
 
 // Persistent timeline registry. Survives UI refreshes, cleared only when detail pane closes.
 export const colorTimelines: Record<string, { past: string[]; future: string[] }> = {};
