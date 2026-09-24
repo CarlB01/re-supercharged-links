@@ -1,3 +1,5 @@
+// telemetry
+
 /**
  * Typesafe performance monitor tracking cache efficiency and lifecycle overhead.
  * Strictly free of 'any' and 'undefined' types to preserve runtime integrity.
@@ -61,7 +63,14 @@ export class PluginPerformanceTracker {
 		this.processedElementsCount.length = 0;
 	}
 
-	public printReport(): void {
+	/**
+	 * Generates a real-time structural performance diagnostic snapshot.
+	 * 🚀 FIXED INLINE TERMINAL: Re-activated the native log channel and attached 
+	 * a user-facing Notice bridge to ensure seamless diagnostics across desktop and mobile iOS.
+	 * 
+	 * @param noticeClass - Injectable bridge reference to Obsidian's Notice component.
+	 */
+	public printReport(noticeClass: typeof import("obsidian").Notice): void {
 		if (!this.isEnabled) return;
 
 		const totalRequests: number = this.cacheHits + this.cacheMisses;
@@ -70,31 +79,42 @@ export class PluginPerformanceTracker {
 			: "0.0";
 
 		let totalDurationSum: number = 0;
-		this.updateTimingsMs.forEach((time) => { totalDurationSum += time; });
+		const timingsLen = this.updateTimingsMs.length;
+		for (let i = 0; i < timingsLen; i++) {
+			const time = this.updateTimingsMs[i];
+			if (time !== undefined) totalDurationSum += time;
+		}
 		
-		const avgTimeMs: string = this.updateTimingsMs.length > 0
-			? (totalDurationSum / this.updateTimingsMs.length).toFixed(2)
+		const avgTimeMs: string = timingsLen > 0
+			? (totalDurationSum / timingsLen).toFixed(2)
 			: "0.00";
 
 		let totalElementsSum: number = 0;
-		this.processedElementsCount.forEach((count) => { totalElementsSum += count; });
+		const elementsLen = this.processedElementsCount.length;
+		for (let i = 0; i < elementsLen; i++) {
+			const count = this.processedElementsCount[i];
+			if (count !== undefined) totalElementsSum += count;
+		}
 
-		const avgElements: number = this.processedElementsCount.length > 0
-			? Math.round(totalElementsSum / this.processedElementsCount.length)
+		const avgElements: number = elementsLen > 0
+			? Math.round(totalElementsSum / elementsLen)
 			: 0;
 
-		const lastElementIndex: number = this.processedElementsCount.length - 1;
+		const lastElementIndex: number = elementsLen - 1;
 		const lastRunCount: number = lastElementIndex >= 0 
 			? (this.processedElementsCount[lastElementIndex] || 0)
 			: 0;
 
-		// 🔑 FLATTET UT: Ingen mystiske linjeskift som kan lure esbuild under kompilering!
-		const reportText: string = "[Supercharged Links Perf]\n" +
+		// Compile clean flat diagnostic message block
+		const reportText: string = "📊 Re-Supercharged Links Perf Report:\n" +
 			`• Cache Hit Rate: ${hitRate}% (${this.cacheHits}/${totalRequests})\n` +
-			`• Average execution: ${avgTimeMs}ms\n` +
-			`• Average links styled: ${avgElements} nodes (Last frame: ${lastRunCount})`;
+			`• Avg execution frame: ${avgTimeMs}ms\n` +
+			`• Avg links styled: ${avgElements} nodes (Last: ${lastRunCount})`;
 
-		// console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
+		// 🚀 1. PRINT TO OBSIDIAN UI: Pops up a beautiful notice box on both Mac and iPhone screens!
+		new noticeClass(reportText, 8000);
+
+		// 🚀 2. PRINT TO CONSOLE: Active once more with verified style flags
+		console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
 	}
-
 }

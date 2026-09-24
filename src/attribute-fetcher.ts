@@ -128,6 +128,8 @@ export function fetchTargetAttributesSync(
 	return hyphenatedProps;
 }
 
+// processors/attribute-fetcher (fetchTargetAttributesCached segment)
+
 export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -139,9 +141,18 @@ export function fetchTargetAttributesCached(
 	const key: string = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
 	const hit: Record<string, string> | null = cache.get(key) ?? null;
 
+	// 🚀 THE FIX: If we find a valid key signature in memory, log a telemetry HIT securely
 	if (hit !== null) {
+		if (plugin.telemetry) {
+			plugin.telemetry.logHit();
+		}
 		plugin.touchAttrCacheKey(key);
 		return hit;
+	}
+
+	// 🚀 THE FIX: If memory is blank and we must execute a fresh disk scan, log a telemetry MISS
+	if (plugin.telemetry) {
+		plugin.telemetry.logMiss();
 	}
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
@@ -154,6 +165,7 @@ export function fetchTargetAttributesCached(
 
 	return resolved;
 }
+
 
 export function invalidateByPath(cache: AttrCache, path: string): void {
 	if (!path || path.length === 0) return;

@@ -144,23 +144,6 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	/**
-	 * Explicit command handler to avoid inline script evaluation limits.
-	 */
-	public handlePrintPerfReport(): void {
-		if (this.telemetry !== null && this.telemetry !== undefined) {
-			this.telemetry.printReport();
-		}
-	}
-
-	/**
-	 * Explicit command handler to clear telemetry buffers.
-	 */
-	public handleResetPerfMetrics(): void {
-		if (this.telemetry !== null && this.telemetry !== undefined) {
-			this.telemetry.resetMetrics();
-		}
-	}
 
 /**
 	 * Dynamically reconfigures structural runtime styling tokens across all active editor viewports.
@@ -204,17 +187,30 @@ export default class ResuperchargedLinks extends Plugin {
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
+		// 🚀 COMPLETE FIX: Direct inline arrow closures injecting the core Notice class natively
 		this.addCommand({
-			id: "scl-botteknott-rapport",
+			id: "scl-botteknott-report",
 			name: "Print styling telemetry botteknott report",
-			callback: this.handlePrintPerfReport.bind(this)
+			callback: (): void => {
+				if (this.telemetry !== null && this.telemetry !== undefined) {
+					this.telemetry.printReport(Notice); // Enforces safe downstream UI notice generation
+				} else {
+					new Notice("Re-Supercharged Links: Telemetry buffer offline.");
+				}
+			}
 		});
 
 		this.addCommand({
 			id: "scl-reset-botteknott-metrics",
 			name: "Reset styling telemetry botteknott metrics",
-			callback: this.handleResetPerfMetrics.bind(this)
+			callback: (): void => {
+				if (this.telemetry !== null && this.telemetry !== undefined) {
+					this.telemetry.resetMetrics();
+					new Notice("Re-Supercharged Links: Telemetry buffers flushed clean.");
+				}
+			}
 		});
+
 
 		// 🚀 NATIVE TIMED EVICTION ENGINE: Registers cache lifecycle management with Obsidian's internal cleaner loop.
 		// Relocates heavy sort and map iteration routines completely away from hot rendering execution pipelines.
