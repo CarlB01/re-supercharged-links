@@ -3,7 +3,7 @@
 import { App, Plugin as ObsidianPlugin, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
-import { extractCleanLinkPath, normalizePathForQueue } from "../utils/shared-utils";
+import { extractCleanLinkPath, extractWikiLinkFromLine, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "../attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
 
@@ -261,6 +261,13 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 /**
  * Advanced frontmatter string splitter and alias-aware validator.
  */
+// processors/dom-reconciler (Robust Properties Alignment)
+
+/**
+ * Advanced frontmatter string parser capable of handling both wikilinks and raw file strings.
+ * 🚀 FIXED PROPERTIES DRIFT: Supports visual list blocks and raw string arrays natively,
+ * ensuring flawless single-channel execution across both desktop and mobile iOS runtimes.
+ */
 function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string, linkText: string): string | null {
 	const rawVal: unknown = frontmatter[key] ?? null;
 	if (rawVal === null) return null;
@@ -268,6 +275,7 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	const cleanLinkText: string = linkText.trim().toLowerCase();
 	const candidates: string[] = [];
 
+	// Unpack frontmatter segments safely into a flat string matrix
 	if (Array.isArray(rawVal)) {
 		const len = rawVal.length;
 		for (let i = 0; i < len; i++) {
@@ -283,34 +291,22 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 		const currentString = candidates[i];
 		if (!currentString) continue;
 
-		const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
-		let match: RegExpExecArray | null = null;
-
-		while ((match = wikiLinkRegex.exec(currentString)) !== null) {
-			const fullContent: string = match[0] ?? "";
-			if (fullContent.length === 0) continue;
-
-			const resolvedPath: string = extractCleanLinkPath(fullContent);
-			
-			let displayContent = fullContent;
-			const pipeIdx = fullContent.indexOf("|");
-			if (pipeIdx !== -1) {
-				displayContent = fullContent.substring(pipeIdx + 1);
-			} else {
-				const hashIdx = displayContent.indexOf("#");
-				if (hashIdx !== -1) {
-					displayContent = displayContent.substring(0, hashIdx);
-				}
+		if (currentString.includes("[[")) {
+			// 🚀 THE CLEAN EN-KANAL ROUTE: Invoke identical verification matrix with direct alias text checks
+			const extractedPath: string | null = extractWikiLinkFromLine(currentString, cleanLinkText);
+			if (extractedPath !== null) {
+				return extractedPath;
 			}
-
-			const cleanDisplayContent = displayContent.trim().toLowerCase();
-			const cleanResolvedPath = resolvedPath.trim().toLowerCase();
-
-			if (resolvedPath.length > 0 && (cleanResolvedPath === cleanLinkText || cleanDisplayContent === cleanLinkText)) {
-				return resolvedPath;
+		} else {
+			const cleanResolvedPath = currentString.trim().toLowerCase();
+			const cleanExtractedPath = extractCleanLinkPath(currentString).toLowerCase().trim();
+			
+			if (cleanResolvedPath === cleanLinkText || cleanExtractedPath === cleanLinkText) {
+				return currentString;
 			}
 		}
 	}
+
 
 	return null;
 }

@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetTy
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { endsWithToken, extractCleanLinkPath, startsWithToken } from "../utils/shared-utils";
+import { endsWithToken, extractCleanLinkPath, extractWikiLinkFromLine, startsWithToken } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
 import { fetchTargetAttributesCached } from "../attribute-fetcher";
 
@@ -193,31 +193,17 @@ export class CMViewPlugin {
 			if (isFragment || linkText.length === 0 || !this.app.metadataCache.getFirstLinkpathDest(linkText, state.activeFileBasename)) {
 				try {
 					const currentLine = view.state.doc.lineAt(node.from);
-					const lineText: string = currentLine.text;
-					const positionInLine: number = node.from - currentLine.from;
+					const extractedPath: string | null = extractWikiLinkFromLine(currentLine.text, null);
 					
-					const wikiLinkRegex: RegExp = /\[\[([^\]]+)\]\]/g;
-					let match: RegExpExecArray | null = null;
-					
-					while ((match = wikiLinkRegex.exec(lineText)) !== null) {
-						const startIdx: number = match.index;
-						const endIdx: number = wikiLinkRegex.lastIndex;
-						
-						if (positionInLine >= startIdx && positionInLine <= endIdx) {
-							const fullMatchedLink: string = match[0] ?? "";
-							const resolvedPath: string = extractCleanLinkPath(fullMatchedLink);
-							
-							if (resolvedPath.length > 0) {
-								linkText = resolvedPath;
-								rawLinkText = fullMatchedLink;
-							}
-							break;
-						}
+					if (extractedPath !== null) {
+						linkText = extractedPath;
+						rawLinkText = `[[${extractedPath}]]`; // Setup fallback envelope token
 					}
 				} catch {
 					return;
 				}
 			}
+
 
 			if (linkText.length === 0) return;
 

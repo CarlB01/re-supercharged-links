@@ -50,7 +50,7 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("recent-files", pluginInstance, ".nav-file-title-content");
 	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
 	registerViewType("tab-header", pluginInstance, ".tab-header-inner-title");
-
+	
 	// Layer 2: Deep myBrain Integration Handshake
 	registerViewType("mybrain-view", pluginInstance, ".focusable-note-link", true);
 
@@ -108,6 +108,12 @@ export function registerViewType(
 	}
 }
 
+
+/**
+ * Suggestion popup, page previews (hover), and core metadata container view controller.
+ * 🚀 FIXED TIMING & POPUP OVERHEAD: Monitors doc.body dynamically to style frontmatter layout layers
+ * instantly during initial tab landings and inside hover tooltips on both desktop and iOS.
+ */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const existing: MutationObserver | null = modalObserverRegistry.get(doc) ?? null;
 	if (existing !== null) {
@@ -120,7 +126,8 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		}
 	}
 
-	const config: MutationObserverInit = { subtree: false, childList: true, attributes: false };
+	// Monitor child insertions down the document tree layout body
+	const config: MutationObserverInit = { subtree: true, childList: true, attributes: false };
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const recordsCount = records.length;
@@ -131,18 +138,34 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 			mutation.addedNodes.forEach((node: Node): void => {
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
+
+					// 1. Target standard core suggestion and switcher boxes natively
 					const isModal: boolean = list.contains("modal-container");
 					const isSuggest: boolean = list.contains("suggestion-container");
+					const isHoverPopup: boolean = list.contains("popover"); // Target hover previews natively
 
-					if (isModal || isSuggest) {
-						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span";
+					if (isModal || isSuggest || isHoverPopup) {
+						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span, div.multi-select-pill-content, div.metadata-link-inner";
 						if (isSuggest) {
 							selector = ".suggestion-title, .suggestion-note";
 						}
+
+						// Execute an immediate visual re-paint loop on injection frame
 						updateContainer(node, plugin, selector);
 						
 						const modalKey = `modal-observer-${selector}`;
 						watchContainer(null, modalKey, node, plugin, selector);
+					}
+
+					// 2. 🚀 THE ULTIMATE TIMING CONTROL: Capture asynchronous property panels immediately 
+					// inside the DOM hierarchy without waiting for active workspace leaf registrations.
+					const isPropertySection: boolean = list.contains("metadata-container") || list.contains("metadata-content") || node.querySelector(".metadata-properties") !== null;
+					if (isPropertySection) {
+						const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner";
+						updateContainer(node, plugin, propertySelector);
+						
+						const propertyKey = `property-panel-observer-${propertySelector}`;
+						watchContainer(null, propertyKey, node, plugin, propertySelector);
 					}
 				}
 			});
@@ -153,6 +176,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	modalObserverRegistry.set(doc, observer);
 	plugin.modalObservers.push(observer);
 }
+
 
 function watchContainer(
 	viewType: string | null,

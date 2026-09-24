@@ -259,3 +259,55 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 	
 	return { prop: "", uid: "" };
 }
+
+/**
+ * Universally scans a raw text string line for internal Obsidian wikilink patterns.
+ * 
+ * @param lineText - The raw text line snippet to query.
+ * @param targetCleanText - Optional filter. If provided, returns the target path ONLY if the link display text or filename matches this criteria.
+ */
+export function extractWikiLinkFromLine(lineText: string, targetCleanText: string | null = null): string | null {
+	if (lineText.length === 0) return null;
+
+	const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
+	let match: RegExpExecArray | null = null;
+	const cleanSearchTarget = targetCleanText !== null ? targetCleanText.trim().toLowerCase() : null;
+
+	while ((match = wikiLinkRegex.exec(lineText)) !== null) {
+		const fullContent: string = match[0] ?? ""; // Dynamic full link token layout string e.g., "[[Path|Alias]]"
+		const rawInsideContent: string = match[1] ?? ""; // The string content purely inside the brackets e.g., "Path|Alias"
+		if (fullContent.length === 0 || rawInsideContent.length === 0) continue;
+
+		// Extract the absolute clean destination path layout
+		const resolvedPath: string = extractCleanLinkPath(fullContent);
+		if (resolvedPath.length === 0) continue;
+
+		// If no target filter is specified, return the first valid link path discovered right away
+		if (cleanSearchTarget === null) {
+			return resolvedPath;
+		}
+
+		// Resolve alias display boundaries identically across all consumers
+		let displayContent: string = rawInsideContent;
+		const pipeIdx = rawInsideContent.indexOf("|");
+		if (pipeIdx !== -1) {
+			displayContent = rawInsideContent.substring(pipeIdx + 1);
+		} else {
+			const hashIdx = displayContent.indexOf("#");
+			if (hashIdx !== -1) {
+				displayContent = displayContent.substring(0, hashIdx);
+			}
+		}
+
+		const cleanDisplayContent = displayContent.trim().toLowerCase();
+		const cleanResolvedPath = resolvedPath.trim().toLowerCase();
+
+		// Intersect targets natively against element text definitions
+		if (cleanResolvedPath === cleanSearchTarget || cleanDisplayContent === cleanSearchTarget) {
+			return resolvedPath;
+		}
+	}
+
+	return null;
+}
+
