@@ -81,6 +81,7 @@ export function normalizeTagToken(input: string): string {
 	const s: string = norm(input);
 	if (s.length === 0) return "";
 	
+	// Endret +\$ til +\$ på slutten
 	const clean = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
 	return clean.startsWith("#") ? clean : `#${clean}`;
 }
@@ -311,3 +312,21 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
 	return null;
 }
 
+/**
+ * Verifies if a search token consists strictly of alphanumeric characters from start to end.
+ * Performance: Used to guard minimum character length validations for plain text strings.
+ */
+export const isPureAlphanumeric = (token: string): boolean => {
+	return /^[a-z0-9]+$/i.test(token);
+};
+
+/**
+ * Verifies if a raw text string ends with a standard layout, status, or presentation emoji.
+ * Prevents appending redundant trailing icons when visual indicators are already present.
+ */
+export const endsWithEmoji = (text: string | null | undefined): boolean => {
+	const s = text ?? "";
+	if (s.length <= 1) return false;
+	
+	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})$/u.test(s);
+};

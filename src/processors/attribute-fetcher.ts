@@ -1,15 +1,17 @@
+// processors/attribute-fetcher
+
 import { App, Plugin as ObsidianPlugin, getAllTags, TFile } from "obsidian";
-import { cleanAttributeKey, parseSpaceSeparatedTokens } from "./utils/shared-utils";
-import ResuperchargedLinks from "./core/main";
+import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import ResuperchargedLinks from "../core/main";
 
 export type AttrCache = Map<string, Record<string, string>>;
 
 interface DataviewAPI {
-	page(path: string): Record<string, unknown> | undefined;
+	page(path: string): Record<string, unknown> | null;
 }
 
 interface InternalPluginRegistry {
-	plugins?: {
+	plugins: {
 		dataview?: {
 			enabled?: boolean;
 			api?: DataviewAPI;
@@ -17,19 +19,18 @@ interface InternalPluginRegistry {
 	};
 }
 
-interface ObsidianAppPluginRegistry {
-	plugins?: {
-		plugins?: Record<string, ObsidianPlugin | null>;
-	};
-}
-
 let cachedDvApi: DataviewAPI | null = null;
 
+/**
+ * Safely resolves and caches the Dataview global API instance via decoupled internal registry queries.
+ */
 function getDataviewApi(app: App): DataviewAPI | null {
 	if (cachedDvApi !== null) return cachedDvApi;
-	const internalPlugins: InternalPluginRegistry = (app as unknown as { plugins: InternalPluginRegistry }).plugins ?? {};
-	const dv = internalPlugins.plugins?.dataview ?? null;
 	
+	const internalPlugins: InternalPluginRegistry = (app as unknown as { plugins: InternalPluginRegistry }).plugins;
+	if (internalPlugins === null) return null;
+
+	const dv = internalPlugins.plugins?.dataview ?? null;
 	if (dv !== null && dv.enabled && dv.api) {
 		cachedDvApi = dv.api;
 		return cachedDvApi;
@@ -56,18 +57,20 @@ export function fetchTargetAttributesSync(
 	const cache = app.metadataCache.getFileCache(dest) ?? null;
 	if (cache === null) return newProps;
 
-	const activeAttributes: Set<string> = pluginInstance.activeAttributesSet ?? new Set<string>();
+	const activeAttributes: Set<string> = pluginInstance.activeAttributesSet;
 	const dynamicTagsList: string[] = [];
 
-	if (cache.frontmatter && activeAttributes.size > 0) {
+	if (cache.frontmatter !== null && cache.frontmatter !== undefined && activeAttributes.size > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
+		
 		for (const attribute of activeAttributes) {
 			const value: unknown = fm[attribute] ?? null;
 			if (value === null) continue;
 
 			if (attribute === "tag" || attribute === "tags") {
 				const frontmatterTags: string[] = parseSpaceSeparatedTokens(String(value));
-				for (let j = 0; j < frontmatterTags.length; j++) {
+				const fmTagsLen = frontmatterTags.length;
+				for (let j = 0; j < fmTagsLen; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
 					if (t !== null && t.length > 0) {
 						dynamicTagsList.push(t);
@@ -80,11 +83,13 @@ export function fetchTargetAttributesSync(
 	}
 
 	const allTags: string[] = getAllTags(cache) ?? [];
-	for (let j = 0; j < allTags.length; j++) {
+	const allTagsLen = allTags.length;
+	for (let j = 0; j < allTagsLen; j++) {
 		const rawTagNode: string | null = allTags[j] ?? null;
 		if (rawTagNode !== null) {
 			const cacheTags: string[] = parseSpaceSeparatedTokens(rawTagNode);
-			for (let k = 0; k < cacheTags.length; k++) {
+			const cacheTagsLen = cacheTags.length;
+			for (let k = 0; k < cacheTagsLen; k++) {
 				const cleanCacheTag: string | null = cacheTags[k] ?? null;
 				if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
 					dynamicTagsList.push(cleanCacheTag);
@@ -128,8 +133,10 @@ export function fetchTargetAttributesSync(
 	return hyphenatedProps;
 }
 
-// processors/attribute-fetcher (fetchTargetAttributesCached segment)
-
+/**
+ * High-performance layout accessor proxy pulling compiled attribute data from versioned memory blocks.
+ * Emits fine-grained telemetry tracking pulses natively to gauge cache performance boundaries.
+ */
 export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -138,20 +145,18 @@ export function fetchTargetAttributesCached(
 	cache: AttrCache
 ): Record<string, string> {
 	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
-	const key: string = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
+	const key = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
 	const hit: Record<string, string> | null = cache.get(key) ?? null;
 
-	// 🚀 THE FIX: If we find a valid key signature in memory, log a telemetry HIT securely
 	if (hit !== null) {
-		if (plugin.telemetry) {
+		if (plugin.telemetry !== null) {
 			plugin.telemetry.logHit();
 		}
 		plugin.touchAttrCacheKey(key);
 		return hit;
 	}
 
-	// 🚀 THE FIX: If memory is blank and we must execute a fresh disk scan, log a telemetry MISS
-	if (plugin.telemetry) {
+	if (plugin.telemetry !== null) {
 		plugin.telemetry.logMiss();
 	}
 
@@ -159,57 +164,9 @@ export function fetchTargetAttributesCached(
 	cache.set(key, resolved);
 	
 	plugin.touchAttrCacheKey(key);
-	if (plugin.cacheManager) {
+	if (plugin.cacheManager !== null) {
 		plugin.cacheManager.registerIndexedKey(dest.path, key);
 	}
 
 	return resolved;
-}
-
-
-export function invalidateByPath(cache: AttrCache, path: string): void {
-	if (!path || path.length === 0) return;
-	const globalApp = (window as unknown as { app?: App }).app ?? null;
-	if (globalApp === null) return;
-
-	const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
-	const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
-	if (rawPlugin === null) return;
-
-	const plugin = rawPlugin as ResuperchargedLinks;
-	if (!plugin.cacheManager) return;
-
-	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
-	const targetKeysSet = indexMap.get(path);
-
-	if (targetKeysSet) {
-		targetKeysSet.forEach((key: string) => { cache.delete(key); });
-		indexMap.delete(path);
-	}
-}
-
-export function invalidateByPrefix(cache: AttrCache, prefix: string): void {
-	if (!prefix || prefix.length === 0) return;
-	const globalApp = (window as unknown as { app?: App }).app ?? null;
-	if (globalApp === null) return;
-
-	const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
-	const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
-	if (rawPlugin === null) return;
-
-	const plugin = rawPlugin as ResuperchargedLinks;
-	if (!plugin.cacheManager) return;
-
-	const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
-	const indexMap: Map<string, Set<string>> = plugin.cacheManager.getPathIndex();
-
-	for (const indexedPath of indexMap.keys()) {
-		if (indexedPath.startsWith(normalizedPrefix)) {
-			const targetKeysSet = indexMap.get(indexedPath);
-			if (targetKeysSet) {
-				targetKeysSet.forEach((key: string) => { cache.delete(key); });
-			}
-			indexMap.delete(indexedPath);
-		}
-	}
 }

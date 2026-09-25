@@ -1,6 +1,5 @@
 import { PluginPerformanceTracker } from "../telemetry";
 
-
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
  * Maintains an O(1) reverse indexing matrix to prevent costly O(N) linear key sweeps.
@@ -50,8 +49,8 @@ export class AttributeCacheManager {
 	public registerIndexedKey(path: string, key: string): void {
 		if (path.length === 0 || key.length === 0) return;
 		
-		let set = this.pathIndex.get(path);
-		if (!set) {
+		let set: Set<string> | null = this.pathIndex.get(path) ?? null;
+		if (set === null) {
 			set = new Set<string>();
 			this.pathIndex.set(path, set);
 		}
@@ -62,11 +61,57 @@ export class AttributeCacheManager {
 	 * Cleans a distinct cache key directly from the inverted path index trackers.
 	 */
 	public removeKeyFromIndex(path: string, key: string): void {
-		const set = this.pathIndex.get(path);
-		if (set) {
+		const set: Set<string> | null = this.pathIndex.get(path) ?? null;
+		if (set !== null) {
 			set.delete(key);
 			if (set.size === 0) {
 				this.pathIndex.delete(path);
+			}
+		}
+	}
+
+	/**
+	 * Evicts a specific file path from the live cache map and updates the inverted index structure.
+	 * ⚡ ZERO-WINDOW TRICK: Operates entirely on local memory matrices without abstract global app layers.
+	 */
+	public invalidatePath(path: string): void {
+		if (path.length === 0) return;
+		
+		const normalizedPath: string = path.toLowerCase().trim();
+		const targetKeys: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
+
+		if (targetKeys !== null) {
+			const keysArray: string[] = Array.from(targetKeys);
+			const keysLen: number = keysArray.length;
+
+			for (let i = 0; i < keysLen; i++) {
+				const key: string | null = keysArray[i] ?? null;
+				if (key !== null) {
+					this.attrCycleCache.delete(key);
+					this.attrCacheTouchedAt.delete(key);
+				}
+			}
+			this.pathIndex.delete(normalizedPath);
+		}
+		this.recentPathTouches.delete(normalizedPath);
+	}
+
+	/**
+	 * Cascades downward through the inverted index keys to drop cache signatures originating under a folder prefix.
+	 */
+	public invalidatePrefix(prefix: string): void {
+		if (prefix.length === 0) return;
+
+		const normalizedPrefix: string = prefix.toLowerCase().trim();
+		const cleanPrefix: string = normalizedPrefix.endsWith("/") ? normalizedPrefix : `${normalizedPrefix}/`;
+
+		const indexedPaths: string[] = Array.from(this.pathIndex.keys());
+		const pathsLen: number = indexedPaths.length;
+
+		for (let i = 0; i < pathsLen; i++) {
+			const currentPath: string | null = indexedPaths[i] ?? null;
+			if (currentPath !== null && (currentPath === normalizedPrefix || currentPath.startsWith(cleanPrefix))) {
+				this.invalidatePath(currentPath);
 			}
 		}
 	}
@@ -86,7 +131,7 @@ export class AttributeCacheManager {
 	public clearAllCache(): void {
 		this.attrCycleCache.clear();
 		this.attrCacheTouchedAt.clear();
-		this.pathIndex.clear(); // 🚀 Keep index clean
+		this.pathIndex.clear();
 	}
 
 	public runLifecyclePrune(): void {
@@ -101,7 +146,6 @@ export class AttributeCacheManager {
 		for (const key of this.attrCycleCache.keys()) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				// Safely decouple path references from the index before deletion
 				this.removeKeyFromIndexFromRawKey(key);
 				this.attrCycleCache.delete(key);
 				this.attrCacheTouchedAt.delete(key);
@@ -110,17 +154,22 @@ export class AttributeCacheManager {
 
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
 			const overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
-			const entries = Array.from(this.attrCacheTouchedAt.entries())
+			const entries: [string, number][] = Array.from(this.attrCacheTouchedAt.entries())
 				.sort((a, b) => a[1] - b[1]);
 
-			let removed: number = 0;
-			for (const [key] of entries) {
-				if (!this.attrCycleCache.has(key)) continue;
-				this.removeKeyFromIndexFromRawKey(key);
-				this.attrCycleCache.delete(key);
-				this.attrCacheTouchedAt.delete(key);
-				removed += 1;
-				if (removed >= overflow) break;
+			let removed = 0;
+			const entriesLen = entries.length;
+			for (let i = 0; i < entriesLen; i++) {
+				const entry: [string, number] | null = entries[i] ?? null;
+				if (entry !== null) {
+					const key: string = entry[0];
+					if (!this.attrCycleCache.has(key)) continue;
+					this.removeKeyFromIndexFromRawKey(key);
+					this.attrCycleCache.delete(key);
+					this.attrCacheTouchedAt.delete(key);
+					removed += 1;
+					if (removed >= overflow) break;
+				}
 			}
 		}
 	}
@@ -136,24 +185,25 @@ export class AttributeCacheManager {
 
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
 			const overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
-			let removed: number = 0;
-			for (const key of this.recentPathTouches.keys()) {
-				this.recentPathTouches.delete(key);
-				removed += 1;
-				if (removed >= overflow) break;
+			let removed = 0;
+			const keys: string[] = Array.from(this.recentPathTouches.keys());
+			const keysLen = keys.length;
+			for (let i = 0; i < keysLen; i++) {
+				const key: string | null = keys[i] ?? null;
+				if (key !== null) {
+					this.recentPathTouches.delete(key);
+					removed += 1;
+					if (removed >= overflow) break;
+				}
 			}
 		}
 	}
 
-	/**
-	 * Parses path strings backward out of versioned tracking structures to isolate index drops.
-	 */
 	private removeKeyFromIndexFromRawKey(key: string): void {
-		// Key syntax format: "v[Version]::[Path]::[0/1]"
-		const segments = key.split("::");
+		const segments: string[] = key.split("::");
 		if (segments.length >= 3) {
-			const extractedPath = segments[1];
-			if (extractedPath) {
+			const extractedPath: string | null = segments[1] ?? null;
+			if (extractedPath !== null) {
 				this.removeKeyFromIndex(extractedPath, key);
 			}
 		}

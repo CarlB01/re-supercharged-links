@@ -2,7 +2,7 @@
 
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
+import { cleanAttributeKey, endsWithEmoji, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
 
 /**
  * Completely purges all supercharged style properties, inline icon spans, and data-link attributes.
@@ -137,8 +137,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	const targetBg: string = resolution.style.backgroundColor || "";
 	const currentTrackedColor: string = link.getAttribute("data-link-color") || "";
 
-	// 🚀 IMMUTABILITY GUARD: If the element is already correctly styled by a previous execution frame, 
-	// abort immediately. This snaps the infinite mutation/observer chain instantly.
+	// 🚀 TILBAKERULLET TIL MASTER-GUARD: Den opprinnelige, lynraske farge-guarden din!
 	if (currentTrackedColor === targetColor && link.classList.contains("scl-processed")) {
 		return;
 	}
@@ -183,17 +182,15 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		const skipBefore: boolean = iconBefore.length > 0 && startsWithToken(visibleText, iconBefore);
 		let skipAfter: boolean = iconAfter.length > 0 && endsWithToken(visibleText, iconAfter);
 
-		if (iconAfter.length > 0 && !skipAfter && visibleText.length > 1) {
-			if (/[\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]\$/u.test(visibleText)) {
-				skipAfter = true;
-			}
+		if (iconAfter.length > 0 && !skipAfter && endsWithEmoji(visibleText)) {
+			skipAfter = true;
 		}
 
 		if (iconBefore.length > 0 && !skipBefore) {
 			const spanBefore = link.createSpan({
-    		cls: "scl-inline-icon scl-inline-icon-before",
+				cls: "scl-inline-icon scl-inline-icon-before",
 				text: iconBefore
-		  });
+			});
 			spanBefore.setAttribute("contenteditable", "false");
 			spanBefore.setCssStyles({ display: "inline-block" });
 
@@ -214,14 +211,11 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			link.appendChild(spanAfter);
 		}
 
-		// Inject attributes securely and guard against undefined loop entries
-		const resolutionAttributes = Object.entries(resolution.attributes);
-		const resolutionAttributesCount = resolutionAttributes.length;
-		for (let i = 0; i < resolutionAttributesCount; i++) {
-			const entry = resolutionAttributes[i];
-			if (entry) {
-				const attrKey: string = entry[0];
-				const attrValue: string = entry[1];
+		// 🚀 LYNRAST DIRECT LOOKUP: Slipper å allokere minne for arrays med Object.entries under scrolling
+		const resAttrs = resolution.attributes;
+		for (const attrKey in resAttrs) {
+			if (Object.prototype.hasOwnProperty.call(resAttrs, attrKey)) {
+				const attrValue: string = resAttrs[attrKey] || "";
 				if (attrValue.length > 0) {
 					link.setAttribute(attrKey, attrValue);
 				}
@@ -233,14 +227,10 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
-	// Downstream data tracking integrity export logic
-	const newPropsEntries = Object.entries(newProps);
-	const newPropsEntriesCount = newPropsEntries.length;
-	for (let i = 0; i < newPropsEntriesCount; i++) {
-		const entry = newPropsEntries[i];
-		if (entry) {
-			const key: string = entry[0];
-			const propValue: string = entry[1];
+	// 🚀 LYNRAST DIRECT LOOKUP: Slipper å allokere minne for arrays med Object.entries under scrolling
+	for (const key in newProps) {
+		if (Object.prototype.hasOwnProperty.call(newProps, key)) {
+			const propValue: string = newProps[key] || "";
 			
 			const domKey: string = cleanAttributeKey(key);
 			const attributeName = `data-link-${domKey}`;
@@ -259,5 +249,8 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 	// Append core tracking classes to complete the execution block lock
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
-	link.addClass("scl-processed"); // 🚀 LOCK FLAG: Prevents re-processing if states remain unchanged
+	link.addClass("scl-processed");
 }
+
+
+

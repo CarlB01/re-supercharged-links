@@ -4,17 +4,17 @@ import { App, Plugin as ObsidianPlugin, getLinkpath, MarkdownPostProcessorContex
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizePathForQueue } from "../utils/shared-utils";
-import { AttrCache, fetchTargetAttributesCached } from "../attribute-fetcher";
+import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
 
 type RefreshScope = {
-	paths?: Set<string>;
-	prefixes?: Set<string>;
+	paths: Set<string>;
+	prefixes: Set<string>;
 };
 
 interface ObsidianAppPluginRegistry {
-	plugins?: {
-		plugins?: Record<string, ObsidianPlugin | null>;
+	plugins: {
+		plugins: Record<string, ObsidianPlugin | null>;
 	};
 }
 
@@ -36,25 +36,24 @@ interface QueuedDOMMutation {
 class DOMMutationBatcher {
 	private readonly queue: QueuedDOMMutation[] = [];
 	private isProcessing = false;
-	private readonly CHUNK_SIZE = 25;
+	private readonly CHUNK_SIZE = 200;
 
 	/**
-	 * Pushes a targeted link element mutation into the asynchronous render pipeline.
+	 * Enqueues a targeted HTMLElement mutation into the asynchronous rendering pipeline.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>): void {
 		this.queue.push({ element, props });
 		if (!this.isProcessing) {
 			this.isProcessing = true;
-			// 🚀 LINTER COMPLIANT TIMER: Invokes the global window scheduler to pass all review criteria
 			window.requestAnimationFrame(() => this.processBatch());
 		}
 	}
 
 	/**
-	 * Flushes a performance-capped horizontal slice of the allocation queue inside a single thread frame.
+	 * Flushes a high-capacity performance slice of the mutation queue within a single animation frame.
 	 */
 	private processBatch(): void {
-		const globalApp = (window as unknown as { app?: App }).app ?? null;
+		const globalApp: App | null = (window as unknown as { app?: App }).app ?? null;
 		if (globalApp === null) {
 			this.queue.length = 0;
 			this.isProcessing = false;
@@ -62,7 +61,7 @@ class DOMMutationBatcher {
 		}
 
 		const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
-		const rawPlugin = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
+		const rawPlugin: ObsidianPlugin | null = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
 		if (rawPlugin === null) {
 			this.queue.length = 0;
 			this.isProcessing = false;
@@ -78,14 +77,12 @@ class DOMMutationBatcher {
 
 		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
 		for (let i = 0; i < currentBatchSize; i++) {
-			const task = this.queue.shift();
-			if (task && task.element && task.element.nodeType === 1 && task.element.isConnected) {
-				const elementProps: Record<string, string> = task.props;
-				setLinkNewProps(task.element, elementProps, plugin);
+			const task: QueuedDOMMutation | null = this.queue.shift() ?? null;
+			if (task !== null && task.element.nodeType === 1 && task.element.isConnected) {
+				setLinkNewProps(task.element, task.props, plugin);
 			}
 		}
 
-		// If elements remain inside the memory stack, request the next frame loop natively
 		if (this.queue.length > 0) {
 			window.requestAnimationFrame(() => this.processBatch());
 		} else {
@@ -97,25 +94,25 @@ class DOMMutationBatcher {
 const domBatcher = new DOMMutationBatcher();
 
 /**
- * Sweeps a layout container element and assigns compiled visual configurations typesafely.
- * 🚀 FIXED PROPERTY LEAK: Completely rewrote evaluation paths to isolate execution metadata scope 
- * per cell node instance, strictly bypassing speculative text node parsing vectors.
+ * Sweeps a container or processes targeted direct nodes to assign compiled visual styles instantly.
+ * Optimized to completely bypass heavy full-container lookups during continuous scrolling sequences.
  */
 export function updateContainer(
 	container: HTMLElement,
 	plugin: ResuperchargedLinks,
 	selector: string,
-	filterCollapsible = false
+	filterCollapsible = false,
+	directNodes: HTMLElement[] | null = null
 ): number { 
-	if (!container || typeof container.findAll !== "function") return 0;
 	if (!container.isConnected) return 0;
 
-	let styledCount: number = 0;
+	let styledCount = 0;
 	if (plugin.settings.enableTagChips) {
 		tagChipStyles(container, plugin);
 	}
 
-	const nodes: HTMLElement[] = container.findAll(selector) ?? [];
+	// 🚀 HIGH PERFORMANCE HARVEST: Use provided delta mutations from scrolling, fallback to lookup only when needed
+	const nodes: HTMLElement[] = directNodes !== null ? directNodes : (typeof container.findAll === "function" ? container.findAll(selector) ?? [] : []);
 	const nodesCount = nodes.length;
 	if (nodesCount === 0) return 0;
 
@@ -133,7 +130,7 @@ export function updateContainer(
 
 		if (isPopupContext) {
 			const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
-			let resolvedPath: string = "";
+			let resolvedPath = "";
 			if (parentItem instanceof HTMLElement) {
 				resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
 			}
@@ -172,7 +169,7 @@ export function updateContainer(
 }
 	
 /**
- * Contextual attribute updater targeting div boundaries and multi-select pill containers.
+ * Contextual attribute updater targeting interface boundaries and multi-select pill layouts.
  */
 export function updateDivExtraAttributes(
 	app: App,
@@ -182,13 +179,13 @@ export function updateDivExtraAttributes(
 	linkName: string | null,
 	filterCollapsible = false
 ): void {
-	const parent = link.parentElement ?? null;
+	const parent: HTMLElement | null = link.parentElement ?? null;
 	if (filterCollapsible && parent !== null && parent.classList.contains("mod-collapsible")) return;
 
 	let resolvedLinkName: string | null = linkName;
 	if (resolvedLinkName === null) {
-		const ownHref = link.getAttribute("data-href");
-		const rawText = link.textContent ?? "";
+		const ownHref: string | null = link.getAttribute("data-href");
+		const rawText: string = link.textContent ?? "";
 		
 		if (ownHref !== null && ownHref.length > 0) {
 			resolvedLinkName = ownHref;
@@ -205,7 +202,7 @@ export function updateDivExtraAttributes(
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
 
-	const dest = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
+	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
 	if (dest === null) return;
 
 	const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
@@ -213,7 +210,7 @@ export function updateDivExtraAttributes(
 }
 
 /**
- * Post-processing rendering hook targeting explicit static document element blocks.
+ * Post-processing rendering hook targeting explicit static document post-process element blocks.
  */
 export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 	const links: NodeListOf<Element> = el.querySelectorAll("a.internal-link");
@@ -224,33 +221,26 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 	const globalCache: AttrCache = plugin.attrCycleCache;
 
 	for (let i = 0; i < linksCount; i++) {
-		const node = links[i] ?? null;
+		const node: Element | null = links[i] ?? null;
 		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1) continue;
 		
-		const hrefAttr = node.getAttribute("href");
-		if (!hrefAttr) continue;
+		const hrefAttr: string | null = node.getAttribute("href");
+		if (hrefAttr === null) continue;
 
-		const parts = hrefAttr.split("#");
-		const linkHref = parts[0];
-		if (!linkHref) continue;
+		const parts: string[] = hrefAttr.split("#");
+		const linkHref: string | null = parts[0] ?? null;
+		if (linkHref === null || linkHref.length === 0) continue;
 
-		const dest = app.metadataCache.getFirstLinkpathDest(linkHref, destName) ?? null;
+		const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(linkHref, destName) ?? null;
 		if (dest === null) continue;
 
-		const localProps = fetchTargetAttributesCached(app, plugin, dest, false, globalCache);
+		const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, globalCache);
 		domBatcher.enqueue(node, localProps);
 	}
 }
 
 /**
- * Advanced frontmatter string splitter and alias-aware validator.
- */
-// processors/dom-reconciler (Robust Properties Alignment)
-
-/**
- * Advanced frontmatter string parser capable of handling both wikilinks and raw file strings.
- * 🚀 FIXED PROPERTIES DRIFT: Supports visual list blocks and raw string arrays natively,
- * ensuring flawless single-channel execution across both desktop and mobile iOS runtimes.
+ * Advanced frontmatter string parser capable of handling both wikilinks and raw file mappings.
  */
 function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string, linkText: string): string | null {
 	const rawVal: unknown = frontmatter[key] ?? null;
@@ -259,9 +249,8 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	const cleanLinkText: string = linkText.trim().toLowerCase();
 	const candidates: string[] = [];
 
-	// Unpack frontmatter segments safely into a flat string matrix
 	if (Array.isArray(rawVal)) {
-		const len = rawVal.length;
+		const len: number = rawVal.length;
 		for (let i = 0; i < len; i++) {
 			const item: unknown = rawVal[i] ?? null;
 			if (typeof item === "string") candidates.push(item);
@@ -272,18 +261,17 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 
 	const candidatesCount = candidates.length;
 	for (let i = 0; i < candidatesCount; i++) {
-		const currentString = candidates[i];
-		if (!currentString) continue;
+		const currentString: string = candidates[i] ?? "";
+		if (currentString.length === 0) continue;
 
 		if (currentString.includes("[[")) {
-			// 🚀 THE CLEAN EN-KANAL ROUTE: Invoke identical verification matrix with direct alias text checks
 			const extractedPath: string | null = extractWikiLinkFromLine(currentString, cleanLinkText);
 			if (extractedPath !== null) {
 				return extractedPath;
 			}
 		} else {
-			const cleanResolvedPath = currentString.trim().toLowerCase();
-			const cleanExtractedPath = extractCleanLinkPath(currentString).toLowerCase().trim();
+			const cleanResolvedPath: string = currentString.trim().toLowerCase();
+			const cleanExtractedPath: string = extractCleanLinkPath(currentString).toLowerCase().trim();
 			
 			if (cleanResolvedPath === cleanLinkText || cleanExtractedPath === cleanLinkText) {
 				return currentString;
@@ -291,37 +279,36 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 		}
 	}
 
-
 	return null;
 }
 
 /**
- * Sweeps the document active property matrix pane and delegates pills safely down to asynchronous pipelines.
+ * Sweeps the document metadata property panel pane and balances elements securely.
  */
 export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app: App, plugin: ResuperchargedLinks): number {
-	const frontmatter = app.metadataCache.getCache(file.path)?.frontmatter ?? null;
+	const frontmatter: Record<string, unknown> | null = app.metadataCache.getCache(file.path)?.frontmatter ?? null;
 	if (frontmatter === null) return 0;
 
 	let count = 0;
 
-	const pills = propertiesEl.querySelectorAll("div.multi-select-pill-content");
+	const pills: NodeListOf<Element> = propertiesEl.querySelectorAll("div.multi-select-pill-content");
 	const pillsCount = pills.length;
 
 	for (let i = 0; i < pillsCount; i++) {
-		const node = pills[i] ?? null;
+		const node: Element | null = pills[i] ?? null;
 		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
 
-		const text = (node.textContent ?? "").trim();
+		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
 
-		const rowContainer = node.closest(".metadata-property");
-		const inputCandidate = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
+		const rowContainer: Element | null = node.closest(".metadata-property");
+		const inputCandidate: Element | null = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
 		
-		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value) {
-			const resolvedTarget = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
+		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value.length > 0) {
+			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
 			
 			if (resolvedTarget !== null) {
-				const currentDataHref = node.getAttribute("data-href") || "";
+				const currentDataHref: string = node.getAttribute("data-href") || "";
 				if (currentDataHref !== resolvedTarget) {
 					node.setAttribute("data-href", resolvedTarget);
 				}
@@ -331,23 +318,23 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 		}
 	}
 
-	const singleLinks = propertiesEl.querySelectorAll("div.metadata-link-inner");
+	const singleLinks: NodeListOf<Element> = propertiesEl.querySelectorAll("div.metadata-link-inner");
 	const singleLinksCount = singleLinks.length;
 	for (let i = 0; i < singleLinksCount; i++) {
-		const node = singleLinks[i] ?? null;
+		const node: Element | null = singleLinks[i] ?? null;
 		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
 
-		const text = (node.textContent ?? "").trim();
+		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
 
-		const rowContainer = node.closest(".metadata-property");
-		const inputCandidate = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
+		const rowContainer: Element | null = node.closest(".metadata-property");
+		const inputCandidate: Element | null = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
 
-		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value) {
-			const resolvedTarget = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
+		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value.length > 0) {
+			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
 			
 			if (resolvedTarget !== null) {
-				const currentDataHref = node.getAttribute("data-href") || "";
+				const currentDataHref: string = node.getAttribute("data-href") || "";
 				if (currentDataHref !== resolvedTarget) {
 					node.setAttribute("data-href", resolvedTarget);
 				}
@@ -389,12 +376,6 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile,
 	return 0;
 }
 
-
-/**
- * Scans internal file anchors typesafely and handles multi-select pill scenarios cleanly.
- * 🚀 FIXED DATA LEAK: Decouples each structural node context into an isolated memory segment
- * to guarantee adjacent node property data boundaries remain completely untainted.
- */
 function updateLeafInternalLinks(
 	app: App, 
 	plugin: ResuperchargedLinks, 
@@ -414,30 +395,23 @@ function updateLeafInternalLinks(
 		if (!link) continue;
 
 		const escapedHref: string = CSS.escape(link.link);
-		
-		// Target both standard anchor elements and your custom multi-select pills safely
 		const selector = `a.internal-link[href="${escapedHref}"], .multi-select-pill-content[data-href="${escapedHref}"]`;
 		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(selector);
 		const foundNodesCount = internalLinks.length;
 
 		for (let j = 0; j < foundNodesCount; j++) {
-			const node = internalLinks[j] ?? null;
+			const node: Element | null = internalLinks[j] ?? null;
 			
-			// Strict structural nodeType boundary check replacing speculative type casts
-			if (node !== null && node instanceof HTMLElement && node.nodeType === 1 && node.isConnected) {
+			if (node !== null && node instanceof HTMLElement && node.isConnected) {
 				const rawHref: string | null = node.getAttribute("data-href");
 				const rawText: string | null = node.textContent;
 				
-				// Handle missing parameters via clean, defensive fallbacks to null
 				const runtimeHref: string = rawHref !== null ? rawHref : (rawText !== null ? rawText : link.link);
 				const cleanRuntimeHref: string = extractCleanLinkPath(runtimeHref);
 				
 				const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(cleanRuntimeHref, file.basename) ?? null;
 				if (dest !== null) {
-					// Extract an isolated memory block unique to THIS explicit file node assignment
 					const currentProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
-					
-					// Transfer execution safely to the thread-capped frame mutation batcher queue
 					domBatcher.enqueue(node, currentProps);
 					localCount += 1;
 				}
@@ -447,17 +421,13 @@ function updateLeafInternalLinks(
 	return localCount;
 }
 
-/**
- * Internal helper to evaluate whether a specific document file path resides 
- * inside the current targeted operational refresh scope parameters.
- */
 function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	if (!scope) return true;
 	const normalizedPath: string = normalizePathForQueue(path);
 	if (normalizedPath.length === 0) return true;
 
-	const paths: Set<string> = scope.paths ?? new Set<string>();
-	const prefixes: Set<string> = scope.prefixes ?? new Set<string>();
+	const paths: Set<string> = scope.paths;
+	const prefixes: Set<string> = scope.prefixes;
 
 	if (paths.size === 0 && prefixes.size === 0) return true;
 	if (paths.has(normalizedPath)) return true;
@@ -474,35 +444,25 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	return false;
 }
 
-/**
- * 🚀 MAIN RECONCILIATION SWEEP (v2.2.0)
- * Scans all visible layout elements across static leaves and maps them to async update streams.
- * ⚡ SINGLE-CHANNEL BLOCK: Aborts instantly if a leaf is in Source or Live Preview mode,
- * leaving editor styling entirely to CodeMirror 6 to permanently resolve scrolling lag.
- */
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?: RefreshScope): void {
 	const attrCache: AttrCache = plugin.attrCycleCache;
-	let totalNodesStyled: number = 0;
+	let totalNodesStyled = 0;
 
-	const normalizedScope: RefreshScope | undefined = scope
+	const normalizedScope: RefreshScope | null = scope
 		? {
-				paths: new Set(Array.from(scope.paths ?? []).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0)),
-				prefixes: new Set(Array.from(scope.prefixes ?? []).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0))
+				paths: new Set(Array.from(scope.paths).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0)),
+				prefixes: new Set(Array.from(scope.prefixes).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0))
 		  }
-		: undefined;
+		: null;
 
 	app.workspace.iterateRootLeaves((leaf) => {
 		if (!(leaf.view instanceof MarkdownView)) return;
-
-		// 🚀 THE CRITICAL SINGLE-CHANNEL GUARD: If the view layout is in Source or Live Preview mode, 
-		// ABORT DOM scanning immediately. CodeMirror handles this virtual space via compiled themes natively.
 		if (leaf.view.getMode() !== "preview") return;
 
 		const file: TFile | null = leaf.view.file;
 		if (file === null) return;
-		if (!isPathInScope(file.path, normalizedScope)) return;
+		if (normalizedScope !== null && !isPathInScope(file.path, normalizedScope)) return;
 
-		interface LeafWithMarkdownView { view: MarkdownView; }
 		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
 		
 		totalNodesStyled += updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
@@ -514,4 +474,3 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 		plugin.telemetry.setLastNodeCount(totalNodesStyled);
 	}
 }
-

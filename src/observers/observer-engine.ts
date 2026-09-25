@@ -7,8 +7,8 @@ import { updateContainer } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "../core/main";
 
 interface ObsidianAppInternalRegistry {
-	plugins?: {
-		plugins?: Record<string, unknown>;
+	plugins: {
+		plugins: Record<string, unknown>;
 	};
 }
 
@@ -17,8 +17,8 @@ const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = ne
 const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
 
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
-	const prev: number | undefined = scheduledContainerUpdates.get(container);
-	if (prev !== undefined) {
+	const prev: number | null = scheduledContainerUpdates.get(container) ?? null;
+	if (prev !== null) {
 		cancelAnimationFrame(prev);
 	}
 
@@ -30,18 +30,12 @@ function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 }
 
 /**
- * LIGHTWEIGHT IDEMPOTENT OBSERVATION CONTROLLER
- * Synchronously activates styling engines globally across static workspace fragments.
- * ⚡ SINGLE SOURCE OF TRUTH: Commits 'markdown' and 'bases' text bodies exclusively 
- * to CodeMirror extensions and native Post Processors, completely eliminating thread friction.
+ * Activates lightweight idempotent DOM observation controllers across workspace chunks.
  */
 export function initViewObservers(plugin: ResuperchargedLinks): void {
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
 	if (pluginInstance === null) return;
 
-	// =========================================================================
-	// 🎯 LAYER 1: STATIC SIDEBAR ENVIRONMENT (Passive Layout Trees Only)
-	// =========================================================================
 	registerViewType("backlink", pluginInstance, ".tree-item-inner", true);
 	registerViewType("outgoing-link", pluginInstance, ".tree-item-inner", true);
 	registerViewType("search", pluginInstance, ".tree-item-inner");
@@ -51,11 +45,10 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	registerViewType("bookmarks", pluginInstance, ".tree-item-inner", false, true);
 	registerViewType("tab-header", pluginInstance, ".tab-header-inner-title");
 	
-	// Layer 2: Deep myBrain Integration Handshake
 	registerViewType("mybrain-view", pluginInstance, ".focusable-note-link", true);
 
-	// LAYER 3: THIRD-PARTY CUSTOM DOM INTERFACES (Bases, Tables, etc.)
-	registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link");
+	// 🚀 HIGH PERFORMANCE INJECTION: Bases and Database tables registered as active dynamic streams
+	registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link", true);
 	registerViewType("markdown", pluginInstance, ".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]");
 	
 	const internalApp = pluginInstance.app as App & ObsidianAppInternalRegistry;
@@ -93,9 +86,9 @@ export function registerViewType(
 		if (container === null) continue;
 
 		const uniqueViewKey: string = buildObserverKey(viewTypeName, i);
-		const observerKey: string = `${uniqueViewKey}|${selector}|${filterCollapsible ? "1" : "0"}|${updateDynamic ? "dynamic" : "static"}`;
+		const observerKey = `${uniqueViewKey}|${selector}|${filterCollapsible ? "1" : "0"}|${updateDynamic ? "dynamic" : "static"}`;
 
-		const reg = observerRegistry.get(container) ?? null;
+		const reg: Map<string, MutationObserver> | null = observerRegistry.get(container) ?? null;
 		if (reg !== null && reg.has(observerKey)) {
 			continue;
 		}
@@ -108,11 +101,8 @@ export function registerViewType(
 	}
 }
 
-
 /**
- * Suggestion popup, page previews (hover), and core metadata container view controller.
- * 🚀 FIXED TIMING & POPUP OVERHEAD: Monitors doc.body dynamically to style frontmatter layout layers
- * instantly during initial tab landings and inside hover tooltips on both desktop and iOS.
+ * Handles popup switchers, suggestion layers, and native property panel layout injections.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
 	const existing: MutationObserver | null = modalObserverRegistry.get(doc) ?? null;
@@ -126,7 +116,6 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		}
 	}
 
-	// Monitor child insertions down the document tree layout body
 	const config: MutationObserverInit = { subtree: true, childList: true, attributes: false };
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
@@ -139,10 +128,9 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 				if (isHtmlElement(node)) {
 					const list: DOMTokenList = node.classList;
 
-					// 1. Target standard core suggestion and switcher boxes natively
 					const isModal: boolean = list.contains("modal-container");
 					const isSuggest: boolean = list.contains("suggestion-container");
-					const isHoverPopup: boolean = list.contains("popover"); // Target hover previews natively
+					const isHoverPopup: boolean = list.contains("popover");
 
 					if (isModal || isSuggest || isHoverPopup) {
 						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span, div.multi-select-pill-content, div.metadata-link-inner";
@@ -150,15 +138,12 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 							selector = ".suggestion-title, .suggestion-note";
 						}
 
-						// Execute an immediate visual re-paint loop on injection frame
 						updateContainer(node, plugin, selector);
 						
 						const modalKey = `modal-observer-${selector}`;
 						watchContainer(null, modalKey, node, plugin, selector);
 					}
 
-					// 2. 🚀 THE ULTIMATE TIMING CONTROL: Capture asynchronous property panels immediately 
-					// inside the DOM hierarchy without waiting for active workspace leaf registrations.
 					const isPropertySection: boolean = list.contains("metadata-container") || list.contains("metadata-content") || node.querySelector(".metadata-properties") !== null;
 					if (isPropertySection) {
 						const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner";
@@ -177,7 +162,6 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	plugin.modalObservers.push(observer);
 }
 
-
 function watchContainer(
 	viewType: string | null,
 	observerKey: string,
@@ -193,8 +177,8 @@ function watchContainer(
 		let relevantChangeDetected = false;
 
 		for (let i = 0; i < recordsCount; i++) {
-			const m = records[i];
-			if (m && m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
+			const m: MutationRecord | null = records[i] ?? null;
+			if (m !== null && m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
 				relevantChangeDetected = true;
 				break;
 			}
@@ -214,6 +198,10 @@ function watchContainer(
 	}
 }
 
+/**
+ * High-performance progressive element observer for intense layout surfaces like Databaser/Bases.
+ * Extracts specific mutated DOM nodes directly to prevent expensive global container re-scans.
+ */
 function watchContainerDynamic(
 	viewType: string,
 	observerKey: string,
@@ -225,20 +213,35 @@ function watchContainerDynamic(
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const recordsCount = records.length;
-		let relevantChangeDetected = false;
+		const deltaElements: HTMLElement[] = [];
 
 		for (let i = 0; i < recordsCount; i++) {
-			const m = records[i];
-			if (m && m.type === "childList" && m.addedNodes.length > 0) {
-				relevantChangeDetected = true;
-				break;
+			const m: MutationRecord | null = records[i] ?? null;
+			if (m !== null && m.type === "childList") {
+				const addedLen: number = m.addedNodes.length;
+				for (let j = 0; j < addedLen; j++) {
+					const node: Node | null = m.addedNodes.item(j);
+					if (node !== null && node.nodeType === 1) {
+						const el = node as HTMLElement;
+						if (el.matches(selector)) {
+							deltaElements.push(el);
+						} else if (typeof el.querySelectorAll === "function") {
+							const matches: NodeListOf<HTMLElement> = el.querySelectorAll(selector);
+							const matchesCount: number = matches.length;
+							for (let k = 0; k < matchesCount; k++) {
+								const matchedChild: HTMLElement | null = matches[k] ?? null;
+								if (matchedChild !== null) deltaElements.push(matchedChild);
+							}
+						}
+					}
+				}
 			}
 		}
-		if (!relevantChangeDetected) return;
+		
+		if (deltaElements.length === 0) return;
 
-		scheduleContainerUpdate(container, (): void => {
-			updateContainer(container, plugin, selector);
-		});
+		// Fire an instant targeted update loop avoiding schedule debounces entirely for atomic scrolling
+		updateContainer(container, plugin, selector, false, deltaElements);
 	});
 
 	observer.observe(container, { subtree: true, childList: true, attributes: false });
@@ -247,7 +250,7 @@ function watchContainerDynamic(
 }
 
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
-	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
+	const activeObservers: [MutationObserver, string, string][] = plugin.observers || [];
 	const activeObserversCount = activeObservers.length;
 
 	for (let i = 0; i < activeObserversCount; i++) {
@@ -260,7 +263,7 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 		}
 	}
 
-	const modalObservers: MutationObserver[] = plugin.modalObservers ?? [];
+	const modalObservers: MutationObserver[] = plugin.modalObservers || [];
 	const modalObserversCount = modalObservers.length;
 
 	for (let i = 0; i < modalObserversCount; i++) {
@@ -278,7 +281,7 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 }
 
 export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
-	const activeObservers: [MutationObserver, string, string][] = plugin.observers ?? [];
+	const activeObservers: [MutationObserver, string, string][] = plugin.observers || [];
 	const activeObserversCount = activeObservers.length;
 
 	for (let i = 0; i < activeObserversCount; i++) {
@@ -290,18 +293,18 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 
 		if (type.length === 0 || ownClass.length === 0) continue;
 
-		const leaves = plugin.app.workspace.getLeavesOfType(type) ?? [];
+		const leaves: WorkspaceLeaf[] = plugin.app.workspace.getLeavesOfType(type) ?? [];
 		const leavesCount = leaves.length;
 
 		for (let j = 0; j < leavesCount; j++) {
-			const leaf = leaves[j] ?? null;
+			const leaf: WorkspaceLeaf | null = leaves[j] ?? null;
 			if (leaf !== null && leaf.view?.containerEl) {
 				const nodes: HTMLElement[] = leaf.view.containerEl.findAll(ownClass) ?? [];
 				const nodesCount = nodes.length;
 
 				for (let k = 0; k < nodesCount; k++) {
-					const node = nodes[k] ?? null;
-					if (node !== null && node instanceof HTMLElement && node.nodeType === 1) {
+					const node: HTMLElement | null = nodes[k] ?? null;
+					if (node !== null && node.nodeType === 1) {
 						clearExtraAttributes(node);
 					}
 				}

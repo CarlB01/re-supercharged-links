@@ -8,7 +8,6 @@ import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '.
 import { disconnectAllObservers, initModalObservers, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from '../telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
-import { invalidateByPath, invalidateByPrefix } from '../attribute-fetcher';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
 import { SCLSettings } from '../settings/settings';
@@ -119,12 +118,22 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+/**
+	 * Evicts dynamic path entries from live cache maps instantly via the local cache manager.
+	 */
 	public invalidateAttrCacheByPath(path: string): void {
-		invalidateByPath(this.attrCycleCache, path);
+		if (this.cacheManager !== null) {
+			this.cacheManager.invalidatePath(path);
+		}
 	}
 
+	/**
+	 * Evicts direct folder prefix cascades from hot cache mappings via the local cache manager.
+	 */
 	public invalidateAttrCacheByPrefix(prefix: string): void {
-		invalidateByPrefix(this.attrCycleCache, prefix);
+		if (this.cacheManager !== null) {
+			this.cacheManager.invalidatePrefix(prefix);
+		}
 	}
 
 	public bumpRuleConfigVersion(): void {
@@ -170,7 +179,7 @@ export default class ResuperchargedLinks extends Plugin {
 		});
 	}
 
-	public async onload(): Promise<void> {
+	public override async onload(): Promise<void> {
 		this.observers = [];
 		this.modalObservers = [];
 		this.attrCycleCache = new Map();
@@ -187,13 +196,12 @@ export default class ResuperchargedLinks extends Plugin {
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
-		// 🚀 COMPLETE FIX: Direct inline arrow closures injecting the core Notice class natively
 		this.addCommand({
 			id: "scl-botteknott-report",
 			name: "Print styling telemetry botteknott report",
 			callback: (): void => {
-				if (this.telemetry !== null && this.telemetry !== undefined) {
-					this.telemetry.printReport(Notice); // Enforces safe downstream UI notice generation
+				if (this.telemetry !== null) {
+					this.telemetry.printReport(Notice);
 				} else {
 					new Notice("Re-Supercharged Links: Telemetry buffer offline.");
 				}
@@ -204,27 +212,21 @@ export default class ResuperchargedLinks extends Plugin {
 			id: "scl-reset-botteknott-metrics",
 			name: "Reset styling telemetry botteknott metrics",
 			callback: (): void => {
-				if (this.telemetry !== null && this.telemetry !== undefined) {
+				if (this.telemetry !== null) {
 					this.telemetry.resetMetrics();
 					new Notice("Re-Supercharged Links: Telemetry buffers flushed clean.");
 				}
 			}
 		});
 
+		// 🚀 ENDRE KUN DENNE TIMER-REGISTRERINGEN INNE I ONLOAD:
+		const intervalId: number = window.setInterval(() => {
+			if (this.cacheManager !== null) {
+				this.cacheManager.runLifecyclePrune();
+			}
+		}, 30000);
+		this.registerInterval(intervalId);
 
-		// 🚀 NATIVE TIMED EVICTION ENGINE: Registers cache lifecycle management with Obsidian's internal cleaner loop.
-		// Relocates heavy sort and map iteration routines completely away from hot rendering execution pipelines.
-		this.registerInterval(
-			window.setInterval(() => {
-				if (this.cacheManager) {
-					this.cacheManager.runLifecyclePrune();
-				}
-			}, 30000) // Executes passively every 30 seconds to clean stale memory segments
-		);
-
-		// main.ts (Den endelige, native oppstarts-triggeren)
-
-		// All event listeners and handlers are mounted via the dedicated engine
 		registerPluginEvents(this.app, this);
 
 		const viewPluginInstance = buildCMViewPlugin(this.app, this);
@@ -235,22 +237,16 @@ export default class ResuperchargedLinks extends Plugin {
 			themeCompartment.of(initialTheme)
 		]);
 
-		// 🚀 THE ULTIMATE TYPE-SAFE COLD-BOOT FORCE REDRAW (v2.2.2)
-		// Forces Obsidian to instantly instantiate and mount the deferred asynchronous frontmatter 
-		// DOM container upon application startup, completely eliminating manual mode-flipping hacks.
 		this.app.workspace.onLayoutReady((): void => {
 			window.requestAnimationFrame((): void => {
-				const activeLeaf = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null;
+				const activeLeaf: WorkspaceLeaf | null = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null;
 				
 				if (activeLeaf !== null) {
-					// 🚀 THE NATIVE REBUILD HANDSHAKE: Forces Obsidian to refresh the active leaf layout frame.
-					// This triggers the asynchronous property panel to instantly mount inside the DOM structure.
 					if (typeof activeLeaf.rebuildView === "function") {
 						activeLeaf.rebuildView();
 					}
 				}
 
-				// Now that the DOM layers have been forced awake, bind our global tracking loops safely
 				const currentDoc: Document | null = document ?? null;
 				if (currentDoc !== null) {
 					initModalObservers(this, currentDoc);
@@ -259,31 +255,52 @@ export default class ResuperchargedLinks extends Plugin {
 				this.refreshEditorThemes();
 			});
 		});
-
 	}
 	
-	public onunload(): void {
+	public override onunload(): void {
 		disconnectAllObservers(this);
 		removeStylingFromViews(this);
+		
+		// ✅ Tømmer alle interne minne-referanser for å unngå lekkasjer post-unload
+		this.pendingChangedPaths.clear();
+		this.pendingChangedPrefixes.clear();
+		this.activeAttributesSet.clear();
+		this.compiledRules = [];
 	}
 
+	/**
+	 * Aggregates unique structural attribute rule keys used to balance background fetching engines.
+	 */
 	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
-		const selectorsProxy: CSSLink[] = this.settings?.selectors ?? [];
+		
+		if (this.settings === null || this.settings.selectors === null) return;
+
+		const selectorsProxy: CSSLink[] = this.settings.selectors;
 		if (Array.isArray(selectorsProxy)) {
-			selectorsProxy.forEach((selector) => {
-				if (selector?.type === "attribute" && selector.name) {
-					this.activeAttributesSet.add(selector.name);
+			const len = selectorsProxy.length;
+			for (let i = 0; i < len; i++) {
+				const selector: CSSLink | null = selectorsProxy[i] ?? null;
+				
+				if (selector !== null && selector.type === "attribute") {
+					const attrName: unknown = selector.name;
+
+					if (typeof attrName === "string" && attrName.length > 0) {
+						this.activeAttributesSet.add(attrName);
+					}
 				}
-			});
+			}
 		}
 	}
 
+	/**
+	 * Loads configuration sheets from disk infrastructure safely.
+	 */
 	public async loadSettings(): Promise<void> {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
-		const selectorsArray = this.settings?.selectors ?? [];
+		const selectorsArray: CSSLink[] = this.settings?.selectors ?? [];
 		this.compiledRules = compileSelectors(selectorsArray);
 
 		if (dataRepaired) {
@@ -291,14 +308,15 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+	/**
+	 * Persists user layer properties into local workspace structures.
+	 */
 	public async saveSettings(): Promise<void> {
 		await saveStrippedSettings(this, this.settings);
 	}
 	
-
 	/**
 	 * Purges deprecated physical style assets from historical vault structures safely.
-	 * ⚡ ZERO-ANY GUARD: Executes clean decoupled interface mapping to clear compiler overhead.
 	 */
 	private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
@@ -310,11 +328,10 @@ export default class ResuperchargedLinks extends Plugin {
 			if (fileExists) {
 				await adapter.remove(snippetPath);
 				
-				// 🚀 THE ELEGANT ROUTE: Cast cleanly via 'unknown' into our uniquely named utility contract
 				const internalApp = this.app as unknown as LegacyStyleSystemApp;
-				
-				if (internalApp.customCss && typeof internalApp.customCss.reloadCustomCss === "function") {
-					await internalApp.customCss.reloadCustomCss(); // Safe, non-colliding execution frame
+				// ✅ FIKSET: Fjernet utrygg undefined-sjekk, bruker ren null- og funksjonsverifisering
+				if (internalApp.customCss !== null && internalApp.customCss !== undefined && typeof internalApp.customCss.reloadCustomCss === "function") {
+					await internalApp.customCss.reloadCustomCss();
 				}
 			}
 		} catch (error) {
@@ -323,6 +340,9 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+	/**
+	 * Validates runtime dependencies to prevent adjacent namespace crashes.
+	 */
 	private detectPluginCollisions(): void {
 		try {
 			const internalApp = this.app as App & ObsidianPluginRegistry;

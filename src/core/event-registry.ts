@@ -1,13 +1,19 @@
 // core/event-registry
 
-import { App, debounce, TFile } from "obsidian";
+import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext } from "obsidian";
 import { initModalObservers, initViewObservers } from "../observers/observer-engine";
 import { updateElLinks, updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "./main";
 
+interface ObsidianWindowInternal {
+	getContainer(): {
+		doc: Document;
+	} | null;
+}
+
 /**
  * Registers all upstream Obsidian core event hooks under a strict single-channel architecture.
- * 🚀 ARCHITECTURAL CONSOLIDATION: Eliminates race conditions and volatile setTimeout cascades.
+ * 🚀 ARCHITECTURAL CONSOLIDATION: Eliminates race conditions and volatile global window lookups.
  * Completely free of 'any' or 'undefined' allocations to guarantee clean compile-time validation.
  */
 export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): void {
@@ -29,14 +35,14 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		}
 
 		plugin.refreshEditorThemes();
-	}, 200, false); // Strict trailing debounce to let DOM state settle completely
+	}, 200, false);
 
 	/**
 	 * 🎯 KANAL B: NATIVE MARKDOWN POST PROCESSOR PIPELINE
 	 * This is our master execution channel. Obsidian invokes this hook natively
 	 * only when element fragments are guaranteed to be fully rendered inside the DOM.
 	 */
-	plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx) => {
+	plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
 		// Route layout elements directly through the unified reconciler channel
 		updateElLinks(app, plugin, el, ctx);
 	});
@@ -59,9 +65,13 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	});
 
 	// Secondary Window Open Hook (Popouts layout layer support)
-	plugin.registerEvent(app.workspace.on("window-open", (window) => {
-		if (window?.getContainer()?.doc) {
-			initModalObservers(plugin, window.getContainer().doc);
+	plugin.registerEvent(app.workspace.on("window-open", (win) => {
+		const internalWin = win as unknown as ObsidianWindowInternal;
+		if (internalWin !== null) {
+			const container = internalWin.getContainer();
+			if (container !== null && container.doc !== null) {
+				initModalObservers(plugin, container.doc);
+			}
 		}
 	}));
 
@@ -75,7 +85,7 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	}));
 
 	// Vault Operations - All filesystem alterations route into the single queue channel safely
-	plugin.registerEvent(app.vault.on("modify", (file): void => {
+	plugin.registerEvent(app.vault.on("modify", (file: TAbstractFile): void => {
 		if (!(file instanceof TFile)) return;
 		plugin.invalidateAttrCacheByPath(file.path);
 		plugin.cacheManager.markPathTouched(file.path);
@@ -83,8 +93,8 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		plugin.triggerScheduleRefresh();
 	}));
 
-	plugin.registerEvent(app.vault.on("delete", (file): void => {
-		const path = (file as { path?: string }).path ?? "";
+	plugin.registerEvent(app.vault.on("delete", (file: TAbstractFile): void => {
+		const path: string = file.path;
 		if (path.length === 0) return;
 		plugin.invalidateAttrCacheByPath(path);
 		plugin.cacheManager.markPathTouched(path);
@@ -92,10 +102,10 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		plugin.triggerScheduleRefresh();
 	}));
 
-	plugin.registerEvent(app.vault.on("rename", (file, oldPath): void => {
-		const newPath = (file as { path?: string }).path ?? "";
+	plugin.registerEvent(app.vault.on("rename", (file: TAbstractFile, oldPath: string): void => {
+		const newPath: string = file.path;
 
-		if (oldPath && oldPath.length > 0) {
+		if (oldPath.length > 0) {
 			plugin.invalidateAttrCacheByPath(oldPath);
 			plugin.cacheManager.markPathTouched(oldPath);
 			plugin.enqueuePath(oldPath);

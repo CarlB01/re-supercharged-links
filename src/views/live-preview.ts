@@ -6,7 +6,7 @@ import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { endsWithToken, extractCleanLinkPath, extractWikiLinkFromLine, startsWithToken } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
-import { fetchTargetAttributesCached } from "../attribute-fetcher";
+import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 
 export const themeCompartment: Compartment = new Compartment();
 
