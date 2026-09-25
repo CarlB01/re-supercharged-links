@@ -1,6 +1,6 @@
 // observers/observer-engine
 
-import { App, TFile, WorkspaceLeaf, View } from "obsidian";
+import { App, WorkspaceLeaf } from "obsidian";
 import { clearExtraAttributes } from "../views/dom-mutator";
 import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
 import { updateContainer } from "../processors/dom-reconciler";

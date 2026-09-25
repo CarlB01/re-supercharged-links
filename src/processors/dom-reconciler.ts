@@ -96,22 +96,6 @@ class DOMMutationBatcher {
 
 const domBatcher = new DOMMutationBatcher();
 
-function isHtmlInputElement(value: unknown): value is HTMLInputElement {
-	return value instanceof HTMLInputElement;
-}
-
-function getNestedChild(root: Element | null | undefined, path: number[]): Element | null {
-	let cur: Element | null = root ?? null;
-	const pathLen = path.length;
-	for (let i = 0; i < pathLen; i++) {
-		const idx = path[i];
-		if (idx === undefined) continue;
-		cur = cur?.children.item(idx) ?? null;
-		if (cur === null) return null;
-	}
-	return cur;
-}
-
 /**
  * Sweeps a layout container element and assigns compiled visual configurations typesafely.
  * 🚀 FIXED PROPERTY LEAK: Completely rewrote evaluation paths to isolate execution metadata scope 

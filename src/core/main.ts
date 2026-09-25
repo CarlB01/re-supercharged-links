@@ -1,11 +1,11 @@
-import { WorkspaceLeaf, View, Plugin, debounce, Notice, App } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, MarkdownView } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
-import { disconnectAllObservers, removeStylingFromViews } from '../observers/observer-engine';
+import { disconnectAllObservers, initModalObservers, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from '../telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
 import { invalidateByPath, invalidateByPrefix } from '../attribute-fetcher';
@@ -222,6 +222,8 @@ export default class ResuperchargedLinks extends Plugin {
 			}, 30000) // Executes passively every 30 seconds to clean stale memory segments
 		);
 
+		// main.ts (Den endelige, native oppstarts-triggeren)
+
 		// All event listeners and handlers are mounted via the dedicated engine
 		registerPluginEvents(this.app, this);
 
@@ -232,6 +234,32 @@ export default class ResuperchargedLinks extends Plugin {
 			Prec.lowest(viewPluginInstance),
 			themeCompartment.of(initialTheme)
 		]);
+
+		// 🚀 THE ULTIMATE TYPE-SAFE COLD-BOOT FORCE REDRAW (v2.2.2)
+		// Forces Obsidian to instantly instantiate and mount the deferred asynchronous frontmatter 
+		// DOM container upon application startup, completely eliminating manual mode-flipping hacks.
+		this.app.workspace.onLayoutReady((): void => {
+			window.requestAnimationFrame((): void => {
+				const activeLeaf = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null;
+				
+				if (activeLeaf !== null) {
+					// 🚀 THE NATIVE REBUILD HANDSHAKE: Forces Obsidian to refresh the active leaf layout frame.
+					// This triggers the asynchronous property panel to instantly mount inside the DOM structure.
+					if (typeof activeLeaf.rebuildView === "function") {
+						activeLeaf.rebuildView();
+					}
+				}
+
+				// Now that the DOM layers have been forced awake, bind our global tracking loops safely
+				const currentDoc: Document | null = document ?? null;
+				if (currentDoc !== null) {
+					initModalObservers(this, currentDoc);
+					updateVisibleLinks(this.app, this);
+				}
+				this.refreshEditorThemes();
+			});
+		});
+
 	}
 	
 	public onunload(): void {
