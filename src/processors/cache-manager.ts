@@ -45,10 +45,12 @@ export class AttributeCacheManager {
 	public registerIndexedKey(path: string, key: string): void {
 		if (path.length === 0 || key.length === 0) return;
 		
+		const normalizedPath: string = normalizeCachePath(path);
+
 		let set: Set<string> | null = this.pathIndex.get(path) ?? null;
 		if (set === null) {
 			set = new Set<string>();
-			this.pathIndex.set(path, set);
+			this.pathIndex.set(normalizedPath, set);
 		}
 		set.add(key);
 	}
@@ -57,6 +59,10 @@ export class AttributeCacheManager {
 	 * Cleans a distinct cache key directly from the inverted path index trackers.
 	 */
 	public removeKeyFromIndex(path: string, key: string): void {
+		if (path.length === 0 || key.length === 0) return;
+
+		const normalizedPath: string = normalizeCachePath(path);
+
 		const set: Set<string> | null = this.pathIndex.get(path) ?? null;
 		if (set !== null) {
 			set.delete(key);

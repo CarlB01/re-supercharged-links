@@ -134,6 +134,6 @@ export class PluginPerformanceTracker {
 
 		new noticeClass(reportText, 8000);
 
-		// console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
+		console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
 	}
 }
