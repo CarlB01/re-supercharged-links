@@ -225,12 +225,17 @@ function watchContainerDynamic(
 						const el = node as HTMLElement;
 						if (el.matches(selector)) {
 							deltaElements.push(el);
-						} else if (typeof el.querySelectorAll === "function") {
-							const matches: NodeListOf<HTMLElement> = el.querySelectorAll(selector);
+						} else {
+							const matches: HTMLElement[] = typeof el.findAll === "function" 
+								? (el.findAll(selector) ?? []) 
+								: Array.from(el.querySelectorAll(selector));
+								
 							const matchesCount: number = matches.length;
 							for (let k = 0; k < matchesCount; k++) {
 								const matchedChild: HTMLElement | null = matches[k] ?? null;
-								if (matchedChild !== null) deltaElements.push(matchedChild);
+								if (matchedChild !== null && matchedChild.nodeType === 1) {
+									deltaElements.push(matchedChild);
+								}
 							}
 						}
 					}

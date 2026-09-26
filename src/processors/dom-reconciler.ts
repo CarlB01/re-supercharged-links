@@ -1,6 +1,6 @@
 // processors/dom-reconciler
 
-import { App, Plugin as ObsidianPlugin, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
+import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
@@ -204,7 +204,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 
 	for (let i = 0; i < linksCount; i++) {
 		const node: Element | null = links[i] ?? null;
-		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1) continue;
+		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1) continue;
 		
 		const hrefAttr: string | null = node.getAttribute("href");
 		if (hrefAttr === null) continue;
@@ -280,7 +280,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 
 	for (let i = 0; i < pillsCount; i++) {
 		const node: Element | null = pills[i] ?? null;
-		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1 || !node.isConnected) continue;
+		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || !node.isConnected) continue;
 
 		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;

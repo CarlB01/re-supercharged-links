@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetTy
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { endsWithToken, extractCleanLinkPath, extractWikiLinkFromLine, startsWithToken } from "../utils/shared-utils";
+import { endsWithToken, extractCleanLinkPath, startsWithToken } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 
@@ -210,11 +210,8 @@ export class CMViewPlugin {
 				const skipBefore: boolean = currentActiveClasses.includes("scl-hide-before");
 				const skipAfter: boolean = currentActiveClasses.includes("scl-hide-after");
 
-				const isExpandedPathNode: boolean = nodeNameLower.includes("has-alias");
 				const isPipeNode: boolean = nodeNameLower === "cm-link-alias-pipe" || nodeNameLower.includes("pipe");
 				const isAliasNode: boolean = nodeNameLower === "cm-link-alias" || nodeNameLower.includes("link-alias");
-				const isStandardLinkNoAlias: boolean = nodeNameLower.includes("link") && !nodeNameLower.includes("alias") && !isPipeNode;
-				const isCollapsedCombined: boolean = nodeNameLower.includes("hmd-internal-link_link-has-alias") || nodeNameLower.includes("hmd-internal-link_link-alias");
 
 				// 🚀 THE ARRAY HARMONIZATION BRIDGE:
 				// Initialize clean local boundary anchors targeting the active token boundaries

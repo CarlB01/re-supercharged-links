@@ -1,6 +1,6 @@
 // processors/attribute-fetcher
 
-import { App, Plugin as ObsidianPlugin, getAllTags, TFile } from "obsidian";
+import { App, getAllTags, TFile } from "obsidian";
 import { buildCacheKey, cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
 

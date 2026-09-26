@@ -224,7 +224,7 @@ export default class ResuperchargedLinks extends Plugin {
 				
 				if (activeLeaf !== null) {
 					if (typeof activeLeaf.rebuildView === "function") {
-						activeLeaf.rebuildView();
+						void activeLeaf.rebuildView();
 					}
 				}
 
