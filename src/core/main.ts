@@ -32,16 +32,6 @@ interface ObsidianPluginRegistry {
 	};
 }
 
-/**
- * Explicit bridge contract mapping Obsidian's hidden stylesheet reload capabilities.
- * Named uniquely to prevent semantic namespace collisions with core application types.
- */
-interface LegacyStyleSystemApp {
-	customCss?: {
-		reloadCustomCss(): Promise<void>;
-	};
-}
-
 export default class ResuperchargedLinks extends Plugin {
 	declare public settings: SCLSettings;
 	public settingTab!: SCLSettingTab;

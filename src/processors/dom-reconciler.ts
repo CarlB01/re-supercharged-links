@@ -13,16 +13,6 @@ type RefreshScope = {
 	prefixes: Set<string>;
 };
 
-interface ObsidianViewMetadataInternal {
-	metadataEditor?: {
-		contentEl?: HTMLElement;
-	};
-}
-
-interface ObsidianLeafHeaderInternal {
-	tabHeaderInnerTitleEl?: HTMLElement;
-}
-
 interface QueuedDOMMutation {
 	readonly element: HTMLElement;
 	readonly props: Record<string, string>;
@@ -222,7 +212,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 
 	for (let i = 0; i < linksCount; i++) {
 		const node: Element | null = links[i] ?? null;
-		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1) continue;
+		if (node === null || !node.instanceOf(Element) || !node.instanceOf(HTMLElement) || node.nodeType !== 1) continue;
 		
 		const hrefAttr: string | null = node.getAttribute("href");
 		if (hrefAttr === null) continue;

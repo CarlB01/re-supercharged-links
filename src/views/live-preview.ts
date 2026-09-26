@@ -311,7 +311,7 @@ export class CMViewPlugin {
 
 		// 🚀 MEMORY DECOUPLING: Spread the resolved class tokens into a completely brand new array instance
 		// This strictly blocks adjacent nodes on the same line from inheriting shared array pointers in CodeMirror.
-		const classList: string[] = Array.isArray(resolution.classes) ? [...resolution.classes] : ["data-link-text"];
+		const classList: string[] = Array.isArray(resolution.classes) ? [...(resolution.classes as string[])] : ["data-link-text"];
 
 		const resAttributes = Object.entries(resolution.attributes);
 		const resAttributesCount = resAttributes.length;
