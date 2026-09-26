@@ -6,7 +6,7 @@ import { clearColorHistory } from "./components/color-row-factory";
 import { getRuleDetailItems } from "./components/detail-rows-factory";
 import { renderRuleSentence } from "./components/rule-renderer";
 import { moveRule } from "./components/rule-order-engine";
-import { cleanSearchQuery, parseControlValueKey } from "../utils/shared-utils";
+import { cleanSearchQuery, createInlineIconSpan, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
 import { createColorCapsule } from "./components/color-capsule";
 import { sanitizeRule } from "../processors/rule-engine";
 import { updateVisibleLinks } from "../processors/dom-reconciler";
@@ -346,8 +346,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 			if (prop === "value" && selector.match === "contains" && typeof cleanValue === "string") {
 				const token = cleanValue.trim();
-				const isAlnumOnly = /^[a-z0-9]+\$/i.test(token);
-				if (token.length > 0 && token.length < 2 && isAlnumOnly) {
+				if (token.length > 0 && token.length < 2 && isPureAlphanumeric(token)) {
 					new Notice("Contains value must be at least 2 characters for letters/numbers (symbols like @ are allowed).");
 					return;
 				}
@@ -455,22 +454,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 				const iconBefore: string = (rule.iconBefore ?? "").trim();
 				const iconAfter: string = (rule.iconAfter ?? "").trim();
 
-				// 🚀 FIXED RUNTIME CRASH: Executing createSpan directly on the element nodes, bypassing .win proxies safely
 				if (iconBefore.length > 0) {
-					const spanBefore = noteEl.createSpan({
-						cls: "scl-inline-icon scl-inline-icon-before",
-						text: iconBefore
-					});
-					spanBefore.setCssStyles({ display: "inline-block" });
+					const spanBefore = createInlineIconSpan(this.containerEl.ownerDocument, iconBefore, true);
 					noteEl.insertBefore(spanBefore, noteEl.firstChild);
 				}
-
 				if (iconAfter.length > 0) {
-					const spanAfter = noteEl.createSpan({
-						cls: "scl-inline-icon scl-inline-icon-after",
-						text: iconAfter
-					});
-					spanAfter.setCssStyles({ display: "inline-block" });
+					const spanAfter = createInlineIconSpan(this.containerEl.ownerDocument, iconAfter, false);
 					noteEl.appendChild(spanAfter);
 				}
 			}

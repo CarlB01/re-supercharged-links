@@ -81,7 +81,6 @@ export function normalizeTagToken(input: string): string {
 	const s: string = norm(input);
 	if (s.length === 0) return "";
 	
-	// ✅ FIXED: Replaced literal \$ with correct string-end anchor $
 	const clean = s.replace(/^[\s,;|]+|[\s,;|]+$/g, "");
 	return clean.startsWith("#") ? clean : `#${clean}`;
 }
@@ -326,7 +325,7 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
  * Performance: Used to guard minimum character length validations for plain text strings.
  */
 export const isPureAlphanumeric = (token: string): boolean => {
-	return /^[a-z0-9]+\$/i.test(token);
+	return /^[a-z0-9]+$/i.test(token);
 };
 
 /**
@@ -337,7 +336,7 @@ export const endsWithEmoji = (text: string | null | undefined): boolean => {
 	const s: string = text ?? "";
 	if (s.length <= 1) return false;
 	
-	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})\$/u.test(s);
+	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})$/u.test(s);
 };
 
 /**
@@ -362,3 +361,28 @@ export function extractPathFromCacheKey(key: string): string | null {
 	return null;
 }
 
+/**
+ * 🎨 CENTRALIZED INLINE ICON SPAWN ENGINE
+ * Constructs a standardized, cross-window safe inline icon span element layout.
+ * Synchronizes DOM structures perfectly across Live Preview, Reading Mode, and Settings.
+ */
+export function createInlineIconSpan(targetDocument: Document, icon: string, isBefore: boolean): HTMLElement {
+	const activeWindow = targetDocument.defaultView ?? window;
+
+	const span = activeWindow.createSpan({
+		cls: isBefore 
+			? "scl-inline-icon scl-inline-icon-before" 
+			: "scl-inline-icon scl-inline-icon-after",
+		text: icon
+	})
+	span.setAttribute("contenteditable", "false");
+	
+	// Apply necessary runtime presentation isolation rules
+	if (typeof span.setCssStyles === "function") {
+		span.setCssStyles({ display: "inline-block" });
+	} else {
+		span.style.display = "inline-block";
+	}
+
+	return span;
+}

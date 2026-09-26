@@ -2,7 +2,7 @@
 
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, endsWithEmoji, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
+import { cleanAttributeKey, createInlineIconSpan, endsWithEmoji, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
 
 /**
  * Completely purges all supercharged style properties, inline icon spans, and data-link attributes.
@@ -187,13 +187,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconBefore.length > 0 && !skipBefore) {
-			const spanBefore = link.createSpan({
-				cls: "scl-inline-icon scl-inline-icon-before",
-				text: iconBefore
-			});
-			spanBefore.setAttribute("contenteditable", "false");
-			spanBefore.setCssStyles({ display: "inline-block" });
-
+			const spanBefore = createInlineIconSpan(link.ownerDocument, iconBefore, true);
 			const firstChild: ChildNode | null = link.firstChild;
 			if (firstChild !== null && firstChild !== spanBefore) {
 				link.insertBefore(spanBefore, firstChild);
@@ -201,17 +195,10 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 
 		if (iconAfter.length > 0 && !skipAfter) {
-			const spanAfter = link.createSpan({
-				cls: "scl-inline-icon scl-inline-icon-after",
-				text: iconAfter
-			});
-			spanAfter.setAttribute("contenteditable", "false");
-			spanAfter.setCssStyles({ display: "inline-block" });
-			
+			const spanAfter = createInlineIconSpan(link.ownerDocument, iconAfter, false);	
 			link.appendChild(spanAfter);
 		}
 
-		// 🚀 LYNRAST DIRECT LOOKUP: Slipper å allokere minne for arrays med Object.entries under scrolling
 		const resAttrs = resolution.attributes;
 		for (const attrKey in resAttrs) {
 			if (Object.prototype.hasOwnProperty.call(resAttrs, attrKey)) {
@@ -227,7 +214,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
-	// 🚀 LYNRAST DIRECT LOOKUP: Slipper å allokere minne for arrays med Object.entries under scrolling
 	for (const key in newProps) {
 		if (Object.prototype.hasOwnProperty.call(newProps, key)) {
 			const propValue: string = newProps[key] || "";

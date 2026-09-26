@@ -1,11 +1,12 @@
 // processors/dom-reconciler
 
-import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
+import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
+import { getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
 
 type RefreshScope = {
 	paths: Set<string>;
@@ -336,24 +337,16 @@ interface LeafWithMarkdownView {
 }
 
 function updateLeafPropertiesPane(app: App, plugin: ResuperchargedLinks, file: TFile, leaf: LeafWithMarkdownView): number {
-	let metadataPane: HTMLElement | null = null;
-	const internalView = leaf.view as unknown as ObsidianViewMetadataInternal;
-	if (internalView.metadataEditor?.contentEl instanceof HTMLElement) {
-		metadataPane = internalView.metadataEditor.contentEl;
-	}
-	if (metadataPane !== null) {
+	const metadataPane = getMetadataPaneElement(leaf.view);
+    if (metadataPane !== null) {
 		return updatePropertiesPane(metadataPane, file, app, plugin);
 	}
 	return 0;
 }
 
-function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile, leaf: unknown): number {
-	let tabHeader: HTMLElement | null = null;
-	const internalLeaf = leaf as ObsidianLeafHeaderInternal;
-	if (internalLeaf.tabHeaderInnerTitleEl instanceof HTMLElement) {
-		tabHeader = internalLeaf.tabHeaderInnerTitleEl;
-	}
-	if (tabHeader !== null) {
+function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile, leaf: WorkspaceLeaf): number {
+	const tabHeader = getTabHeaderElement(leaf);
+    if (tabHeader !== null) {
 		updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
 		return 1;
 	}

@@ -15,6 +15,7 @@ import { CSSLink } from '../types/css-link';
 import { AttributeCacheManager } from '../processors/cache-manager';
 import { compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
 import { registerPluginEvents } from './event-registry';
+import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 
 /**
  * Structural bridge representing Obsidian's internal Markdown editor view state layout.
@@ -295,12 +296,7 @@ export default class ResuperchargedLinks extends Plugin {
 			const fileExists: boolean = await adapter.exists(snippetPath);
 			if (fileExists) {
 				await adapter.remove(snippetPath);
-				
-				const internalApp = this.app as unknown as LegacyStyleSystemApp;
-				if (internalApp.customCss !== null && internalApp.customCss !== undefined && typeof internalApp.customCss.reloadCustomCss === "function") {
-					// ✅ FIXED: Added 'await' to cleanly resolve the promise and clear the linter warning
-					await internalApp.customCss.reloadCustomCss();
-				}
+				await safeReloadCustomCss(this.app);
 			}
 		} catch (error) {
 			const errorMessage: string = error instanceof Error ? error.message : "Unknown file system violation";

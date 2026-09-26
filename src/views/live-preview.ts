@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetTy
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { endsWithToken, extractCleanLinkPath, startsWithToken } from "../utils/shared-utils";
+import { createInlineIconSpan, endsWithToken, extractCleanLinkPath, startsWithToken } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 
@@ -53,16 +53,9 @@ export class IconWidget extends WidgetType {
 	 * 🚀 LINTER COMPLIANT FACTORY: Invokes Obsidian's native global factory helper natively, 
 	 * completely bypassing speculative document root injection bugs.
 	 */
-	public toDOM(): HTMLElement {
-		const span = createSpan( {
-			cls: this.isBefore ? "scl-inline-icon scl-inline-icon-before" : "scl-inline-icon scl-inline-icon-after",
-			text: this.icon
-		});
-
-		span.setAttribute("contenteditable", "false");
-		span.setCssStyles({ display: "inline-block" });
-
-		return span;
+	public toDOM(view: EditorView): HTMLElement {
+		const activeDoc: Document = view.dom.ownerDocument;
+		return createInlineIconSpan(activeDoc, this.icon, this.isBefore);
 	}
 }
 
