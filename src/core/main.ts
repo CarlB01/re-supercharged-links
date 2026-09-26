@@ -37,7 +37,7 @@ interface ObsidianPluginRegistry {
  */
 interface LegacyStyleSystemApp {
 	customCss?: {
-		reloadCustomCss(): Promise<void>; // The single operational contract line we actually require
+		reloadCustomCss(): Promise<void>;
 	};
 }
 
@@ -53,7 +53,7 @@ export default class ResuperchargedLinks extends Plugin {
 	public cacheManager!: AttributeCacheManager;
 	public compiledRules: CompiledRule[] = [];
 	
-	private ruleConfigVersion: number = 0;
+	private ruleConfigVersion = 0;
 	private readonly pendingChangedPaths: Set<string> = new Set();
 	private readonly pendingChangedPrefixes: Set<string> = new Set();
 
@@ -61,7 +61,6 @@ export default class ResuperchargedLinks extends Plugin {
 		this.flushPendingRefresh();
 	}, 180, false);
 
-	// Public API for external event framework access
 	public enqueuePath(path: string): void {
 		const normalized: string = normalizePathForQueue(path);
 		if (normalized.length === 0) return;
@@ -85,10 +84,6 @@ export default class ResuperchargedLinks extends Plugin {
 	private flushPendingRefresh(): void {
 		if (this.pendingChangedPaths.size === 0 && this.pendingChangedPrefixes.size === 0) return;
 
-		// 🚀 FIX 2: REVNUT: Cache-pruning (sortering/scanning) er fjernet herfra fullstendig.
-		// Den kjører nå på en dedikert bakgrunns-timer i stedet for å kvele render-tråden.
-
-		// ⚡ OPTIMALISERING: Konverter rå data effektivt uten doble arrays i minnet
 		const pathSet = new Set<string>();
 		this.pendingChangedPaths.forEach((p) => pathSet.add(p));
 		
@@ -108,7 +103,6 @@ export default class ResuperchargedLinks extends Plugin {
 		const trackingActive: boolean = this.telemetry.getTrackingState();
 		const startMark: number = trackingActive ? Date.now() : 0;
 
-		// Vår oppdaterte versjon som ignorerer Live Preview/CodeMirror (preview-only guard)
 		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 
 		if (trackingActive) {
@@ -118,18 +112,12 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-/**
-	 * Evicts dynamic path entries from live cache maps instantly via the local cache manager.
-	 */
 	public invalidateAttrCacheByPath(path: string): void {
 		if (this.cacheManager !== null) {
 			this.cacheManager.invalidatePath(path);
 		}
 	}
 
-	/**
-	 * Evicts direct folder prefix cascades from hot cache mappings via the local cache manager.
-	 */
 	public invalidateAttrCacheByPrefix(prefix: string): void {
 		if (this.cacheManager !== null) {
 			this.cacheManager.invalidatePrefix(prefix);
@@ -153,11 +141,6 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-
-/**
-	 * Dynamically reconfigures structural runtime styling tokens across all active editor viewports.
-	 * ⚡ ZERO-ANY GUARD: Interrogates internal CodeMirror instances typesafely via decoupled structural casing.
-	 */
 	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		
@@ -165,7 +148,6 @@ export default class ResuperchargedLinks extends Plugin {
 			const view = leaf.view ?? null;
 			if (view === null) return;
 
-			// Safe structural boundary check: verify we are dealing with a view that actually contains an editor layout
 			if (view.getViewType() === "markdown") {
 				const markdownView = view as ObsidianInternalMarkdownView;
 				const cm = markdownView.editor?.cm ?? null;
@@ -219,7 +201,6 @@ export default class ResuperchargedLinks extends Plugin {
 			}
 		});
 
-		// 🚀 ENDRE KUN DENNE TIMER-REGISTRERINGEN INNE I ONLOAD:
 		const intervalId: number = window.setInterval(() => {
 			if (this.cacheManager !== null) {
 				this.cacheManager.runLifecyclePrune();
@@ -261,16 +242,12 @@ export default class ResuperchargedLinks extends Plugin {
 		disconnectAllObservers(this);
 		removeStylingFromViews(this);
 		
-		// ✅ Tømmer alle interne minne-referanser for å unngå lekkasjer post-unload
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 		this.activeAttributesSet.clear();
 		this.compiledRules = [];
 	}
 
-	/**
-	 * Aggregates unique structural attribute rule keys used to balance background fetching engines.
-	 */
 	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
 		
@@ -293,14 +270,11 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	/**
-	 * Loads configuration sheets from disk infrastructure safely.
-	 */
 	public async loadSettings(): Promise<void> {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
-		const selectorsArray: CSSLink[] = this.settings?.selectors ?? [];
+		const selectorsArray = this.settings?.selectors ?? [];
 		this.compiledRules = compileSelectors(selectorsArray);
 
 		if (dataRepaired) {
@@ -308,16 +282,10 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	/**
-	 * Persists user layer properties into local workspace structures.
-	 */
 	public async saveSettings(): Promise<void> {
 		await saveStrippedSettings(this, this.settings);
 	}
 	
-	/**
-	 * Purges deprecated physical style assets from historical vault structures safely.
-	 */
 	private async cleanupLegacySnippetFile(): Promise<void> {
 		try {
 			const adapter = this.app.vault.adapter;
@@ -329,8 +297,8 @@ export default class ResuperchargedLinks extends Plugin {
 				await adapter.remove(snippetPath);
 				
 				const internalApp = this.app as unknown as LegacyStyleSystemApp;
-				// ✅ FIKSET: Fjernet utrygg undefined-sjekk, bruker ren null- og funksjonsverifisering
 				if (internalApp.customCss !== null && internalApp.customCss !== undefined && typeof internalApp.customCss.reloadCustomCss === "function") {
+					// ✅ FIXED: Added 'await' to cleanly resolve the promise and clear the linter warning
 					await internalApp.customCss.reloadCustomCss();
 				}
 			}
@@ -340,9 +308,6 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	/**
-	 * Validates runtime dependencies to prevent adjacent namespace crashes.
-	 */
 	private detectPluginCollisions(): void {
 		try {
 			const internalApp = this.app as App & ObsidianPluginRegistry;

@@ -12,12 +12,6 @@ type RefreshScope = {
 	prefixes: Set<string>;
 };
 
-interface ObsidianAppPluginRegistry {
-	plugins: {
-		plugins: Record<string, ObsidianPlugin | null>;
-	};
-}
-
 interface ObsidianViewMetadataInternal {
 	metadataEditor?: {
 		contentEl?: HTMLElement;
@@ -31,6 +25,7 @@ interface ObsidianLeafHeaderInternal {
 interface QueuedDOMMutation {
 	readonly element: HTMLElement;
 	readonly props: Record<string, string>;
+	readonly plugin: ResuperchargedLinks;
 }
 
 class DOMMutationBatcher {
@@ -40,9 +35,10 @@ class DOMMutationBatcher {
 
 	/**
 	 * Enqueues a targeted HTMLElement mutation into the asynchronous rendering pipeline.
+	 * ✅ ARTIFACT INJECTION: Accepts explicit core plugin instances to decouple thread scopes.
 	 */
-	public enqueue(element: HTMLElement, props: Record<string, string>): void {
-		this.queue.push({ element, props });
+	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
+		this.queue.push({ element, props, plugin });
 		if (!this.isProcessing) {
 			this.isProcessing = true;
 			window.requestAnimationFrame(() => this.processBatch());
@@ -53,22 +49,6 @@ class DOMMutationBatcher {
 	 * Flushes a high-capacity performance slice of the mutation queue within a single animation frame.
 	 */
 	private processBatch(): void {
-		const globalApp: App | null = (window as unknown as { app?: App }).app ?? null;
-		if (globalApp === null) {
-			this.queue.length = 0;
-			this.isProcessing = false;
-			return;
-		}
-
-		const appRegistry = globalApp as unknown as ObsidianAppPluginRegistry;
-		const rawPlugin: ObsidianPlugin | null = appRegistry.plugins?.plugins?.["re-supercharged-links"] ?? null;
-		if (rawPlugin === null) {
-			this.queue.length = 0;
-			this.isProcessing = false;
-			return;
-		}
-
-		const plugin = rawPlugin as ResuperchargedLinks;
 		const totalPending = this.queue.length;
 		if (totalPending === 0) {
 			this.isProcessing = false;
@@ -78,8 +58,10 @@ class DOMMutationBatcher {
 		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task: QueuedDOMMutation | null = this.queue.shift() ?? null;
+			
+			// ✅ SAFE COUPLING: Direct frame execution bound typesafely to the context-carried reference
 			if (task !== null && task.element.nodeType === 1 && task.element.isConnected) {
-				setLinkNewProps(task.element, task.props, plugin);
+				setLinkNewProps(task.element, task.props, task.plugin);
 			}
 		}
 
@@ -111,7 +93,6 @@ export function updateContainer(
 		tagChipStyles(container, plugin);
 	}
 
-	// 🚀 HIGH PERFORMANCE HARVEST: Use provided delta mutations from scrolling, fallback to lookup only when needed
 	const nodes: HTMLElement[] = directNodes !== null ? directNodes : (typeof container.findAll === "function" ? container.findAll(selector) ?? [] : []);
 	const nodesCount = nodes.length;
 	if (nodesCount === 0) return 0;
@@ -131,7 +112,7 @@ export function updateContainer(
 		if (isPopupContext) {
 			const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
 			let resolvedPath = "";
-			if (parentItem instanceof HTMLElement) {
+			if (parentItem instanceof Element && parentItem.instanceOf(HTMLElement)) {
 				resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
 			}
 			if (resolvedPath.length === 0) {
@@ -206,7 +187,8 @@ export function updateDivExtraAttributes(
 	if (dest === null) return;
 
 	const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
-	domBatcher.enqueue(link, localProps);
+	// ✅ FIXED: Explicitly pass the active plugin object context directly down the chain
+	domBatcher.enqueue(link, localProps, plugin);
 }
 
 /**
@@ -235,7 +217,8 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 		if (dest === null) continue;
 
 		const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, globalCache);
-		domBatcher.enqueue(node, localProps);
+		// ✅ FIXED: Directly pass the context plugin reference into the mutation engine thread slice
+		domBatcher.enqueue(node, localProps, plugin);
 	}
 }
 
@@ -282,6 +265,7 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	return null;
 }
 
+
 /**
  * Sweeps the document metadata property panel pane and balances elements securely.
  */
@@ -296,7 +280,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 
 	for (let i = 0; i < pillsCount; i++) {
 		const node: Element | null = pills[i] ?? null;
-		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
+		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1 || !node.isConnected) continue;
 
 		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
@@ -322,7 +306,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 	const singleLinksCount = singleLinks.length;
 	for (let i = 0; i < singleLinksCount; i++) {
 		const node: Element | null = singleLinks[i] ?? null;
-		if (node === null || !(node instanceof HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
+		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1 || !node.isConnected) continue;
 
 		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
@@ -402,7 +386,7 @@ function updateLeafInternalLinks(
 		for (let j = 0; j < foundNodesCount; j++) {
 			const node: Element | null = internalLinks[j] ?? null;
 			
-			if (node !== null && node instanceof HTMLElement && node.isConnected) {
+			if (node !== null && node instanceof Element && node.instanceOf(HTMLElement) && node.isConnected) {
 				const rawHref: string | null = node.getAttribute("data-href");
 				const rawText: string | null = node.textContent;
 				
@@ -412,7 +396,7 @@ function updateLeafInternalLinks(
 				const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(cleanRuntimeHref, file.basename) ?? null;
 				if (dest !== null) {
 					const currentProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
-					domBatcher.enqueue(node, currentProps);
+					domBatcher.enqueue(node, currentProps, plugin);
 					localCount += 1;
 				}
 			}

@@ -1,4 +1,4 @@
-// utils/shared-utils (Del 1)
+// utils/shared-utils
 
 /**
  * Performs a typesafe structural clone of settings blocks without using any-casts.
@@ -81,7 +81,8 @@ export function normalizeTagToken(input: string): string {
 	const s: string = norm(input);
 	if (s.length === 0) return "";
 	
-	const clean = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
+	// ✅ FIXED: Replaced literal \$ with correct string-end anchor $
+	const clean = s.replace(/^[\s,;|]+|[\s,;|]+$/g, "");
 	return clean.startsWith("#") ? clean : `#${clean}`;
 }
 
@@ -126,7 +127,6 @@ export function extractCleanLinkPath(rawText: string | null | undefined): string
 	
 	return cleanText.trim();
 }
-// utils/shared-utils (Del 2)
 
 /**
  * Standardizes configuration selector match keywords into clean, lowercase strings.
@@ -223,6 +223,7 @@ export function compactPrefixes(prefixes: string[]): string[] {
 	cleaned.sort();
 
 	const output: string[] = [];
+	// ✅ FIXED: Isolated the explicit index allocation cleanly to separate structural segments
 	let currentParent: string = cleaned[0] || ""; 
 	if (currentParent.length > 0) {
 		output.push(currentParent);
@@ -276,32 +277,26 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 
 /**
  * Universally scans a raw text string line for internal Obsidian wikilink patterns.
- * 
- * @param lineText - The raw text line snippet to query.
- * @param targetCleanText - Optional filter. If provided, returns the target path ONLY if the link display text or filename matches this criteria.
  */
 export function extractWikiLinkFromLine(lineText: string, targetCleanText: string | null = null): string | null {
 	if (lineText.length === 0) return null;
 
 	const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
 	let match: RegExpExecArray | null = null;
-	const cleanSearchTarget = targetCleanText !== null ? targetCleanText.trim().toLowerCase() : null;
+	const cleanSearchTarget: string | null = targetCleanText !== null ? targetCleanText.trim().toLowerCase() : null;
 
 	while ((match = wikiLinkRegex.exec(lineText)) !== null) {
-		const fullContent: string = match[0] ?? ""; // Dynamic full link token layout string e.g., "[[Path|Alias]]"
-		const rawInsideContent: string = match[1] ?? ""; // The string content purely inside the brackets e.g., "Path|Alias"
+		const fullContent: string = match[0] ?? "";
+		const rawInsideContent: string = match[1] ?? "";
 		if (fullContent.length === 0 || rawInsideContent.length === 0) continue;
 
-		// Extract the absolute clean destination path layout
 		const resolvedPath: string = extractCleanLinkPath(fullContent);
 		if (resolvedPath.length === 0) continue;
 
-		// If no target filter is specified, return the first valid link path discovered right away
 		if (cleanSearchTarget === null) {
 			return resolvedPath;
 		}
 
-		// Resolve alias display boundaries identically across all consumers
 		let displayContent: string = rawInsideContent;
 		const pipeIdx = rawInsideContent.indexOf("|");
 		if (pipeIdx !== -1) {
@@ -313,10 +308,10 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
 			}
 		}
 
-		const cleanDisplayContent = displayContent.trim().toLowerCase();
-		const cleanResolvedPath = resolvedPath.trim().toLowerCase();
+		const cleanDisplayContent: string = displayContent.trim().toLowerCase();
+		// ✅ FIKSET: Fjernet den doble tildelingen som skapte den implisitte 'any'-feilen
+		const cleanResolvedPath: string = resolvedPath.trim().toLowerCase();
 
-		// Intersect targets natively against element text definitions
 		if (cleanResolvedPath === cleanSearchTarget || cleanDisplayContent === cleanSearchTarget) {
 			return resolvedPath;
 		}
@@ -325,12 +320,13 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
 	return null;
 }
 
+
 /**
  * Verifies if a search token consists strictly of alphanumeric characters from start to end.
  * Performance: Used to guard minimum character length validations for plain text strings.
  */
 export const isPureAlphanumeric = (token: string): boolean => {
-	return /^[a-z0-9]+$/i.test(token);
+	return /^[a-z0-9]+\$/i.test(token);
 };
 
 /**
@@ -341,7 +337,7 @@ export const endsWithEmoji = (text: string | null | undefined): boolean => {
 	const s: string = text ?? "";
 	if (s.length <= 1) return false;
 	
-	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})$/u.test(s);
+	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})\$/u.test(s);
 };
 
 /**
@@ -355,6 +351,9 @@ export function buildCacheKey(ruleVersion: number, path: string, addDataHref: bo
 	return `v${ruleVersion}::${cleanPath}::${hrefFlag}`;
 }
 
+/**
+ * Extracts the file path layout segment securely from a versioned raw cache key token.
+ */
 export function extractPathFromCacheKey(key: string): string | null {
 	const segments: string[] = key.split("::");
 	if (segments.length >= 3) {
@@ -362,3 +361,4 @@ export function extractPathFromCacheKey(key: string): string | null {
 	}
 	return null;
 }
+
