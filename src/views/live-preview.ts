@@ -161,7 +161,6 @@ export class CMViewPlugin {
 		return builder.finish();
 	}
 
-	// views/live-preview (The Perfected Array Engine)
 
 	private processNodeToken(
 		view: EditorView, 

@@ -377,12 +377,5 @@ export function createInlineIconSpan(targetDocument: Document, icon: string, isB
 	})
 	span.setAttribute("contenteditable", "false");
 	
-	// Apply necessary runtime presentation isolation rules
-	if (typeof span.setCssStyles === "function") {
-		span.setCssStyles({ display: "inline-block" });
-	} else {
-		span.style.display = "inline-block";
-	}
-
 	return span;
 }

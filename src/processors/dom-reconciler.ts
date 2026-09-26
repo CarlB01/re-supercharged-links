@@ -77,6 +77,51 @@ class DOMMutationBatcher {
 const domBatcher = new DOMMutationBatcher();
 
 /**
+ * 🎯 PURE HELPER: Isolates switcher suggestions, Omnisearch frames, and modal popup contexts.
+ * Shields the main container update sweep loop from heavy single-node path evaluations.
+ */
+export function processPopupContextNode(
+	node: HTMLElement, 
+	plugin: ResuperchargedLinks, 
+	isDark: boolean, 
+	globalCache: AttrCache
+): boolean {
+	const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
+	let resolvedPath = "";
+	
+	if (parentItem !== null && parentItem.instanceOf(Element) && parentItem.instanceOf(HTMLElement)) {
+		resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
+	}
+	if (resolvedPath.length === 0) {
+		resolvedPath = node.textContent ?? "";
+	}
+	if (resolvedPath.length === 0) return false;
+
+	const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "") ?? null;
+	if (dest === null) return false;
+
+	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, false, globalCache);
+	const resolution = resolveRuleResolution({
+		compiledRules: plugin.compiledRules,
+		resolvedAttrs: rawProps,
+		isDark,
+		includeTagMatchClasses: false
+	});
+
+	if (!resolution.hasMatch) return false;
+
+	const activeColor: string = resolution.style.color;
+	const activeBg: string = resolution.style.backgroundColor;
+
+	if (activeColor.length > 0) node.style.color = activeColor;
+	if (activeBg.length > 0 && activeBg !== "transparent") node.style.backgroundColor = activeBg;
+	if (activeColor.length > 0) node.setAttribute("data-link-color", activeColor);
+	node.addClass("data-link-text");
+	
+	return true;
+}
+
+/**
  * Sweeps a container or processes targeted direct nodes to assign compiled visual styles instantly.
  * Optimized to completely bypass heavy full-container lookups during continuous scrolling sequences.
  */
@@ -111,37 +156,8 @@ export function updateContainer(
 		if (node === null || node.nodeType !== 1 || !node.isConnected) continue;
 
 		if (isPopupContext) {
-			const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
-			let resolvedPath = "";
-			if (parentItem instanceof Element && parentItem.instanceOf(HTMLElement)) {
-				resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
-			}
-			if (resolvedPath.length === 0) {
-				resolvedPath = node.textContent ?? "";
-			}
-			if (resolvedPath.length === 0) continue;
-
-			const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "") ?? null;
-			if (dest === null) continue;
-
-			const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, false, globalCache);
-			const resolution = resolveRuleResolution({
-				compiledRules: plugin.compiledRules,
-				resolvedAttrs: rawProps,
-				isDark,
-				includeTagMatchClasses: false
-			});
-
-			if (!resolution.hasMatch) continue;
-
-			const activeColor: string = resolution.style.color;
-			const activeBg: string = resolution.style.backgroundColor;
-
-			if (activeColor.length > 0) node.style.color = activeColor;
-			if (activeBg.length > 0 && activeBg !== "transparent") node.style.backgroundColor = activeBg;
-			if (activeColor.length > 0) node.setAttribute("data-link-color", activeColor);
-			node.addClass("data-link-text");
-			styledCount += 1;
+			const success: boolean = processPopupContextNode(node, plugin, isDark, globalCache);
+			if (success) styledCount += 1;
 		} else {
 			updateDivExtraAttributes(plugin.app, plugin, node, "", null, filterCollapsible);
 			styledCount += 1;
@@ -149,6 +165,7 @@ export function updateContainer(
 	}
 	return styledCount;
 }
+
 	
 /**
  * Contextual attribute updater targeting interface boundaries and multi-select pill layouts.
@@ -281,7 +298,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 
 	for (let i = 0; i < pillsCount; i++) {
 		const node: Element | null = pills[i] ?? null;
-		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || !node.isConnected) continue;
+		if (node === null || !node.instanceOf(Element) || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
 
 		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
@@ -307,7 +324,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 	const singleLinksCount = singleLinks.length;
 	for (let i = 0; i < singleLinksCount; i++) {
 		const node: Element | null = singleLinks[i] ?? null;
-		if (node === null || !(node instanceof Element && node.instanceOf(HTMLElement)) || node.nodeType !== 1 || !node.isConnected) continue;
+		if (node === null || !node.instanceOf(Element) || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
 
 		const text: string = (node.textContent ?? "").trim();
 		if (text.length === 0) continue;
@@ -379,7 +396,7 @@ function updateLeafInternalLinks(
 		for (let j = 0; j < foundNodesCount; j++) {
 			const node: Element | null = internalLinks[j] ?? null;
 			
-			if (node !== null && node instanceof Element && node.instanceOf(HTMLElement) && node.isConnected) {
+			if (node !== null && node.instanceOf(Element) && node.instanceOf(HTMLElement) && node.isConnected) {
 				const rawHref: string | null = node.getAttribute("data-href");
 				const rawText: string | null = node.textContent;
 				
