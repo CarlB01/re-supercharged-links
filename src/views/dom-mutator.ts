@@ -136,9 +136,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	const targetColor: string = resolution.style.color || "";
 	const targetBg: string = resolution.style.backgroundColor || "";
 	const currentTrackedColor: string = link.getAttribute("data-link-color") || "";
+	const currentTrackedBg: string = link.getAttribute("data-link-bg") || "";
 
-	// 🚀 TILBAKERULLET TIL MASTER-GUARD: Den opprinnelige, lynraske farge-guarden din!
-	if (currentTrackedColor === targetColor && link.classList.contains("scl-processed")) {
+	if (currentTrackedColor === targetColor && currentTrackedBg === targetBg && link.classList.contains("scl-processed")) {
 		return;
 	}
 

@@ -1,7 +1,7 @@
 // processors/rule-engine
 
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 
@@ -153,7 +153,7 @@ function createMatcher(
 	if (type === "path") {
 		return (attrs: Readonly<Record<string, string>>): boolean => {
 			const rawPath: string = attrs["path"] ?? attrs["data-link-path"] ?? "";
-			const cleanPath: string = rawPath.toLowerCase().trim();
+			const cleanPath: string = normalizeCachePath(rawPath);
 			return cleanPath.includes(cleanValue);
 		};
 	}
@@ -161,7 +161,7 @@ function createMatcher(
 	return (attrs: Readonly<Record<string, string>>): boolean => {
 		if (cleanAttrKey.length === 0) return false;
 		const rawAttrVal: string = attrs[cleanAttrKey] ?? attrs[`data-link-${cleanAttrKey}`] ?? "";
-		const cleanAttrVal: string = rawAttrVal.toLowerCase().trim();
+		const cleanAttrVal: string = normalizeCachePath(rawAttrVal);
 		return cleanAttrVal === cleanValue;
 	};
 }

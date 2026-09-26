@@ -9,6 +9,10 @@ export class PluginPerformanceTracker {
 	private cacheHits: number = 0;
 	private cacheMisses: number = 0;
 	private lastNodeCount: number = 0;
+	
+	// 🚀 TRACKING ENGINE SEGMENTS: Explicitly trace dual-read migration dynamics separately
+	private canonicalHits = 0;
+	private legacyHits = 0;
 
 	private readonly updateTimingsMs: number[] = [];
 	private readonly processedElementsCount: number[] = [];
@@ -38,6 +42,22 @@ export class PluginPerformanceTracker {
 		this.cacheHits += 1;
 	}
 
+	/**
+	 * Logs a high-performance hit matching the modern standard canonical lowercased key index framework.
+	 */
+	public logCanonicalHit(): void {
+		this.cacheHits += 1;
+		this.canonicalHits += 1;
+	}
+
+	/**
+	 * Logs a hit on the historical original casing index framework during dual-read migration periods.
+	 */
+	public logLegacyHit(): void {
+		this.cacheHits += 1;
+		this.legacyHits += 1;
+	}
+
 	public logMiss(): void {
 		this.cacheMisses += 1;
 	}
@@ -57,6 +77,8 @@ export class PluginPerformanceTracker {
 	public resetMetrics(): void {
 		this.cacheHits = 0;
 		this.cacheMisses = 0;
+		this.canonicalHits = 0;
+		this.legacyHits = 0;
 		this.updateTimingsMs.length = 0;
 		this.processedElementsCount.length = 0;
 	}
@@ -79,8 +101,8 @@ export class PluginPerformanceTracker {
 		let totalDurationSum: number = 0;
 		const timingsLen = this.updateTimingsMs.length;
 		for (let i = 0; i < timingsLen; i++) {
-			const time = this.updateTimingsMs[i];
-			if (time !== undefined) totalDurationSum += time;
+			const time: number | null = this.updateTimingsMs[i] ?? null;
+			if (time !== null) totalDurationSum += time;
 		}
 		
 		const avgTimeMs: string = timingsLen > 0
@@ -90,8 +112,8 @@ export class PluginPerformanceTracker {
 		let totalElementsSum: number = 0;
 		const elementsLen = this.processedElementsCount.length;
 		for (let i = 0; i < elementsLen; i++) {
-			const count = this.processedElementsCount[i];
-			if (count !== undefined) totalElementsSum += count;
+			const count: number | null = this.processedElementsCount[i] ?? null;
+			if (count !== null) totalElementsSum += count;
 		}
 
 		const avgElements: number = elementsLen > 0
@@ -103,16 +125,15 @@ export class PluginPerformanceTracker {
 			? (this.processedElementsCount[lastElementIndex] || 0)
 			: 0;
 
-		// Compile clean flat diagnostic message block
+		// ✅ VERIFICATION PIPELINE: Expose modern vs legacy lookups cleanly inside diagnostics
 		const reportText: string = "📊 Re-Supercharged Links Perf Report:\n" +
 			`• Cache Hit Rate: ${hitRate}% (${this.cacheHits}/${totalRequests})\n` +
+			`• Canonical Migrated: ${this.canonicalHits} hits / Legacy Fallbacks: ${this.legacyHits} hits\n` +
 			`• Avg execution frame: ${avgTimeMs}ms\n` +
 			`• Avg links styled: ${avgElements} nodes (Last: ${lastRunCount})`;
 
-		// 🚀 1. PRINT TO OBSIDIAN UI: Pops up a beautiful notice box on both Mac and iPhone screens!
 		new noticeClass(reportText, 8000);
 
-		// 🚀 2. PRINT TO CONSOLE: Active once more with verified style flags
 		console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
 	}
 }

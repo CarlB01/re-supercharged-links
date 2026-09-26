@@ -200,7 +200,7 @@ function watchContainer(
 
 /**
  * High-performance progressive element observer for intense layout surfaces like Databaser/Bases.
- * Extracts specific mutated DOM nodes directly to prevent expensive global container re-scans.
+ * Extracts specific mutated DOM nodes directly and schedules updates smoothly via requestAnimationFrame.
  */
 function watchContainerDynamic(
 	viewType: string,
@@ -240,14 +240,18 @@ function watchContainerDynamic(
 		
 		if (deltaElements.length === 0) return;
 
-		// Fire an instant targeted update loop avoiding schedule debounces entirely for atomic scrolling
-		updateContainer(container, plugin, selector, false, deltaElements);
+		// 🚀 FIKSET: Samler opp mutasjonene synkront med skjermoppdateringen (0.00ms-magien)
+		// I stedet for å kaste nodene blindt inn i tråden med en gang, lar vi scheduleContainerUpdate styre tempoet!
+		scheduleContainerUpdate(container, (): void => {
+			updateContainer(container, plugin, selector, false, deltaElements);
+		});
 	});
 
 	observer.observe(container, { subtree: true, childList: true, attributes: false });
 	registerObserver(container, observerKey, observer);
 	plugin.observers.push([observer, viewType, selector]);
 }
+
 
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	const activeObservers: [MutationObserver, string, string][] = plugin.observers || [];

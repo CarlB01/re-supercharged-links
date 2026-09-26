@@ -1,4 +1,7 @@
+// processors/cache-manager
+
 import { PluginPerformanceTracker } from "../telemetry";
+import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-utils";
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
@@ -10,7 +13,7 @@ export class AttributeCacheManager {
 	private readonly recentPathTouches: Map<string, number> = new Map();
 	private readonly telemetry: PluginPerformanceTracker;
 
-	// 🚀 INVERTED PATH INDEX: Maps clean file paths to their specific active cache signatures
+	// 🚀 INVERTED PATH INDEX: Maps file paths directly to their specific active cache signatures
 	private readonly pathIndex: Map<string, Set<string>> = new Map();
 
 	private readonly ATTR_CACHE_TTL_MS: number = 5 * 60 * 1000; // 5 min
@@ -27,16 +30,10 @@ export class AttributeCacheManager {
 		this.telemetry = tracker;
 	}
 
-	/**
-	 * Public access exposure to retrieve the live inverse path lookup matrix safely.
-	 */
 	public getPathIndex(): Map<string, Set<string>> {
 		return this.pathIndex;
 	}
 
-	/**
-	 * Tracks access metadata logs and populates the inverted mapping layer structurally.
-	 */
 	public touchAttrCacheKey(key: string): void {
 		if (key.length === 0) return;
 		this.attrCacheTouchedAt.set(key, Date.now());
@@ -44,7 +41,6 @@ export class AttributeCacheManager {
 
 	/**
 	 * Registers a fresh cache signature and links it directly to its structural file source path.
-	 * ⚡ O(1) ENTRY HOOK: Invoked whenever fetchTargetAttributesCached populates a new record.
 	 */
 	public registerIndexedKey(path: string, key: string): void {
 		if (path.length === 0 || key.length === 0) return;
@@ -72,13 +68,11 @@ export class AttributeCacheManager {
 
 	/**
 	 * Evicts a specific file path from the live cache map and updates the inverted index structure.
-	 * ⚡ ZERO-WINDOW TRICK: Operates entirely on local memory matrices without abstract global app layers.
 	 */
 	public invalidatePath(path: string): void {
 		if (path.length === 0) return;
 		
-		const normalizedPath: string = path.toLowerCase().trim();
-		const targetKeys: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
+		const targetKeys: Set<string> | null = this.pathIndex.get(path) ?? null;
 
 		if (targetKeys !== null) {
 			const keysArray: string[] = Array.from(targetKeys);
@@ -91,9 +85,9 @@ export class AttributeCacheManager {
 					this.attrCacheTouchedAt.delete(key);
 				}
 			}
-			this.pathIndex.delete(normalizedPath);
+			this.pathIndex.delete(path);
 		}
-		this.recentPathTouches.delete(normalizedPath);
+		this.recentPathTouches.delete(path);
 	}
 
 	/**
@@ -102,7 +96,8 @@ export class AttributeCacheManager {
 	public invalidatePrefix(prefix: string): void {
 		if (prefix.length === 0) return;
 
-		const normalizedPrefix: string = prefix.toLowerCase().trim();
+		// 🚀 OPPDATERT: Bruker den sentraliserte felles-funksjonen for prefiksvask
+		const normalizedPrefix: string = normalizeCachePath(prefix);
 		const cleanPrefix: string = normalizedPrefix.endsWith("/") ? normalizedPrefix : `${normalizedPrefix}/`;
 
 		const indexedPaths: string[] = Array.from(this.pathIndex.keys());
@@ -110,11 +105,16 @@ export class AttributeCacheManager {
 
 		for (let i = 0; i < pathsLen; i++) {
 			const currentPath: string | null = indexedPaths[i] ?? null;
-			if (currentPath !== null && (currentPath === normalizedPrefix || currentPath.startsWith(cleanPrefix))) {
-				this.invalidatePath(currentPath);
+			if (currentPath !== null) {
+				// 🚀 OPPDATERT: Bruker normalizeCachePath her også
+				const cleanCurrent: string = normalizeCachePath(currentPath);
+				if (cleanCurrent === normalizedPrefix || cleanCurrent.startsWith(cleanPrefix)) {
+					this.invalidatePath(currentPath);
+				}
 			}
 		}
 	}
+
 
 	public markPathTouched(path: string): void {
 		if (path.length === 0) return;
@@ -200,12 +200,9 @@ export class AttributeCacheManager {
 	}
 
 	private removeKeyFromIndexFromRawKey(key: string): void {
-		const segments: string[] = key.split("::");
-		if (segments.length >= 3) {
-			const extractedPath: string | null = segments[1] ?? null;
-			if (extractedPath !== null) {
-				this.removeKeyFromIndex(extractedPath, key);
-			}
+		const extractedPath: string | null = extractPathFromCacheKey(key);
+		if (extractedPath !== null) {
+			this.removeKeyFromIndex(extractedPath, key);
 		}
 	}
 }

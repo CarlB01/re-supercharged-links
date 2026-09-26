@@ -1,4 +1,4 @@
-// utils/shared-utils
+// utils/shared-utils (Del 1)
 
 /**
  * Performs a typesafe structural clone of settings blocks without using any-casts.
@@ -81,7 +81,6 @@ export function normalizeTagToken(input: string): string {
 	const s: string = norm(input);
 	if (s.length === 0) return "";
 	
-	// Endret +\$ til +\$ på slutten
 	const clean = s.replace(/^[\s,;|]+|[\s,;|]+\$/g, "");
 	return clean.startsWith("#") ? clean : `#${clean}`;
 }
@@ -127,6 +126,7 @@ export function extractCleanLinkPath(rawText: string | null | undefined): string
 	
 	return cleanText.trim();
 }
+// utils/shared-utils (Del 2)
 
 /**
  * Standardizes configuration selector match keywords into clean, lowercase strings.
@@ -160,6 +160,17 @@ export function normalizePathForQueue(input: string | null | undefined): string 
 }
 
 /**
+ * 🚀 UNIFIED CACHE PATH NORMALIZATION ENGINE
+ * Standardizes vault file paths across registries, indexers, and invalidation pipelines.
+ * Enforces unified case folding to permanently eliminate ghost cache synchronization drifts.
+ */
+export function normalizeCachePath(path: string | null | undefined): string {
+	const text: string = path ?? "";
+	if (text.length === 0) return "";
+	return text.toLowerCase().trim();
+}
+
+/**
  * Granular linear scan processing space-separated strings via inline padding maps.
  * ⚡ ZERO-ARRAY TRICK: Drop-in replacement for array splits to minimize GC thread sweeps.
  */
@@ -180,8 +191,9 @@ export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): 
 	
 	const tokens = rawInput.toLowerCase().replace(/#/g, "").trim().split(/\s+/);
 	const result: string[] = [];
+	const tokensLen = tokens.length;
 	
-	for (let i = 0; i < tokens.length; i++) {
+	for (let i = 0; i < tokensLen; i++) {
 		const token = tokens[i];
 		if (token && token.length > 0) {
 			result.push(token);
@@ -216,7 +228,8 @@ export function compactPrefixes(prefixes: string[]): string[] {
 		output.push(currentParent);
 	}
 
-	for (let i = 1; i < cleaned.length; i++) {
+	const cleanedLen = cleaned.length;
+	for (let i = 1; i < cleanedLen; i++) {
 		const nextPath: string = cleaned[i] || "";
 		if (nextPath.length === 0) continue;
 
@@ -325,8 +338,27 @@ export const isPureAlphanumeric = (token: string): boolean => {
  * Prevents appending redundant trailing icons when visual indicators are already present.
  */
 export const endsWithEmoji = (text: string | null | undefined): boolean => {
-	const s = text ?? "";
+	const s: string = text ?? "";
 	if (s.length <= 1) return false;
 	
 	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})$/u.test(s);
 };
+
+/**
+ * 🔑 CENTRALIZED CACHE KEY FACTORY
+ * Compiles a unified, versioned string checkpoint token for attribute cache lookups.
+ * Synchronizes key structural formats perfectly across fetchers, indexers, and pruners.
+ */
+export function buildCacheKey(ruleVersion: number, path: string, addDataHref: boolean): string {
+	const cleanPath: string = path.trim();
+	const hrefFlag: string = addDataHref ? "1" : "0";
+	return `v${ruleVersion}::${cleanPath}::${hrefFlag}`;
+}
+
+export function extractPathFromCacheKey(key: string): string | null {
+	const segments: string[] = key.split("::");
+	if (segments.length >= 3) {
+		return segments[1] ?? null;
+	}
+	return null;
+}

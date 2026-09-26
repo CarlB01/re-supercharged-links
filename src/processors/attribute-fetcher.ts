@@ -1,7 +1,7 @@
 // processors/attribute-fetcher
 
 import { App, Plugin as ObsidianPlugin, getAllTags, TFile } from "obsidian";
-import { cleanAttributeKey, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { buildCacheKey, cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
 
 export type AttrCache = Map<string, Record<string, string>>;
@@ -133,10 +133,6 @@ export function fetchTargetAttributesSync(
 	return hyphenatedProps;
 }
 
-/**
- * High-performance layout accessor proxy pulling compiled attribute data from versioned memory blocks.
- * Emits fine-grained telemetry tracking pulses natively to gauge cache performance boundaries.
- */
 export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -145,14 +141,23 @@ export function fetchTargetAttributesCached(
 	cache: AttrCache
 ): Record<string, string> {
 	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
-	const key = `v${ruleConfigVersion}::${dest.path}::${addDataHref ? "1" : "0"}`;
-	const hit: Record<string, string> | null = cache.get(key) ?? null;
+	
+	// Enforce strict canonical lowercased path indexing across all retrieval layers
+	const normalizedPath: string = normalizeCachePath(dest.path);
+	const newKey: string = buildCacheKey(ruleConfigVersion, normalizedPath, addDataHref);
+	
+	const hit: Record<string, string> | null = cache.get(newKey) ?? null;
 
 	if (hit !== null) {
 		if (plugin.telemetry !== null) {
-			plugin.telemetry.logHit();
+			// Trigger the dedicated canonical verification pulse tracking channel
+			if (typeof (plugin.telemetry as unknown as Record<string, unknown>).logCanonicalHit === "function") {
+				(plugin.telemetry as unknown as { logCanonicalHit(): void }).logCanonicalHit();
+			} else {
+				plugin.telemetry.logHit();
+			}
 		}
-		plugin.touchAttrCacheKey(key);
+		plugin.touchAttrCacheKey(newKey);
 		return hit;
 	}
 
@@ -161,12 +166,18 @@ export function fetchTargetAttributesCached(
 	}
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
-	cache.set(key, resolved);
 	
-	plugin.touchAttrCacheKey(key);
+	// Commit exclusively to the clean canonical cache key allocation layer
+	cache.set(newKey, resolved);
+	
+	plugin.touchAttrCacheKey(newKey);
 	if (plugin.cacheManager !== null) {
-		plugin.cacheManager.registerIndexedKey(dest.path, key);
+		plugin.cacheManager.registerIndexedKey(normalizedPath, newKey);
 	}
 
 	return resolved;
 }
+
+
+
+

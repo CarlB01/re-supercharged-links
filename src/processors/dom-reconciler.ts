@@ -3,7 +3,7 @@
 import { App, Plugin as ObsidianPlugin, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
-import { extractCleanLinkPath, extractWikiLinkFromLine, normalizePathForQueue } from "../utils/shared-utils";
+import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
 
@@ -270,8 +270,8 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 				return extractedPath;
 			}
 		} else {
-			const cleanResolvedPath: string = currentString.trim().toLowerCase();
-			const cleanExtractedPath: string = extractCleanLinkPath(currentString).toLowerCase().trim();
+			const cleanResolvedPath: string = normalizeCachePath(currentString);
+			const cleanExtractedPath: string = normalizeCachePath(extractCleanLinkPath(currentString));
 			
 			if (cleanResolvedPath === cleanLinkText || cleanExtractedPath === cleanLinkText) {
 				return currentString;
