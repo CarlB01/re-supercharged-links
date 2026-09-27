@@ -5,7 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
-import { disconnectAllObservers, initModalObservers, removeStylingFromViews } from '../observers/observer-engine';
+import { disconnectAllObservers, initModalObservers, initViewObservers, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from '../telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
@@ -209,24 +209,35 @@ export default class ResuperchargedLinks extends Plugin {
 			themeCompartment.of(initialTheme)
 		]);
 
+		// 🚀 MASTER STARTUP ORCHESTRATOR
 		this.app.workspace.onLayoutReady((): void => {
+			// Step 1: Immediately flush the lifecycle caches clean on vault boot sequence
+			this.clearAttrCycleCache();
+
+			// Step 2: Mount passive backup structural workspace and file tree observers once
+			initViewObservers(this);
+
 			window.requestAnimationFrame((): void => {
+				// Step 3: Typesafely capture and rebuild the active editor view bounds if present
 				const activeLeaf: WorkspaceLeaf | null = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null;
-				
-				if (activeLeaf !== null) {
-					if (typeof activeLeaf.rebuildView === "function") {
-						void activeLeaf.rebuildView();
-					}
+				if (activeLeaf !== null && typeof activeLeaf.rebuildView === "function") {
+					void activeLeaf.rebuildView();
 				}
 
+				// Step 4: Establish the modal dialog structure layout observation bridges safely
 				const currentDoc: Document | null = document ?? null;
 				if (currentDoc !== null) {
 					initModalObservers(this, currentDoc);
-					updateVisibleLinks(this.app, this);
 				}
+
+				// Step 5: Execute one clean, unified initial workspace sweep frame
+				updateVisibleLinks(this.app, this);
+
+				// Step 6: Push fully compiled theme config matrices down the editor extensions
 				this.refreshEditorThemes();
 			});
 		});
+
 	}
 	
 	public override onunload(): void {

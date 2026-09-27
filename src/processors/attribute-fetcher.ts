@@ -22,20 +22,34 @@ interface InternalPluginRegistry {
 let cachedDvApi: DataviewAPI | null = null;
 
 /**
- * Safely resolves and caches the Dataview global API instance via decoupled internal registry queries.
+ * Safely resolves, caches, and validates the Dataview global API instance via decoupled internal registry queries.
+ * ✅ RELOAD COMPLIANT: Automatically invalidates the module-level reference if the application environment resets.
  */
 function getDataviewApi(app: App): DataviewAPI | null {
-	if (cachedDvApi !== null) return cachedDvApi;
+	const internalPlugins: InternalPluginRegistry | null = (app as unknown as { plugins?: InternalPluginRegistry }).plugins ?? null;
 	
-	const internalPlugins: InternalPluginRegistry = (app as unknown as { plugins: InternalPluginRegistry }).plugins;
-	if (internalPlugins === null) return null;
+	// If the core application engine registry collapses or resets during reload, evict the cache instantly
+	if (internalPlugins === null || !internalPlugins.plugins) {
+		cachedDvApi = null;
+		return null;
+	}
 
-	const dv = internalPlugins.plugins?.dataview ?? null;
-	if (dv !== null && dv.enabled && dv.api) {
-		cachedDvApi = dv.api;
+	const dv = internalPlugins.plugins.dataview ?? null;
+	
+	// If Dataview is explicitly disabled or removed from the system layout, flush our pointer
+	if (dv === null || !dv.enabled || !dv.api) {
+		cachedDvApi = null;
+		return null;
+	}
+
+	// Dynamic validation check: Ensure the cached instance matches the current live application reference layout
+	if (cachedDvApi !== null && cachedDvApi === dv.api) {
 		return cachedDvApi;
 	}
-	return null;
+
+	// Update memory allocations with a verified, fresh reference boundary envelope
+	cachedDvApi = dv.api;
+	return cachedDvApi;
 }
 
 /**

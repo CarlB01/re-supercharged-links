@@ -1,5 +1,3 @@
-// core/event-registry
-
 import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext } from "obsidian";
 import { initModalObservers, initViewObservers } from "../observers/observer-engine";
 import { updateElLinks, updateVisibleLinks } from "../processors/dom-reconciler";
@@ -45,23 +43,6 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
 		// Route layout elements directly through the unified reconciler channel
 		updateElLinks(app, plugin, el, ctx);
-	});
-
-	// Layout Ready Hook - Triggered once on vault boot sequence
-	app.workspace.onLayoutReady((): void => {
-		plugin.clearAttrCycleCache();
-		
-		// Mount passive backup structural observers
-		initViewObservers(plugin);
-		
-		const currentDoc: Document | null = document ?? null;
-		if (currentDoc !== null) {
-			initModalObservers(plugin, currentDoc);
-		}
-
-		// Execute one clean initial sweep once the core engine layout declares readiness
-		updateVisibleLinks(app, plugin);
-		plugin.refreshEditorThemes();
 	});
 
 	// Secondary Window Open Hook (Popouts layout layer support)
