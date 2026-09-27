@@ -47,7 +47,7 @@ export class AttributeCacheManager {
 		
 		const normalizedPath: string = normalizeCachePath(path);
 
-		let set: Set<string> | null = this.pathIndex.get(path) ?? null;
+		let set: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
 		if (set === null) {
 			set = new Set<string>();
 			this.pathIndex.set(normalizedPath, set);
@@ -63,11 +63,11 @@ export class AttributeCacheManager {
 
 		const normalizedPath: string = normalizeCachePath(path);
 
-		const set: Set<string> | null = this.pathIndex.get(path) ?? null;
+		const set: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
 		if (set !== null) {
 			set.delete(key);
 			if (set.size === 0) {
-				this.pathIndex.delete(path);
+				this.pathIndex.delete(normalizedPath);
 			}
 		}
 	}
@@ -78,7 +78,9 @@ export class AttributeCacheManager {
 	public invalidatePath(path: string): void {
 		if (path.length === 0) return;
 		
-		const targetKeys: Set<string> | null = this.pathIndex.get(path) ?? null;
+		const normalizedPath: string = normalizeCachePath(path);
+
+		const targetKeys: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
 
 		if (targetKeys !== null) {
 			const keysArray: string[] = Array.from(targetKeys);
@@ -91,9 +93,9 @@ export class AttributeCacheManager {
 					this.attrCacheTouchedAt.delete(key);
 				}
 			}
-			this.pathIndex.delete(path);
+			this.pathIndex.delete(normalizedPath);
 		}
-		this.recentPathTouches.delete(path);
+		this.recentPathTouches.delete(normalizedPath);
 	}
 
 	/**
@@ -124,12 +126,17 @@ export class AttributeCacheManager {
 
 	public markPathTouched(path: string): void {
 		if (path.length === 0) return;
-		this.recentPathTouches.set(path, Date.now());
+
+		const normalizedPath: string = normalizeCachePath(path);
+		this.recentPathTouches.set(normalizedPath, Date.now());
 	}
 
 	public wasPathTouchedRecently(path: string): boolean {
 		if (path.length === 0) return false;
-		const last: number = this.recentPathTouches.get(path) ?? 0;
+
+		const normalizedPath: string = normalizeCachePath(path);
+
+		const last: number = this.recentPathTouches.get(normalizedPath) ?? 0;
 		if (last === 0) return false;
 		return Date.now() - last < this.PATH_TOUCH_COOLDOWN_MS;
 	}
@@ -146,15 +153,22 @@ export class AttributeCacheManager {
 		this.pruneAttrCycleCache(nowTs);
 	}
 
+	/**
+	 * Evicts a single cache entry completely from all dictionaries and inverted registries.
+	 */
+	private evictEntry(key: string): void {
+		this.removeKeyFromIndexFromRawKey(key);
+		this.attrCycleCache.delete(key);
+		this.attrCacheTouchedAt.delete(key);
+	}
+
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
 		for (const key of this.attrCycleCache.keys()) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				this.removeKeyFromIndexFromRawKey(key);
-				this.attrCycleCache.delete(key);
-				this.attrCacheTouchedAt.delete(key);
+				this.evictEntry(key)
 			}
 		}
 
@@ -170,9 +184,7 @@ export class AttributeCacheManager {
 				if (entry !== null) {
 					const key: string = entry[0];
 					if (!this.attrCycleCache.has(key)) continue;
-					this.removeKeyFromIndexFromRawKey(key);
-					this.attrCycleCache.delete(key);
-					this.attrCacheTouchedAt.delete(key);
+					this.evictEntry(key)
 					removed += 1;
 					if (removed >= overflow) break;
 				}
@@ -185,19 +197,23 @@ export class AttributeCacheManager {
 		
 		for (const [path, ts] of this.recentPathTouches) {
 			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
-				this.recentPathTouches.delete(path);
+				const normalizedPath: string = normalizeCachePath(path);
+				this.recentPathTouches.delete(normalizedPath);
 			}
 		}
 
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
 			const overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
 			let removed = 0;
-			const keys: string[] = Array.from(this.recentPathTouches.keys());
-			const keysLen = keys.length;
-			for (let i = 0; i < keysLen; i++) {
-				const key: string | null = keys[i] ?? null;
-				if (key !== null) {
-					this.recentPathTouches.delete(key);
+			const paths: string[] = Array.from(this.recentPathTouches.keys());
+			const pathsLen: number = paths.length;
+			
+			for (let i = 0; i < pathsLen; i++) {
+				const currentPath: string | null = paths[i] ?? null;
+				if (currentPath !== null) {
+					const normalizedPath: string = normalizeCachePath(currentPath);
+					this.recentPathTouches.delete(normalizedPath);
+					
 					removed += 1;
 					if (removed >= overflow) break;
 				}
@@ -208,7 +224,8 @@ export class AttributeCacheManager {
 	private removeKeyFromIndexFromRawKey(key: string): void {
 		const extractedPath: string | null = extractPathFromCacheKey(key);
 		if (extractedPath !== null) {
-			this.removeKeyFromIndex(extractedPath, key);
+			const normalizedPath: string = normalizeCachePath(extractedPath);
+			this.removeKeyFromIndex(normalizedPath, key);
 		}
 	}
 }
