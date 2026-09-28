@@ -1,6 +1,6 @@
 // settings/setting-tab
 
-import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem, setIcon, Notice } from "obsidian";
+import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem, setIcon, Notice, WorkspaceLeaf, MarkdownView } from "obsidian";
 import { CSSLink } from "../types/css-link";
 import { clearColorHistory } from "./components/color-row-factory";
 import { getRuleDetailItems } from "./components/detail-rows-factory";
@@ -11,6 +11,7 @@ import { createColorCapsule } from "./components/color-capsule";
 import { sanitizeRule } from "../processors/rule-engine";
 import { updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "../core/main";
+import { EDITABLE_PROPERTIES } from "./settings-constants";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -24,13 +25,32 @@ export default class SCLSettingTab extends PluginSettingTab {
 	private paneStyleEl: HTMLStyleElement | null = null;
 
 	private _generateSnippet(): void {
+		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
+		this.plugin.clearAttrCycleCache();
+
+		// Step 2: Sweep and rebuild all currently visible links via the reconciler engine
 		updateVisibleLinks(this.app, this.plugin);
+		
+		// Step 3: Force CodeMirror extensions to re-evaluate active inline widget properties
 		this.plugin.refreshEditorThemes();
+
+		// STEP 4: READ MODE REBUILD FORCE CONDUIT
+		// Iterates through all open workspace leaves and forces a native structural view rebuild.
+		// This forces Obsidian's MarkdownPostProcessor to re-run instantly over Reading Mode documents,
+		// rendering your fresh icon configurations in real-time without requiring a file close/re-open.
+		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				if (typeof leaf.rebuildView === "function") {
+					void leaf.rebuildView();
+				}
+			}
+		});
 
 		window.requestAnimationFrame((): void => {
 			this.compilePaneStyles();
 		});
 	}
+
 
 	override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
 		if (key === "scl_rules_search") {
@@ -44,19 +64,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 				this.plugin.bumpRuleConfigVersion();
 			}
 		}
-
-		this.plugin.compileActiveAttributes();
-
-		if (silent) {
-			this.debouncedSaveSettings();
-		} else {
-			await this.plugin.saveSettings();
-		}
-
-		this.compilePaneStyles();
-		this.debouncedGenerate();
-
-		if (!silent) this.refreshUI();
+		await this.applyRuleMutationRefresh(silent);
 	}
 
 	constructor(app: App, plugin: ResuperchargedLinks) {
@@ -198,9 +206,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 			if (!isNaN(targetIdx)) {
 				const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
 				const selector: CSSLink | null = selectors[targetIdx] ?? null;
-				const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
-				
-				if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
+				if (selector !== null && prop.length > 0 && EDITABLE_PROPERTIES.includes(prop)) {
 					const ruleProxy = selector as unknown as Record<string, unknown>;
 					return ruleProxy[prop] ?? null;
 				}
@@ -465,4 +471,32 @@ export default class SCLSettingTab extends PluginSettingTab {
 			}
 		}
 	}
+
+	/**
+	 * Synchronizes the entire post-mutation choreography after a rule field or global option change.
+	 * Decouples state compilation, storage I/O lanes, and graphical layout updates safely.
+	 */
+	private async applyRuleMutationRefresh(silent: boolean): Promise<void> {
+		// Step 1: Re-evaluate and compile the active attribute set across selectors
+		this.plugin.compileActiveAttributes();
+
+		// Step 2: Route storage commands through the appropriate asynchronous I/O channel
+		if (silent) {
+			this.debouncedSaveSettings();
+		} else {
+			await this.plugin.saveSettings();
+		}
+
+		// Step 3: Trigger active stylesheet compilation maps directly over preview text nodes
+		this.compilePaneStyles();
+
+		// Step 4: Fire off the debounced generation pipeline to synchronize vault anchors
+		this.debouncedGenerate();
+
+		// Step 5: Execute full interactive view updates only during noisy updates
+		if (!silent) {
+			this.refreshUI();
+		}
+	}
+
 }

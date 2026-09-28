@@ -3,6 +3,7 @@ import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow } from "./color-row-factory";
 import { updateVisibleLinks } from "../../processors/dom-reconciler";
 import ResuperchargedLinks from "../../core/main";
+import { DROPDOWN_OPTIONS, COLOR_ROW_CONFIGS } from "../settings-constants";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -46,19 +47,27 @@ export function getRuleDetailItems(
 	const rows: MyGroupItems[] = [];
 	const triggerStylesUpdate = () => tab.compilePaneStyles();
 
-	// 1. Match Target Type Row (Dropdowns are safe to refresh fully)
+	const applySilent = async (propName: string, value: string): Promise<void> => {
+		await tab.setControlValue(`scl_${propName}_${index}`, value, true);
+		triggerStylesUpdate();
+	};
+
+	const applyLoud = async (propName: string, value: string): Promise<void> => {
+		await tab.setControlValue(`scl_${propName}_${index}`, value, false);
+		tab.update(); // Enforces full structural UI redraws for layout-shifting keys like 'type'
+	};
+
+
+	// 1. Target Type Dropdown:
 	rows.push(createDetailRow("scl-detail-row scl-row-type", "Match Target Type", "Select target metadata type.", (setting) => {
 		setting.addDropdown((d) => {
-			d.addOption("tag", "Tag")
-			 .addOption("attribute", "Attribute")
-			 .addOption("path", "Note Path")
-			 .setValue(selector.type || "tag");
+			for (const [optKey, optVal] of Object.entries(DROPDOWN_OPTIONS.type)) {
+				d.addOption(optKey, optVal);
+			}
+			d.setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
-
-					// Toggles UI structure, full update required here
-					await tab.setControlValue(`scl_type_${index}`, v, false); 
-					tab.update(); 
+					await applyLoud("type", v);
 				} 
 			});
 		});
@@ -68,9 +77,7 @@ export function getRuleDetailItems(
 	if (selector.type === "attribute") {
 		rows.push(createDetailRow("scl-detail-row scl-row-attrname", "Key name (attributes only)", "Frontmatter key to read.", (setting) => {
 			setting.addText((t) => t.setPlaceholder("status").setValue(selector.name || "").onChange(async (v) => { 
-				// 🔑 SILENT SAVE: Set silent=true so the UI doesn't redraw and break keyboard focus
-				await tab.setControlValue(`scl_name_${index}`, v, true); 
-				triggerStylesUpdate();
+				await applySilent("name", v);
 			}));
 		}));
 	}
@@ -89,9 +96,7 @@ export function getRuleDetailItems(
 			.setPlaceholder(placeholderValue)
 			.setValue(selector.value || "")
 			.onChange(async (v: string) => { 
-				// 🔑 SILENT SAVE: Keep cursor focus intact during active typing sessions
-				await tab.setControlValue(`scl_value_${index}`, v, true); 
-				triggerStylesUpdate(); 
+				await applySilent("value", v);
 			})
 		);
 	}));
@@ -99,30 +104,27 @@ export function getRuleDetailItems(
 	// 4. Prepend Icon Row
 	rows.push(createDetailRow("scl-detail-row scl-row-iconbefore", "Prepend Icon", "Icon to inject before link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconBefore || "").onChange(async (v) => { 
-			await tab.setControlValue(`scl_iconBefore_${index}`, v, true); 
-			triggerStylesUpdate(); 
+			await applySilent("iconBefore", v);
 		}));
 	}));
 
 	// 5. Append Icon Row
 	rows.push(createDetailRow("scl-detail-row scl-row-iconafter", "Append Icon", "Icon to inject after link text.", (setting) => {
 		setting.addText((t) => t.setValue(selector.iconAfter || "").onChange(async (v) => { 
-			await tab.setControlValue(`scl_iconAfter_${index}`, v, true); 
-			triggerStylesUpdate(); 
+			await applySilent("iconAfter", v);
 		}));
 	}));
 
 	// 6. Font Weight Row (Dropdowns are safe to refresh silently)
 	rows.push(createDetailRow("scl-detail-row scl-row-weight", "Font Weight", "Choose font weight.", (setting) => {
 		setting.addDropdown((d) => { 
-			d.addOption("normal", "Normal")
-			 .addOption("lighter", "Lighter")
-			 .addOption("bold", "Bold")
-			 .setValue(selector.fontWeight || "normal"); 
+			for (const [optKey, optVal] of Object.entries(DROPDOWN_OPTIONS.fontWeight)) {
+				d.addOption(optKey, optVal);
+			}
+			d.setValue(selector.fontWeight || "normal"); 
 			d.onChange(async (v) => { 
 				if (v === "normal" || v === "lighter" || v === "bold") {
-					await tab.setControlValue(`scl_fontWeight_${index}`, v, true); 
-					triggerStylesUpdate(); 
+					await applySilent("fontWeight", v);
 				}
 			}); 
 		});
@@ -131,28 +133,19 @@ export function getRuleDetailItems(
 	// 7. Font Style / Text Decoration Row
 	rows.push(createDetailRow("scl-detail-row scl-row-style", "Font Style", "Choose text decoration.", (setting) => {
 		setting.addDropdown((d) => { 
-			d.addOption("normal", "Normal")
-			 .addOption("italic", "Italic")
-			 .addOption("underline", "Underline")
-			 .addOption("line-through", "Strikethrough")
-			 .setValue(selector.fontStyle || "normal"); 
+			for (const [optKey, optVal] of Object.entries(DROPDOWN_OPTIONS.fontStyle)) {
+				d.addOption(optKey, optVal);
+			}
+			d.setValue(selector.fontStyle || "normal"); 
 			d.onChange(async (v) => { 
 				if (v === "normal" || v === "italic" || v === "underline" || v === "line-through") {
-					await tab.setControlValue(`scl_fontStyle_${index}`, v, true); 
-					triggerStylesUpdate(); 
+					await applySilent("fontStyle", v);
 				}
 			}); 
 		});
 	}));
 
-	const colorConfigs = [
-		{ key: 'lightColor', cls: 'scl-row-lightcolor', name: 'Light Mode Color', desc: 'Text color for light theme.', isBg: false, fallback: '#ffffff' },
-		{ key: 'darkColor', cls: 'scl-row-darkcolor', name: 'Dark Mode Color', desc: 'Text color for dark theme.', isBg: false, fallback: '#000000' },
-		{ key: 'lightBgColor', cls: 'scl-row-lightbg', name: 'Light Mode Background', desc: 'Background color for light theme.', isBg: true, fallback: '#ffffff' },
-		{ key: 'darkBgColor', cls: 'scl-row-darkbg', name: 'Dark Mode Background', desc: 'Background color for dark theme.', isBg: true, fallback: '#1e1e1e' }
-	] as const;
-
-	for (const c of colorConfigs) {
+	for (const c of COLOR_ROW_CONFIGS) {
 		const pickerClass = c.isBg ? "scl-bg-picker-row" : "scl-text-picker-row";
 		rows.push(createDetailRow(`mod-toggle scl-color-row ${pickerClass} ${c.cls}`, c.name, c.desc, (setting) => {
 			buildUnifiedColorRow({ 
