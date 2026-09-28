@@ -65,22 +65,22 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		updateLinksDebounced(null);
 	}));
 
+	plugin.registerEvent(app.vault.on("rename", (file: TAbstractFile, oldPath: string): void => {
+		plugin.processPathMutation(oldPath);
+		plugin.processPathMutation(file.path);
+		plugin.triggerScheduleRefresh();
+	}));
+
 	// Vault Operations - All filesystem alterations route into the single queue channel safely
 	plugin.registerEvent(app.vault.on("modify", (file: TAbstractFile): void => {
 		if (!(file instanceof TFile)) return;
-		plugin.invalidateAttrCacheByPath(file.path);
-		plugin.cacheManager.markPathTouched(file.path);
-		plugin.enqueuePath(file.path);
-		plugin.triggerScheduleRefresh();
+		plugin.handlePathMutation(file.path);
 	}));
 
 	plugin.registerEvent(app.vault.on("delete", (file: TAbstractFile): void => {
 		const path: string = file.path;
 		if (path.length === 0) return;
-		plugin.invalidateAttrCacheByPath(path);
-		plugin.cacheManager.markPathTouched(path);
-		plugin.enqueuePath(path);
-		plugin.triggerScheduleRefresh();
+		plugin.handlePathMutation(file.path);
 	}));
 
 	plugin.registerEvent(app.vault.on("rename", (file: TAbstractFile, oldPath: string): void => {

@@ -16,6 +16,50 @@ interface ObsidianLeafHeaderInternal {
 	tabHeaderInnerTitleEl?: HTMLElement;
 }
 
+export interface DataviewAPI {
+	page(path: string): Record<string, unknown> | null;
+}
+
+interface InternalPluginRegistry {
+	plugins: {
+		dataview?: {
+			enabled?: boolean;
+			api?: DataviewAPI;
+		};
+	};
+}
+
+/**
+ * 🔌 ADAPTER: Safely extracts the internal plugin registry layout to look up Dataview API state.
+ * Shields core processing engines from untyped framework application property queries.
+ */
+export function getDataviewApiInstance(app: App): DataviewAPI | null {
+	const internalApp = app as unknown as { plugins?: InternalPluginRegistry };
+	const internalPlugins: InternalPluginRegistry | null = internalApp.plugins ?? null;
+	
+	if (internalPlugins === null || !internalPlugins.plugins) {
+		return null;
+	}
+
+	const dv = internalPlugins.plugins.dataview ?? null;
+	if (dv === null || !dv.enabled || !dv.api) {
+		return null;
+	}
+
+	return dv.api;
+}
+
+/**
+ * 🔌 ADAPTER: Safely narrows a generic WorkspaceLeaf view workspace surface down to a MarkdownView instance.
+ * Shields layout loops from direct structural view assumptions.
+ */
+export function getAsMarkdownView(leaf: WorkspaceLeaf): MarkdownView | null {
+	if (leaf.view instanceof MarkdownView) {
+		return leaf.view;
+	}
+	return null;
+}
+
 /**
  * 🔌 ADAPTER: Safely reloads Obsidian's internal custom CSS snippet registry.
  * Shields the core plugin from direct untyped app application lifecycle casts.

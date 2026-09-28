@@ -6,7 +6,7 @@ import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
-import { getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
+import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
 
 type RefreshScope = {
 	paths: Set<string>;
@@ -428,6 +428,7 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	return false;
 }
 
+
 export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?: RefreshScope): void {
 	const attrCache: AttrCache = plugin.attrCycleCache;
 	let totalNodesStyled = 0;
@@ -440,14 +441,14 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 		: null;
 
 	app.workspace.iterateRootLeaves((leaf) => {
-		if (!(leaf.view instanceof MarkdownView)) return;
-		if (leaf.view.getMode() !== "preview") return;
+		// 🚀 ADAPTER INTEGRATION: Safe structural narrowing instead of rigid inheritance checks
+		const mdView: MarkdownView | null = getAsMarkdownView(leaf);
+		if (mdView === null || mdView.getMode() !== "preview" || mdView.file === null) return;
 
-		const file: TFile | null = leaf.view.file;
-		if (file === null) return;
+		const file: TFile = mdView.file;
 		if (normalizedScope !== null && !isPathInScope(file.path, normalizedScope)) return;
 
-		const markdownLeaf: LeafWithMarkdownView = { view: leaf.view };
+		const markdownLeaf = { view: mdView };
 		
 		totalNodesStyled += updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
 		totalNodesStyled += updateLeafTabHeader(app, plugin, file, leaf);
@@ -458,3 +459,4 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 		plugin.telemetry.setLastNodeCount(totalNodesStyled);
 	}
 }
+

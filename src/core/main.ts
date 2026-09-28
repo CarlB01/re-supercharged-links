@@ -272,6 +272,52 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+	/**
+	 * Synchronizes cache eviction, touch debouncing, and queue scheduling for a mutated route.
+	 */
+	public processPathMutation(path: string): void {
+		if (path.length === 0) return;
+
+		// Step 1: Clean the individual file path boundaries natively
+		this.invalidateAttrCacheByPath(path);
+		this.cacheManager.markPathTouched(path);
+		this.enqueuePath(path);
+
+		// Step 2: If the segment signals a folder node, cascade downward through directory prefixes
+		if (path.endsWith("/")) {
+			this.invalidateAttrCacheByPrefix(path);
+			this.enqueuePrefix(path);
+		}
+	}
+
+	/**
+	 * Centralizes the foundational four-step pipeline for file system modifications.
+	 * Synchronizes cache eviction, touch debouncing, and queue scheduling in one clean thread.
+	 */
+	public handlePathMutation(path: string, isPrefix = false): void {
+		if (path.length === 0) return;
+
+		// Step 1: Evict the file or directory branch from live memory caches instantly
+		if (isPrefix) {
+			this.cacheManager.invalidatePrefix(path);
+		} else {
+			this.cacheManager.invalidatePath(path);
+		}
+
+		// Step 2: Mark the path layout as recently touched to guard active listeners
+		this.cacheManager.markPathTouched(path);
+
+		// Step 3: Enqueue the structural path entity for the upcoming render viewport scan
+		if (isPrefix) {
+			this.enqueuePrefix(path);
+		} else {
+			this.enqueuePath(path);
+		}
+
+		// Step 4: Kick the asynchronous debounced refresh framework slice smoothly
+		this.triggerScheduleRefresh();
+	}
+
 	public async loadSettings(): Promise<void> {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;

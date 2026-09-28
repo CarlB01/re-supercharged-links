@@ -3,12 +3,9 @@
 import { App, getAllTags, TFile } from "obsidian";
 import { buildCacheKey, cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
+import { DataviewAPI, getDataviewApiInstance } from "../utils/obsidian-adapters";
 
 export type AttrCache = Map<string, Record<string, string>>;
-
-interface DataviewAPI {
-	page(path: string): Record<string, unknown> | null;
-}
 
 interface InternalPluginRegistry {
 	plugins: {
@@ -23,32 +20,20 @@ let cachedDvApi: DataviewAPI | null = null;
 
 /**
  * Safely resolves, caches, and validates the Dataview global API instance via decoupled internal registry queries.
- * ✅ RELOAD COMPLIANT: Automatically invalidates the module-level reference if the application environment resets.
  */
 function getDataviewApi(app: App): DataviewAPI | null {
-	const internalPlugins: InternalPluginRegistry | null = (app as unknown as { plugins?: InternalPluginRegistry }).plugins ?? null;
+	const liveApi: DataviewAPI | null = getDataviewApiInstance(app);
 	
-	// If the core application engine registry collapses or resets during reload, evict the cache instantly
-	if (internalPlugins === null || !internalPlugins.plugins) {
+	if (liveApi === null) {
 		cachedDvApi = null;
 		return null;
 	}
 
-	const dv = internalPlugins.plugins.dataview ?? null;
-	
-	// If Dataview is explicitly disabled or removed from the system layout, flush our pointer
-	if (dv === null || !dv.enabled || !dv.api) {
-		cachedDvApi = null;
-		return null;
-	}
-
-	// Dynamic validation check: Ensure the cached instance matches the current live application reference layout
-	if (cachedDvApi !== null && cachedDvApi === dv.api) {
+	if (cachedDvApi !== null && cachedDvApi === liveApi) {
 		return cachedDvApi;
 	}
 
-	// Update memory allocations with a verified, fresh reference boundary envelope
-	cachedDvApi = dv.api;
+	cachedDvApi = liveApi;
 	return cachedDvApi;
 }
 
