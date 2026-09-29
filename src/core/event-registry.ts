@@ -3,20 +3,13 @@ import { initModalObservers, initViewObservers } from "../observers/observer-eng
 import { updateElLinks, updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "./main";
 
-interface ObsidianWindowInternal {
-	getContainer(): {
-		doc: Document;
-	} | null;
-}
+interface ObsidianWindowInternal { getContainer(): { doc: Document; } | null; }
 
 /**
  * Registers all upstream Obsidian core event hooks under a strict single-channel architecture.
- * 🚀 ARCHITECTURAL CONSOLIDATION: Eliminates race conditions and volatile global window lookups.
- * Completely free of 'any' or 'undefined' allocations to guarantee clean compile-time validation.
  */
 export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): void {
 	
-	// Unified, stable update engine built to capture trailing filesystem changes cleanly
 	const updateLinksDebounced = debounce((_file: TFile | null) => {
 		plugin.clearAttrCycleCache();
 		
@@ -35,17 +28,10 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		plugin.refreshEditorThemes();
 	}, 200, false);
 
-	/**
-	 * 🎯 KANAL B: NATIVE MARKDOWN POST PROCESSOR PIPELINE
-	 * This is our master execution channel. Obsidian invokes this hook natively
-	 * only when element fragments are guaranteed to be fully rendered inside the DOM.
-	 */
 	plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
-		// Route layout elements directly through the unified reconciler channel
 		updateElLinks(app, plugin, el, ctx);
 	});
 
-	// Secondary Window Open Hook (Popouts layout layer support)
 	plugin.registerEvent(app.workspace.on("window-open", (win) => {
 		const internalWin = win as unknown as ObsidianWindowInternal;
 		if (internalWin !== null) {
@@ -56,12 +42,8 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		}
 	}));
 
-	// Layout Change Hook - Fired natively during active tab shifts
 	plugin.registerEvent(app.workspace.on("layout-change", (): void => {
-		// Passive synchronization of memory maps only
 		initViewObservers(plugin);
-		
-		// Trigger our single channel debounced executor to update active visual layers safely
 		updateLinksDebounced(null);
 	}));
 
@@ -81,30 +63,6 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		const path: string = file.path;
 		if (path.length === 0) return;
 		plugin.handlePathMutation(file.path);
-	}));
-
-	plugin.registerEvent(app.vault.on("rename", (file: TAbstractFile, oldPath: string): void => {
-		const newPath: string = file.path;
-
-		if (oldPath.length > 0) {
-			plugin.invalidateAttrCacheByPath(oldPath);
-			plugin.cacheManager.markPathTouched(oldPath);
-			plugin.enqueuePath(oldPath);
-		}
-		if (newPath.length > 0) {
-			plugin.invalidateAttrCacheByPath(newPath);
-			plugin.cacheManager.markPathTouched(newPath);
-			plugin.enqueuePath(newPath);
-		}
-		if (oldPath.endsWith("/")) {
-			plugin.invalidateAttrCacheByPrefix(oldPath);
-			plugin.enqueuePrefix(oldPath);
-		}
-		if (newPath.endsWith("/")) {
-			plugin.invalidateAttrCacheByPrefix(newPath);
-			plugin.enqueuePrefix(newPath);
-		}
-		plugin.triggerScheduleRefresh();
 	}));
 
 	// Core Metadata Changed Hook

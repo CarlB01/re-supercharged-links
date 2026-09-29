@@ -1,6 +1,6 @@
 // processors/cache-manager
 
-import { PluginPerformanceTracker } from "../telemetry";
+import { PluginPerformanceTracker } from "../core/telemetry";
 import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-utils";
 
 /**

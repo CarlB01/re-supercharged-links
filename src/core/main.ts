@@ -6,7 +6,7 @@ import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/setti
 
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
 import { disconnectAllObservers, initModalObservers, initViewObservers, removeStylingFromViews } from '../observers/observer-engine';
-import { PluginPerformanceTracker } from '../telemetry';
+import { PluginPerformanceTracker } from './telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
@@ -51,6 +51,8 @@ export default class ResuperchargedLinks extends Plugin {
 	private readonly scheduleVisibleRefresh = debounce((): void => {
 		this.flushPendingRefresh();
 	}, 180, false);
+
+	private doTelemetry = false;
 
 	public enqueuePath(path: string): void {
 		const normalized: string = normalizePathForQueue(path);
@@ -144,9 +146,14 @@ export default class ResuperchargedLinks extends Plugin {
 				const cm = markdownView.editor?.cm ?? null;
 				
 				if (cm !== null && typeof cm.dispatch === "function") {
-					cm.dispatch({
-						effects: themeCompartment.reconfigure(currentTheme)
-					});
+					try {
+						cm.dispatch({
+							effects: themeCompartment.reconfigure(currentTheme)
+						});
+					} catch {
+						// Absorb state mismatches silently during leaf breakdown sequences
+						return;
+					}
 				}
 			}
 		});
@@ -157,7 +164,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.modalObservers = [];
 		this.attrCycleCache = new Map();
 		
-		this.telemetry = new PluginPerformanceTracker(true);
+		this.telemetry = new PluginPerformanceTracker(this.doTelemetry);
 		this.cacheManager = new AttributeCacheManager(this.attrCycleCache, this.telemetry);
 
 		await this.cleanupLegacySnippetFile();

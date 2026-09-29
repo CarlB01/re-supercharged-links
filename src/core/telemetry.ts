@@ -1,8 +1,5 @@
-// telemetry
-
 /**
  * Typesafe performance monitor tracking cache efficiency and lifecycle overhead.
- * Strictly free of 'any' and 'undefined' types to preserve runtime integrity.
  */
 export class PluginPerformanceTracker {
 	private isEnabled: boolean = false;
@@ -10,7 +7,6 @@ export class PluginPerformanceTracker {
 	private cacheMisses: number = 0;
 	private lastNodeCount: number = 0;
 	
-	// 🚀 TRACKING ENGINE SEGMENTS: Explicitly trace dual-read migration dynamics separately
 	private canonicalHits = 0;
 	private legacyHits = 0;
 
@@ -85,9 +81,6 @@ export class PluginPerformanceTracker {
 
 	/**
 	 * Generates a real-time structural performance diagnostic snapshot.
-	 * 🚀 FIXED INLINE TERMINAL: Re-activated the native log channel and attached 
-	 * a user-facing Notice bridge to ensure seamless diagnostics across desktop and mobile iOS.
-	 * 
 	 * @param noticeClass - Injectable bridge reference to Obsidian's Notice component.
 	 */
 	public printReport(noticeClass: typeof import("obsidian").Notice): void {
@@ -125,15 +118,12 @@ export class PluginPerformanceTracker {
 			? (this.processedElementsCount[lastElementIndex] || 0)
 			: 0;
 
-		// ✅ VERIFICATION PIPELINE: Expose modern vs legacy lookups cleanly inside diagnostics
 		const reportText: string = "📊 Re-Supercharged Links Perf Report:\n" +
 			`• Cache Hit Rate: ${hitRate}% (${this.cacheHits}/${totalRequests})\n` +
 			`• Canonical Migrated: ${this.canonicalHits} hits / Legacy Fallbacks: ${this.legacyHits} hits\n` +
 			`• Avg execution frame: ${avgTimeMs}ms\n` +
 			`• Avg links styled: ${avgElements} nodes (Last: ${lastRunCount})`;
 
-		new noticeClass(reportText, 8000);
-
-		//console.log(`%c${reportText}`, "color: #ff6600; font-weight: bold;");
+		new noticeClass(reportText, 10000);
 	}
 }

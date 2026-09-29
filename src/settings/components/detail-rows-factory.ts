@@ -1,6 +1,6 @@
 import { Setting, SettingDefinitionItem, App } from "obsidian";
 import { CSSLink } from "../../types/css-link";
-import { buildUnifiedColorRow } from "./color-row-factory";
+import { buildUnifiedColorRow, clearColorHistory } from "./color-row-factory";
 import { updateVisibleLinks } from "../../processors/dom-reconciler";
 import ResuperchargedLinks from "../../core/main";
 import { DROPDOWN_OPTIONS, COLOR_ROW_CONFIGS } from "../settings-constants";
@@ -167,6 +167,7 @@ export function getRuleDetailItems(
 	rows.push(createDetailRow("scl-detail-row scl-row-delete", "Delete style", "Permanently remove this style rule.", (setting) => {
 		setting.addButton((btn) => { 
 			btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { 
+				clearColorHistory();
 				selectors.splice(index, 1);
 
 				if (tab.activeEditIndex === index) {

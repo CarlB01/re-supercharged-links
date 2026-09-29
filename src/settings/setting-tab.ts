@@ -147,6 +147,8 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const targetIndex: number = index + direction;
 			if (targetIndex < 0 || targetIndex >= selectors.length) return;
 
+			clearColorHistory();
+
 			void moveRule(this.plugin, selectors, index, direction, {
 				activeEditIndex: this.activeEditIndex,
 				setActiveEditIndex: (next: number | null): void => {
@@ -383,13 +385,14 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const rule: CSSLink | null = selectors[i] ?? null;
 			if (rule === null) continue;
 
-			const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-			const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
-
 			const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`[data-index="${i}"]`) ?? null;
 			if (rowEl === null) continue;
 
 			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${i}`) ?? null;
+			if (noteEl === null) continue;
+
+			const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
+			const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
 			
 			if (noteEl !== null) {
 				const targetStyles: Partial<CSSStyleDeclaration> = {

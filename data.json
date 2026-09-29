@@ -101,17 +101,17 @@
     },
     {
       "type": "tag",
+      "value": "fri",
+      "lightColor": "#543636",
+      "darkColor": "#f2e58c",
+      "lightBgColor": "#41e1df"
+    },
+    {
+      "type": "tag",
       "value": "psykisk",
       "lightColor": "#9a36dd",
       "darkColor": "#c38cf2",
       "lightBgColor": "#def9dd"
-    },
-    {
-      "type": "path",
-      "value": "fr",
-      "lightColor": "#ec9d9d",
-      "darkColor": "#f2e58c",
-      "lightBgColor": "#41e1df"
     }
   ],
   "scl_value_10": "haha",
