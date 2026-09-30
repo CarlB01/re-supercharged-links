@@ -52,7 +52,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.flushPendingRefresh();
 	}, 180, false);
 
-	private doTelemetry = false;
+	private doTelemetry = true;
 
 	public enqueuePath(path: string): void {
 		const normalized: string = normalizePathForQueue(path);

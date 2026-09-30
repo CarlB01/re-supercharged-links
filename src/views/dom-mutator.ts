@@ -152,16 +152,14 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		if (targetBg.length > 0 && targetBg !== "transparent") targetStyles.backgroundColor = targetBg;
 		if (resolution.style.fontWeight !== "normal") targetStyles.fontWeight = resolution.style.fontWeight;
 
-		if (resolution.style.fontStyle === "italic") {
-			targetStyles.textDecoration = "";
-			targetStyles.fontStyle = "italic";
-		} else if (resolution.style.fontStyle === "underline") {
-			targetStyles.fontStyle = "";
-			targetStyles.textDecoration = "underline";
-		} else if (resolution.style.fontStyle === "line-through") {
-			targetStyles.fontStyle = "";
-			targetStyles.textDecoration = "line-through";
-		}
+		const decorations = resolution.style.decorations;
+
+		targetStyles.fontStyle = decorations.includes("italic") ? "italic" : "";
+
+		const textDecos: string[] = [];
+		if (decorations.includes("underline")) textDecos.push("underline");
+		if (decorations.includes("line-through")) textDecos.push("line-through");
+		targetStyles.textDecoration = textDecos.length > 0 ? textDecos.join(" ") : "";
 
 		link.setCssStyles(targetStyles);
 

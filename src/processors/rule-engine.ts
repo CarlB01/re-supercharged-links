@@ -1,9 +1,12 @@
-// processors/rule-engine
-
 import { CSSLink } from "../types/css-link";
 import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
+export type DecorationToken = "italic" | "underline" | "line-through";
+
+const DECOR_ITALIC = 1;
+const DECOR_UNDERLINE = 2;
+const DECOR_LINE_THROUGH = 4;
 
 export interface CompiledRule {
 	readonly index: number;
@@ -32,7 +35,7 @@ export interface RuleResolution {
 		readonly color: string;
 		readonly backgroundColor: string;
 		readonly fontWeight: "normal" | "lighter" | "bold";
-		readonly fontStyle: "normal" | "italic" | "underline" | "line-through";
+		readonly decorations: readonly DecorationToken[];
 	};
 }
 
@@ -43,17 +46,13 @@ interface ResolveRuleResolutionInput {
 	readonly includeTagMatchClasses: boolean;
 }
 
-/**
- * Normalizes a rule's internal matching properties without polluting front-facing UI fields.
- * 🔑 USER-LAYER IMMUNITY: Strips leading hashes and maps standard matching configurations.
- */
 export function sanitizeRule(rule: CSSLink): CSSLink {
 	const rawProto: unknown = Object.getPrototypeOf(rule);
 	const validProto: object = typeof rawProto === "object" && rawProto !== null ? rawProto : Object.prototype;
-	
+
 	const prototypeObject: Record<string, unknown> = Object.create(validProto) as Record<string, unknown>;
 	const out: CSSLink = Object.assign(prototypeObject, rule);
-	
+
 	if (out.type === "tag" && typeof out.value === "string" && out.value.length > 0) {
 		out.value = out.value.trim().replace(/^#/, "");
 	}
@@ -67,24 +66,19 @@ export function sanitizeRule(rule: CSSLink): CSSLink {
 	return out;
 }
 
-/**
- * Automatically sanitizes an entire ruleset schema.
- */
-export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitized: CSSLink[]; hasChanges: boolean } {
-	if (!rules || !Array.isArray(rules)) {
+export function sanitizeRuleset(rules: CSSLink[] | null): { sanitized: CSSLink[]; hasChanges: boolean } {
+	if (rules === null || !Array.isArray(rules)) {
 		return { sanitized: [], hasChanges: false };
 	}
 
-	let hasChanges: boolean = false;
+	let hasChanges = false;
 	const sanitized: CSSLink[] = [];
-	const rulesLen = rules.length;
 
-	for (let i: number = 0; i < rulesLen; i++) {
+	for (let i = 0; i < rules.length; i++) {
 		const originalRule: CSSLink | null = rules[i] ?? null;
 		if (originalRule === null) continue;
 
 		const cleanedRule: CSSLink = sanitizeRule(originalRule);
-		
 		if (cleanedRule.match !== originalRule.match || cleanedRule.value !== originalRule.value) {
 			hasChanges = true;
 		}
@@ -94,15 +88,10 @@ export function sanitizeRuleset(rules: CSSLink[] | undefined | null): { sanitize
 	return { sanitized, hasChanges };
 }
 
-/**
- * High-performance selector compilation engine.
- * Pre-evaluates target configurations and builds optimized machine-level matcher predicates.
- */
 export function compileSelectors(selectors: readonly CSSLink[]): CompiledRule[] {
 	const out: CompiledRule[] = [];
-	const selectorsCount = selectors.length;
 
-	for (let i = 0; i < selectorsCount; i++) {
+	for (let i = 0; i < selectors.length; i++) {
 		const s: CSSLink | null = selectors[i] ?? null;
 		if (s === null) continue;
 
@@ -134,9 +123,6 @@ export function compileSelectors(selectors: readonly CSSLink[]): CompiledRule[] 
 	return out;
 }
 
-/**
- * Internal factory compiling highly optimized cross-window safe closure predicates.
- */
 function createMatcher(
 	type: CompiledRuleType,
 	cleanValue: string,
@@ -166,10 +152,6 @@ function createMatcher(
 	};
 }
 
-/**
- * Resolves a metadata object block against all active pre-compiled rule parameters.
- * ⚡ BRANCHLESS RUNTIME LOOP: Executes flat index matches without string cleansing costs.
- */
 export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleResolution {
 	const compiledRules: readonly CompiledRule[] = input.compiledRules;
 	const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
@@ -178,70 +160,62 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 
 	const classList: string[] = ["data-link-text"];
 
-	let hasMatch: boolean = false;
-	let color: string = "";
-	let backgroundColor: string = "";
+	let hasMatch = false;
+	let color = "";
+	let backgroundColor = "";
 	let fontWeight: "normal" | "lighter" | "bold" = "normal";
-	let fontStyle: "normal" | "italic" | "underline" | "line-through" = "normal";
-	let iconBefore: string = "";
-	let iconAfter: string = "";
+	let decorationBits = 0;
+	let iconBefore = "";
+	let iconAfter = "";
 
-	const rulesCount = compiledRules.length;
-	for (let i: number = 0; i < rulesCount; i++) {
+	for (let i = 0; i < compiledRules.length; i++) {
 		const rule: CompiledRule | null = compiledRules[i] ?? null;
 		if (rule === null) continue;
-
 		if (!rule.match(resolvedAttrs)) continue;
 
 		hasMatch = true;
 		classList.push(`scl-rule-${rule.index}`);
 
 		const textSelection: string = isDark ? rule.darkColor : rule.lightColor;
-		if (textSelection.length > 0) {
-			color = textSelection;
-		}
+		if (textSelection.length > 0) color = textSelection;
 
 		const bgSelection: string = isDark ? rule.darkBgColor : rule.lightBgColor;
-		if (bgSelection.length > 0) {
-			backgroundColor = bgSelection;
-		}
+		if (bgSelection.length > 0) backgroundColor = bgSelection;
 
 		if (rule.fontWeight === "lighter" || rule.fontWeight === "bold") {
 			fontWeight = rule.fontWeight;
 		}
 
-		if (rule.fontStyle === "italic" || rule.fontStyle === "underline" || rule.fontStyle === "line-through") {
-			fontStyle = rule.fontStyle;
-		}
+		if (rule.fontStyle === "italic") decorationBits |= DECOR_ITALIC;
+		if (rule.fontStyle === "underline") decorationBits |= DECOR_UNDERLINE;
+		if (rule.fontStyle === "line-through") decorationBits |= DECOR_LINE_THROUGH;
 
-		if (rule.iconBefore.length > 0) {
-			iconBefore = rule.iconBefore;
-		}
-
-		if (rule.iconAfter.length > 0) {
-			iconAfter = rule.iconAfter;
-		}
+		if (rule.iconBefore.length > 0) iconBefore = rule.iconBefore;
+		if (rule.iconAfter.length > 0) iconAfter = rule.iconAfter;
 	}
 
-	const attributes: Record<string, string> = {};
+	const decorations: DecorationToken[] = [];
+	if ((decorationBits & DECOR_ITALIC) !== 0) decorations.push("italic");
+	if ((decorationBits & DECOR_UNDERLINE) !== 0) decorations.push("underline");
+	if ((decorationBits & DECOR_LINE_THROUGH) !== 0) decorations.push("line-through");
 
+	const attributes: Record<string, string> = {};
 	if (color.length > 0) attributes["data-link-color"] = color;
 	if (backgroundColor.length > 0 && backgroundColor !== "transparent") attributes["data-link-bg"] = backgroundColor;
 	if (fontWeight !== "normal") attributes["data-link-weight"] = fontWeight;
-	if (fontStyle !== "normal") attributes["data-link-style"] = fontStyle;
+	if (decorations.length > 0) attributes["data-link-style-decoration"] = decorations.join(" ");
 	if (iconBefore.length > 0) attributes["data-scl-icon-before"] = iconBefore;
 	if (iconAfter.length > 0) attributes["data-scl-icon-after"] = iconAfter;
 
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
-		const tagsArrayCount = tagsArray.length;
 
-		if (tagsArrayCount > 0) {
+		if (tagsArray.length > 0) {
 			attributes["data-link-tags"] = tagsArray.map((t: string): string => (t.startsWith("#") ? t : `#${t}`)).join(" ");
 		}
 
-		for (let j: number = 0; j < tagsArrayCount; j++) {
+		for (let j = 0; j < tagsArray.length; j++) {
 			const cleanTag: string | null = tagsArray[j] ?? null;
 			if (cleanTag !== null && cleanTag.length > 0) {
 				classList.push(`scl-match-tag-${cleanTag.replace(/^#/, "")}`);
@@ -259,7 +233,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			color,
 			backgroundColor,
 			fontWeight,
-			fontStyle
+			decorations
 		}
 	};
 }
