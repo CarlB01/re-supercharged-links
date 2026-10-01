@@ -50,8 +50,6 @@ export class IconWidget extends WidgetType {
 
 	/**
 	 * Natively constructs the DOM element node for the CodeMirror widget component.
-	 * 🚀 LINTER COMPLIANT FACTORY: Invokes Obsidian's native global factory helper natively, 
-	 * completely bypassing speculative document root injection bugs.
 	 */
 	public toDOM(view: EditorView): HTMLElement {
 		const activeDoc: Document = view.dom.ownerDocument;
@@ -113,7 +111,6 @@ export class CMViewPlugin {
 			from: 0,
 			to: 0,
 			collectedDecos: [],
-			// 🚀 FIXED INITIALIZATION: Instantiate the empty boundary tracking set cleanly
 			processedRanges: new Set<string>()
 		};
 
@@ -161,7 +158,6 @@ export class CMViewPlugin {
 		return builder.finish();
 	}
 
-
 	private processNodeToken(
 		view: EditorView, 
 		node: CodeMirrorNodeRef, 
@@ -174,13 +170,12 @@ export class CMViewPlugin {
 		const nodeNameLower: string = node.name.toLowerCase();
 		if (nodeNameLower.includes("formatting-link")) return;
 
-		// 🚀 ANTI-DUPLICATION SHIELD: If this segment has already been aggregated by a parent link, drop it!
 		const positionRangeKey = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(positionRangeKey)) return;
 
 		if (isCodeMirrorInternalLink(node.name)) {
-			let rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
-			let linkText: string = extractCleanLinkPath(rawLinkText);
+			const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
+			const linkText: string = extractCleanLinkPath(rawLinkText);
 			
 			if (linkText.length === 0) return;
 
@@ -191,7 +186,60 @@ export class CMViewPlugin {
 				return;
 			}
 
-			const deco: Decoration = this.processLinkDecoration(file, file.basename);
+			const isPipeNode: boolean = nodeNameLower === "cm-link-alias-pipe" || nodeNameLower.includes("pipe");
+			const isAliasNode: boolean = nodeNameLower === "cm-link-alias" || nodeNameLower.includes("link-alias");
+			const isBaseLinkNode: boolean = nodeNameLower.includes("hmd-internal-link") && !isPipeNode && !isAliasNode;
+
+			let targetFrom: number = node.from;
+			let targetTo: number = node.to;
+
+			// Forward scanning tracker to reconstruct the full markup layout bounds and isolate aliases
+			if (isBaseLinkNode) {
+				const tree = syntaxTree(view.state);
+				let nextCheckPosition = node.to;
+				let scanSequenceActive = true;
+
+				while (scanSequenceActive && nextCheckPosition < state.to) {
+					let foundAdjacentFragment = false;
+					
+					tree.iterate({
+						from: nextCheckPosition,
+						to: nextCheckPosition + 30,
+						enter: (sibling: CodeMirrorNodeRef): void => {
+							const sibName = sibling.name.toLowerCase();
+							if (sibling.from === nextCheckPosition && (sibName.includes("alias") || sibName.includes("pipe") || sibName.includes("underline"))) {
+								targetTo = sibling.to;
+								nextCheckPosition = sibling.to;
+								foundAdjacentFragment = true;
+								state.processedRanges.add(`${sibling.from}-${sibling.to}`);
+							}
+						}
+					});
+					
+					if (!foundAdjacentFragment) {
+						scanSequenceActive = false;
+					}
+				}
+			}
+
+			// 🚀 VISIBLE SLICE EXTRACTION: Pull the combined text inside the entire reconstructed link element
+			const combinedText: string = view.state.doc.sliceString(targetFrom, targetTo);
+			
+			let calculatedVisibleText: string = file.basename;
+			const pipeIndex = combinedText.indexOf("|");
+			
+			if (pipeIndex !== -1) {
+				const aliasSegment = combinedText.substring(pipeIndex + 1).replace("]]", "").trim();
+				if (aliasSegment.length > 0) {
+					calculatedVisibleText = aliasSegment;
+				}
+			} else {
+				calculatedVisibleText = extractCleanLinkPath(combinedText);
+			}
+
+			// Delegate execution tracking down to the centralized rule processor
+			const deco: Decoration = this.processLinkDecoration(file, calculatedVisibleText);
+			
 			const specProxy: { attributes?: Record<string, string>; class?: string } = (deco as { spec?: { attributes?: Record<string, string>; class?: string } }).spec ?? {};
 			const currentActiveAttributes: Record<string, string> = specProxy.attributes ?? {};
 			const currentActiveClasses: string = specProxy.class ?? "";
@@ -202,49 +250,6 @@ export class CMViewPlugin {
 				const skipBefore: boolean = currentActiveClasses.includes("scl-hide-before");
 				const skipAfter: boolean = currentActiveClasses.includes("scl-hide-after");
 
-				const isPipeNode: boolean = nodeNameLower === "cm-link-alias-pipe" || nodeNameLower.includes("pipe");
-				const isAliasNode: boolean = nodeNameLower === "cm-link-alias" || nodeNameLower.includes("link-alias");
-
-				// 🚀 THE ARRAY HARMONIZATION BRIDGE:
-				// Initialize clean local boundary anchors targeting the active token boundaries
-				let targetFrom: number = node.from;
-				let targetTo: number = node.to;
-
-				const isBaseLinkNode: boolean = nodeNameLower.includes("hmd-internal-link") && !isPipeNode && !isAliasNode;
-
-				// 🎯 FORWARD SCANNING TRANS-COUPLING: If we are currently handling a root internal link,
-				// check if an alias token sequence follows immediately in the syntax tree matrix.
-				if (isBaseLinkNode) {
-					const tree = syntaxTree(view.state);
-					let nextCheckPosisjon = node.to;
-					let scanSequenceActive = true;
-
-					while (scanSequenceActive && nextCheckPosisjon < state.to) {
-						let foundAdjacentFragment = false;
-						
-						tree.iterate({
-							from: nextCheckPosisjon,
-							to: nextCheckPosisjon + 30, // Scan shallow forward slice window
-							enter: (sibling: CodeMirrorNodeRef): void => {
-								const sibName = sibling.name.toLowerCase();
-								if (sibling.from === nextCheckPosisjon && (sibName.includes("alias") || sibName.includes("pipe") || sibName.includes("underline"))) {
-									targetTo = sibling.to; // Push the append anchor boundary forward!
-									nextCheckPosisjon = sibling.to;
-									foundAdjacentFragment = true;
-									
-									// Lock this inner token out to dissolve duplicate widgetBuffers downstream
-									state.processedRanges.add(`${sibling.from}-${sibling.to}`);
-								}
-							}
-						});
-						
-						if (!foundAdjacentFragment) {
-							scanSequenceActive = false;
-						}
-					}
-				}
-
-				// Push everything into the flat array for mathematical sorting
 				if (iconBefore.length > 0 && !skipBefore && isBaseLinkNode) {
 					state.collectedDecos.push({ 
 						from: targetFrom, 
@@ -253,7 +258,6 @@ export class CMViewPlugin {
 					});
 				}
 
-				// The mark style classes stretch over the full computed boundaries, wrapping the alias!
 				state.collectedDecos.push({ 
 					from: targetFrom, 
 					to: targetTo, 
@@ -261,7 +265,6 @@ export class CMViewPlugin {
 				});
 
 				if (iconAfter.length > 0 && !skipAfter && isBaseLinkNode) {
-					// 🚀 ABSOLUTE BOUNDARY LOCK: Append widget is forced perfectly behind the final alias string character.
 					state.collectedDecos.push({ 
 						from: targetTo, 
 						to: targetTo, 
@@ -275,11 +278,8 @@ export class CMViewPlugin {
 
 	/**
 	 * Generates a deeply isolated CodeMirror mark decoration unique to a distinct token node.
-	 * 🚀 FIXED ADJACENT INHERITANCE BLEED: Enforces explicit memory decoupling on class arrays 
-	 * and attribute record maps to prevent CodeMirror from blending adjacent inline links together.
 	 */
 	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
-		// Fetch a fresh attribute state structure from our versioned global cache
 		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
 			this.app, 
 			this.plugin, 
@@ -288,7 +288,6 @@ export class CMViewPlugin {
 			this.plugin.attrCycleCache
 		);
 		
-		// 🚀 INSTANCE ISOLATION channel: Deeply isolate the target attribute dictionary object per execution frame
 		const attributes: Record<string, string> = {};
 		for (const key in rawAttrs) {
 			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
@@ -301,42 +300,30 @@ export class CMViewPlugin {
 
 		const isDark: boolean = document.body.classList.contains("theme-dark");
 
-		// Evaluate our compiled predictive system rules against this isolated dataset
+		// 🚀 Cleaned parameters passing exclusively the evaluated linkLabel text
 		const resolution = resolveRuleResolution({
 			compiledRules: this.plugin.compiledRules,
 			resolvedAttrs: rawAttrs,
 			isDark,
-			includeTagMatchClasses: true
+			includeTagMatchClasses: true,
+			visibleText: linkLabel
 		});
 
-		// 🚀 MEMORY DECOUPLING: Spread the resolved class tokens into a completely brand new array instance
-		// This strictly blocks adjacent nodes on the same line from inheriting shared array pointers in CodeMirror.
 		const classList: string[] = Array.isArray(resolution.classes) ? [...(resolution.classes as string[])] : ["data-link-text"];
 
 		const resAttributes = Object.entries(resolution.attributes);
 		const resAttributesCount = resAttributes.length;
 		for (let i = 0; i < resAttributesCount; i++) {
 			const entry = resAttributes[i];
-			if (entry) {
+			if (entry !== undefined && entry !== null) {
 				const attrKey: string = entry[0];
 				const attrValue: string = entry[1];
 				attributes[attrKey] = attrValue;
 			}
 		}
 
-		const iconBefore: string = resolution.iconBefore;
-		if (iconBefore.length > 0 && startsWithToken(linkLabel, iconBefore)) {
-			classList.push("scl-hide-before");
-		}
-
-		const iconAfter: string = resolution.iconAfter;
-		if (iconAfter.length > 0 && endsWithToken(linkLabel, iconAfter)) {
-			classList.push("scl-hide-after");
-		}
-
-		// 🚀 MANDATORY FRESH ENVELOPE: Construct and return a pristine, un-shared Decoration mark instance
 		return Decoration.mark({
-			attributes: Object.assign({}, attributes), // Create a shallow copy of the attributes map
+			attributes: Object.assign({}, attributes),
 			class: classList.filter((c: string): boolean => c.length > 0).join(" ")
 		});
 	}
@@ -344,7 +331,6 @@ export class CMViewPlugin {
 }
 
 /**
- * 🚀 REACTIVE IN-MEMORY THEME GENERATOR
  * Dynamically compiles system rules into an active CodeMirror theme instance.
  */
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {

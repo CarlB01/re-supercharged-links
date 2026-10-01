@@ -1,5 +1,3 @@
-// views/dom-mutator
-
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { cleanAttributeKey, createInlineIconSpan, endsWithEmoji, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
@@ -12,7 +10,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 	const attrs: NamedNodeMap = link.attributes;
 	let i: number = attrs.length;
 	
-	// 🚀 FIXED UNDEFINED POTENTIAL: Strict backward loop iteration with concrete null checks
 	while (i--) {
 		const attr: Attr | null = attrs.item(i);
 		if (attr !== null) {
@@ -119,20 +116,21 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 
 /**
  * Globally mutates a link element safely by evaluating active compile configurations.
- * ⚡ RACE-CONDITION KILLER: Verifies existing states before execution to prevent endless DOM thrashing loops.
  */
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
 
-	// 1. Resolve the static compiled target rule properties
+	const visibleText: string = (link.textContent ?? "").trim();
+
+	// 🚀 Execute unified logic targeting exclusively the clean visible string context
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.compiledRules, 
 		resolvedAttrs: newProps,
 		isDark,
-		includeTagMatchClasses: true
+		includeTagMatchClasses: true,
+		visibleText: visibleText
 	});
 
-	// Compute a unique signature string for this specific resolution state
 	const targetColor: string = resolution.style.color || "";
 	const targetBg: string = resolution.style.backgroundColor || "";
 	const currentTrackedColor: string = link.getAttribute("data-link-color") || "";
@@ -142,7 +140,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		return;
 	}
 
-	// 2. Perform destructive cleanup ONLY if a real state change is required
 	clearExtraAttributes(link);
 
 	if (resolution.hasMatch) {
@@ -153,7 +150,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		if (resolution.style.fontWeight !== "normal") targetStyles.fontWeight = resolution.style.fontWeight;
 
 		const decorations = resolution.style.decorations;
-
 		targetStyles.fontStyle = decorations.includes("italic") ? "italic" : "";
 
 		const textDecos: string[] = [];
@@ -163,7 +159,6 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 		link.setCssStyles(targetStyles);
 
-		// Apply target compiled system classes
 		const classesLen: number = resolution.classes.length;
 		for (let i = 0; i < classesLen; i++) {
 			const cls: string | null = resolution.classes[i] ?? null;
@@ -172,13 +167,11 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			}
 		}
 
-		// Icon insertion prevention routines using high-performance token processing
-		const visibleText: string = (link.textContent ?? "").trim();
 		const iconBefore: string = resolution.iconBefore;
 		const iconAfter: string = resolution.iconAfter;
 
-		const skipBefore: boolean = iconBefore.length > 0 && startsWithToken(visibleText, iconBefore);
-		let skipAfter: boolean = iconAfter.length > 0 && endsWithToken(visibleText, iconAfter);
+		const skipBefore: boolean = resolution.classes.includes("scl-hide-before");
+		let skipAfter: boolean = resolution.classes.includes("scl-hide-after");
 
 		if (iconAfter.length > 0 && !skipAfter && endsWithEmoji(visibleText)) {
 			skipAfter = true;
@@ -222,7 +215,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 			if (domKey === "tags" && newValue !== null) {
 				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
+				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#\${t}`)).join(" ");
 			}
 
 			if (newValue !== null) {
@@ -231,10 +224,10 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
-	// Append core tracking classes to complete the execution block lock
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed");
 }
+
 
 
 

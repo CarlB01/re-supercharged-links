@@ -1,5 +1,5 @@
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { cleanAttributeKey, cleanRuleValue, endsWithToken, normalizeCachePath, parseSpaceSeparatedTokens, startsWithToken } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 export type DecorationToken = "italic" | "underline" | "line-through";
@@ -44,6 +44,8 @@ interface ResolveRuleResolutionInput {
 	readonly resolvedAttrs: Readonly<Record<string, string>>;
 	readonly isDark: boolean;
 	readonly includeTagMatchClasses: boolean;
+	readonly visibleText?: string;
+	readonly fallbackText?: string;
 }
 
 export function sanitizeRule(rule: CSSLink): CSSLink {
@@ -221,6 +223,18 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 				classList.push(`scl-match-tag-${cleanTag.replace(/^#/, "")}`);
 			}
 		}
+	}
+
+	// 🚀 Centralized Deduplication Engine (Strict DOM Alignment)
+	// We exclusively analyze the visible text stream to guard layout presentation elements.
+	const targetText: string = (input.visibleText ?? "").trim();
+
+	if (iconBefore.length > 0 && startsWithToken(targetText, iconBefore)) {
+		classList.push("scl-hide-before");
+	}
+
+	if (iconAfter.length > 0 && endsWithToken(targetText, iconAfter)) {
+		classList.push("scl-hide-after");
 	}
 
 	return {
