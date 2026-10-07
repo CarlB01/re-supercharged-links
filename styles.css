@@ -402,8 +402,12 @@
   display: none;
 }
 
-/* Suppress leading icon on the alias segment if the link is OPEN. */
-.cm-editor .cm-link-has-alias ~ .cm-link-alias .data-link-text[data-scl-icon-before]::before,
+/* 
+   MATHEMATICAL ALIAS RULE:
+   Only suppress the leading icon on the alias segment if the link is actually OPEN.
+   By using strict adjacent sibling combinators (+), we ensure that an open link 
+   never bleeds over and accidentally hides prepend icons on subsequent closed links!
+*/
 .cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
   display: none;
 }
