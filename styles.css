@@ -310,14 +310,13 @@
 
 /* =========================================================================
    4) 🚀 UTILITY CLASSES FOR THE IN-MEMORY RUNTIME ENGINE
-   100% Obsidian compliant - completely removed all !important flags!
    ========================================================================= */
 
-/* Phase 3 Core Architecture: Standardized alignment wrapper configuration */
 .data-link-text {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
+  vertical-align: baseline;
 }
 
 /* Universal structural selector targeting all injected affix modules */
@@ -381,41 +380,30 @@
 
 /* Respect dedupe/hide flags from rule resolution */
 .cm-editor .data-link-text.scl-hide-before[data-scl-icon-before]::before {
-  content: "";
-  margin-right: 0;
+  display: none;
 }
 
 .cm-editor .data-link-text.scl-hide-after[data-scl-icon-after]::after {
-  content: "";
-  margin-left: 0;
+  display: none;
 }
 
-/* Alias split handling:
-   - no icons on pipe segment
-   - no trailing icon on owner when alias exists
-   - show trailing icon on alias segment */
+/* =========================================================================
+   5) 🚀 DETERMINISTIC POSITIONAL ICON REFLECTION LAYER
+   ========================================================================= */
+
+/* Absolute suppression on the syntax pipe separator marker when open */
 .cm-editor .cm-link-alias-pipe .data-link-text::before,
 .cm-editor .cm-link-alias-pipe .data-link-text::after {
-  content: "";
-  margin: 0;
+  display: none;
 }
 
+/* Suppress the trailing icon on the link path node when open */
 .cm-editor .cm-link-has-alias .data-link-text[data-scl-icon-after]::after {
-  content: "";
-  margin-left: 0;
+  display: none;
 }
 
-.cm-editor .cm-link-alias .data-link-text[data-scl-icon-before]::before {
-  content: attr(data-scl-icon-before);
-  display: inline-block;
-  flex-shrink: 0;
-  margin-right: 0.2em;
+/* Suppress leading icon on the alias segment if the link is OPEN. */
+.cm-editor .cm-link-has-alias ~ .cm-link-alias .data-link-text[data-scl-icon-before]::before,
+.cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
+  display: none;
 }
-
-.cm-editor .cm-link-alias .data-link-text[data-scl-icon-after]::after {
-  content: attr(data-scl-icon-after);
-  display: inline-block;
-  flex-shrink: 0;
-  margin-left: 0.2em;
-}
-

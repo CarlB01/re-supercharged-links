@@ -29,10 +29,8 @@ interface IterationState {
 function isBaseInternalLinkOwner(nodeName: string): boolean {
 	const nodeNameLower: string = nodeName.toLowerCase().trim();
 
-	// Strict owner: the plain internal-link token only
 	if (nodeNameLower === "hmd-internal-link") return true;
 
-	// Anything alias/pipe/has-alias is not owner
 	if (nodeNameLower.includes("link-alias")) return false;
 	if (nodeNameLower.includes("pipe")) return false;
 	if (nodeNameLower.includes("has-alias")) return false;
@@ -154,171 +152,170 @@ export class CMViewPlugin {
 		return hit;
 	}
 
-private processNodeToken(
-	view: EditorView,
-	node: CodeMirrorNodeRef,
-	state: IterationState,
-	updateFrom: number,
-	updateTo: number
-): void {
-	if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
+	private processNodeToken(
+		view: EditorView,
+		node: CodeMirrorNodeRef,
+		state: IterationState,
+		updateFrom: number,
+		updateTo: number
+	): void {
+		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
-	const nodeNameLower: string = node.name.toLowerCase();
-	if (nodeNameLower.includes("formatting-link")) return;
+		const nodeNameLower: string = node.name.toLowerCase();
+		if (nodeNameLower.includes("formatting-link")) return;
 
-	const nodeRangeKey: string = `${node.from}-${node.to}`;
-	if (state.processedRanges.has(nodeRangeKey)) return;
+		const nodeRangeKey: string = `${node.from}-${node.to}`;
+		if (state.processedRanges.has(nodeRangeKey)) return;
 
-	// Detect alias/pipe/owner FIRST (before isOwnerNode guard)
-	const hasAliasClass: boolean =
-		nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
+		const hasAliasClass: boolean =
+			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
 
-	const isAliasPipeToken: boolean =
-		nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
+		const isAliasPipeToken: boolean =
+			nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
 
-	const isAliasToken: boolean =
-		(nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) &&
-		!isAliasPipeToken;
+		const isAliasToken: boolean =
+			(nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) &&
+			!isAliasPipeToken;
 
-	const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
+		/**
+		 * In collapsed/closed Live Preview mode, an internal link with an alias is represented 
+		 * by a single text node containing the alias token, without the surrounding structural markers.
+		 */
+		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
 
-	// Only skip truly irrelevant nodes
-	if (!isAliasOnlyOwner && !isOwnerNode(node.name)) {
-		state.processedRanges.add(nodeRangeKey);
-		return;
-	}
-
-	const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
-	let linkText: string = extractCleanLinkPath(rawLinkText);
-
-	if (isAliasOnlyOwner) {
-		const lineForAlias = view.state.doc.lineAt(node.from);
-		const lineText: string = lineForAlias.text;
-		const relFrom: number = Math.max(0, node.from - lineForAlias.from);
-		const relTo: number = Math.max(0, node.to - lineForAlias.from);
-
-		const leftPart: string = lineText.slice(0, relFrom);
-		const rightPart: string = lineText.slice(relTo);
-		const openIdx: number = leftPart.lastIndexOf("[[");
-		const closeRel: number = rightPart.indexOf("]]");
-
-		if (openIdx !== -1 && closeRel !== -1) {
-			const closeIdx: number = relTo + closeRel;
-			const fullWikilink: string = lineText.slice(openIdx, closeIdx + 2);
-			const inner: string = fullWikilink.slice(2, -2);
-			const pipeIdx: number = inner.indexOf("|");
-			const target: string = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
-			if (target.length > 0) linkText = extractCleanLinkPath(target);
+		if (!isAliasOnlyOwner && !isOwnerNode(node.name)) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
 		}
-	}
 
-	if (linkText.length === 0) {
-		state.processedRanges.add(nodeRangeKey);
-		return;
-	}
+		const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
+		let linkText: string = extractCleanLinkPath(rawLinkText);
 
-	const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
-	if (file === null) {
-		state.processedRanges.add(nodeRangeKey);
-		return;
-	}
+		if (isAliasOnlyOwner) {
+			const lineForAlias = view.state.doc.lineAt(node.from);
+			const lineText: string = lineForAlias.text;
+			const relFrom: number = Math.max(0, node.from - lineForAlias.from);
+			const relTo: number = Math.max(0, node.to - lineForAlias.from);
 
-if (isAliasOnlyOwner) {
-    const aliasLabel = this.getVisibleLabel(view, node.from, node.to);
-    const aliasOnlyDeco = this.processLinkDecoration(file, aliasLabel, true, true);
-    this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
-    state.processedRanges.add(nodeRangeKey);
-    return;
-}
+			const leftPart: string = lineText.slice(0, relFrom);
+			const rightPart: string = lineText.slice(relTo);
+			const openIdx: number = leftPart.lastIndexOf("[[");
+			const closeRel: number = rightPart.indexOf("]]");
 
+			if (openIdx !== -1 && closeRel !== -1) {
+				const closeIdx: number = relTo + closeRel;
+				const fullWikilink: string = lineText.slice(openIdx, closeIdx + 2);
+				const inner: string = fullWikilink.slice(2, -2);
+				const pipeIdx: number = inner.indexOf("|");
+				const target: string = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
+				if (target.length > 0) linkText = extractCleanLinkPath(target);
+			}
+		}
 
-	const ownerHasAlias: boolean = hasAliasClass;
-	const ownerLabel: string = this.getVisibleLabel(view, node.from, node.to);
-	const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel, true, !ownerHasAlias);
-	this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
+		if (linkText.length === 0) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
 
-	if (ownerHasAlias) {
-		const line = view.state.doc.lineAt(node.from);
-		const pipeNode = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
+		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
+		if (file === null) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
 
-		if (pipeNode) {
-			const pipeLabel = this.getVisibleLabel(view, pipeNode.from, pipeNode.to);
-			this.decorateRangeOnce(
-				state,
-				pipeNode.from,
-				pipeNode.to,
-				this.processLinkDecoration(file, pipeLabel, false, false)
-			);
-			state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
+		/**
+		 * Core Mathematical Strategy: Always bind both structural icon markers to the DOM node.
+		 * Positional presentation constraints (open vs closed visibility states) are handled
+		 * deterministically via layout style layers, preventing token parsing state mismatches.
+		 */
+		if (isAliasOnlyOwner) {
+			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, file.basename);
+			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
 
-			const aliasNode = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
-			if (aliasNode) {
-				const aliasLabel = this.getVisibleLabel(view, aliasNode.from, aliasNode.to);
+		const ownerDeco: Decoration = this.processLinkDecoration(file, file.basename);
+		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
+
+		if (hasAliasClass) {
+			const line = view.state.doc.lineAt(node.from);
+			const pipeNode = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
+
+			if (pipeNode) {
 				this.decorateRangeOnce(
 					state,
-					aliasNode.from,
-					aliasNode.to,
-					this.processLinkDecoration(file, aliasLabel, false, true)
+					pipeNode.from,
+					pipeNode.to,
+					this.processLinkDecoration(file, file.basename)
 				);
-				state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
+				state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
+
+				const aliasNode = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
+				if (aliasNode) {
+					this.decorateRangeOnce(
+						state,
+						aliasNode.from,
+						aliasNode.to,
+						this.processLinkDecoration(file, file.basename)
+					);
+					state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
+				}
 			}
 		}
+
+		state.processedRanges.add(nodeRangeKey);
 	}
 
-	state.processedRanges.add(nodeRangeKey);
-}
+	private decorateRangeOnce(
+		state: IterationState,
+		from: number,
+		to: number,
+		deco: Decoration
+	): void {
+		const key: string = `${from}-${to}`;
+		if (state.decoratedRanges.has(key)) return;
 
-private decorateRangeOnce(
-	state: IterationState,
-	from: number,
-	to: number,
-	deco: Decoration
-): void {
-	const key: string = `${from}-${to}`;
-	if (state.decoratedRanges.has(key)) return;
+		state.collectedDecos.push({ from, to, value: deco });
+		state.decoratedRanges.add(key);
+	}
 
-	state.collectedDecos.push({ from, to, value: deco });
-	state.decoratedRanges.add(key);
-}
+	private getVisibleLabel(view: EditorView, from: number, to: number): string {
+		const raw: string = view.state.doc.sliceString(from, to);
+		const clean: string = extractCleanLinkPath(raw);
+		return clean.length > 0 ? clean : raw.trim();
+	}
 
-private getVisibleLabel(view: EditorView, from: number, to: number): string {
-	const raw: string = view.state.doc.sliceString(from, to);
-	const clean: string = extractCleanLinkPath(raw);
-	return clean.length > 0 ? clean : raw.trim();
-}
+	private findAliasSegments(
+		view: EditorView,
+		searchFrom: number,
+		searchTo: number
+	): { from: number; to: number; kind: "pipe" | "alias" }[] {
+		const out: { from: number; to: number; kind: "pipe" | "alias" }[] = [];
+		const tree = syntaxTree(view.state);
 
-private findAliasSegments(
-	view: EditorView,
-	searchFrom: number,
-	searchTo: number
-): { from: number; to: number; kind: "pipe" | "alias" }[] {
-	const out: { from: number; to: number; kind: "pipe" | "alias" }[] = [];
-	const tree = syntaxTree(view.state);
+		tree.iterate({
+			from: searchFrom,
+			to: searchTo,
+			enter: (candidate: CodeMirrorNodeRef): void => {
+				const n: string = candidate.name.toLowerCase();
+				const from: number = candidate.from;
+				const to: number = candidate.to;
 
-	tree.iterate({
-		from: searchFrom,
-		to: searchTo,
-		enter: (candidate: CodeMirrorNodeRef): void => {
-			const n: string = candidate.name.toLowerCase();
-			const from: number = candidate.from;
-			const to: number = candidate.to;
+				const isPipe: boolean = n.includes("cm-link-alias-pipe");
+				const isAlias: boolean = n.includes("cm-link-alias") && !n.includes("has-alias");
 
-			const isPipe: boolean = n.includes("cm-link-alias-pipe");
-			const isAlias: boolean = n.includes("cm-link-alias") && !n.includes("has-alias");
-
-			if (isPipe) {
-				out.push({ from, to, kind: "pipe" });
-			} else if (isAlias) {
-				out.push({ from, to, kind: "alias" });
+				if (isPipe) {
+					out.push({ from, to, kind: "pipe" });
+				} else if (isAlias) {
+					out.push({ from, to, kind: "alias" });
+				}
 			}
-		}
-	});
+		});
 
-	// Keep deterministic order
-	out.sort((a, b) => a.from - b.from);
-	return out;
-}
-
+		out.sort((a, b) => a.from - b.from);
+		return out;
+	}
 	private findNextAliasOrPipe(
 		tree: ReturnType<typeof syntaxTree>,
 		searchFrom: number,
@@ -354,86 +351,48 @@ private findAliasSegments(
 		return { from: bestFrom, to: bestTo };
 	}
 
-public processLinkDecoration(
-	file: TFile,
-	linkLabel: string,
-	includeBeforeIcon: boolean,
-	includeAfterIcon: boolean
-): Decoration {
-	const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
-		this.app,
-		this.plugin,
-		file,
-		true,
-		this.plugin.attrCycleCache
-	);
+	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
+			this.app,
+			this.plugin,
+			file,
+			true,
+			this.plugin.attrCycleCache
+		);
 
-	const attributes: Record<string, string> = {};
-	for (const key in rawAttrs) {
-		if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
-			const val: string = rawAttrs[key] ?? "";
-			if (val.length > 0) attributes[`data-link-${key}`] = val;
+		const attributes: Record<string, string> = {};
+		for (const key in rawAttrs) {
+			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
+				const val: string = rawAttrs[key] ?? "";
+				if (val.length > 0) attributes[`data-link-${key}`] = val;
+			}
 		}
-	}
 
-	const isDark: boolean = document.body.classList.contains("theme-dark");
-	const resolution = resolveRuleResolution({
-    compiledRules: this.plugin.compiledRules,
-    resolvedAttrs: rawAttrs,
-    isDark,
-    includeTagMatchClasses: true,
-    visibleText: file.basename 
-});
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		const resolution = resolveRuleResolution({
+			compiledRules: this.plugin.compiledRules,
+			resolvedAttrs: rawAttrs,
+			isDark,
+			includeTagMatchClasses: true,
+			visibleText: linkLabel
+		});
 
-	const classes: string[] = [];
-	const classCount: number = resolution.classes.length;
-	for (let i = 0; i < classCount; i++) {
-		const c: string = resolution.classes[i] ?? "";
-		if (c.length > 0) classes.push(c);
-	}
-
-	for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
-		if ((attrValue ?? "").length > 0) attributes[attrKey] = attrValue;
-	}
-
-	// Respect caller intent first (segment-level gating)
-	if (!includeBeforeIcon) delete attributes["data-scl-icon-before"];
-	if (!includeAfterIcon) delete attributes["data-scl-icon-after"];
-
-	// ---- Hard guarantees when a side is requested ----
-	// Pull optional defaults from settings if you have them; otherwise empty string.
-	const defaultBefore: string = (this.plugin.settings as any)?.defaultIconBefore ?? "";
-	const defaultAfter: string = (this.plugin.settings as any)?.defaultIconAfter ?? "";
-
-	const currentBefore: string = attributes["data-scl-icon-before"] ?? "";
-	const currentAfter: string = attributes["data-scl-icon-after"] ?? "";
-
-	// If before is requested but missing, derive from after or default.
-	if (includeBeforeIcon && currentBefore.length === 0) {
-		if (currentAfter.length > 0) {
-			attributes["data-scl-icon-before"] = currentAfter;
-		} else if (defaultBefore.length > 0) {
-			attributes["data-scl-icon-before"] = defaultBefore;
+		const classes: string[] = [];
+		const classCount: number = resolution.classes.length;
+		for (let i = 0; i < classCount; i++) {
+			const c: string = resolution.classes[i] ?? "";
+			if (c.length > 0) classes.push(c);
 		}
-	}
 
-	// If after is requested but missing, derive from before or default.
-	const afterNow: string = attributes["data-scl-icon-after"] ?? "";
-	const beforeNow: string = attributes["data-scl-icon-before"] ?? "";
-	if (includeAfterIcon && afterNow.length === 0) {
-		if (beforeNow.length > 0) {
-			attributes["data-scl-icon-after"] = beforeNow;
-		} else if (defaultAfter.length > 0) {
-			attributes["data-scl-icon-after"] = defaultAfter;
+		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
+			if ((attrValue ?? "").length > 0) attributes[attrKey] = attrValue;
 		}
-	}
 
-	return Decoration.mark({
-		attributes,
-		class: classes.join(" ")
-	});
-}
-	
+		return Decoration.mark({
+			attributes,
+			class: classes.join(" ")
+		});
+	}
 }
 
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
@@ -488,8 +447,9 @@ function isOwnerNode(nodeName: string): boolean {
 
 	if (n.includes("cm-link-alias-pipe")) return false;
 	if (n.includes("cm-link-has-alias")) return true;
-	if (n.includes("cm-link-alias")) return true; // fallback for closed/odd token states
+	if (n.includes("cm-link-alias")) return true;
 	if (n.includes("hmd-internal-link")) return true;
 
 	return false;
 }
+
