@@ -223,19 +223,17 @@ export class CMViewPlugin {
 			return;
 		}
 
-		/**
-		 * Core Mathematical Strategy: Always bind both structural icon markers to the DOM node.
-		 * Positional presentation constraints (open vs closed visibility states) are handled
-		 * deterministically via layout style layers, preventing token parsing state mismatches.
-		 */
+		// for closed links
 		if (isAliasOnlyOwner) {
-			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, file.basename);
+			const aliasLabel = this.getVisibleLabel(view, node.from, node.to); 
+			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, aliasLabel);
 			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
-		const ownerDeco: Decoration = this.processLinkDecoration(file, file.basename);
+		const ownerLabel = this.getVisibleLabel(view, node.from, node.to); 
+		const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel);
 		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
 
 		if (hasAliasClass) {
@@ -243,21 +241,23 @@ export class CMViewPlugin {
 			const pipeNode = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
 
 			if (pipeNode) {
+				const pipeLabel = this.getVisibleLabel(view, pipeNode.from, pipeNode.to); // "|"
 				this.decorateRangeOnce(
 					state,
 					pipeNode.from,
 					pipeNode.to,
-					this.processLinkDecoration(file, file.basename)
+					this.processLinkDecoration(file, pipeLabel)
 				);
 				state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
 
 				const aliasNode = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
 				if (aliasNode) {
+					const aliasLabel = this.getVisibleLabel(view, aliasNode.from, aliasNode.to); // F.eks. "petter"
 					this.decorateRangeOnce(
 						state,
 						aliasNode.from,
 						aliasNode.to,
-						this.processLinkDecoration(file, file.basename)
+						this.processLinkDecoration(file, aliasLabel)
 					);
 					state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
 				}
@@ -351,7 +351,7 @@ export class CMViewPlugin {
 		return { from: bestFrom, to: bestTo };
 	}
 
-	public processLinkDecoration(file: TFile, linkLabel: string): Decoration {
+	public processLinkDecoration(file: TFile, visibleLabel: string): Decoration {
 		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
 			this.app,
 			this.plugin,
@@ -369,12 +369,14 @@ export class CMViewPlugin {
 		}
 
 		const isDark: boolean = document.body.classList.contains("theme-dark");
+		
+		// Pass inn den FAKTISKE synlige teksten til eliminering-motoren
 		const resolution = resolveRuleResolution({
 			compiledRules: this.plugin.compiledRules,
 			resolvedAttrs: rawAttrs,
 			isDark,
 			includeTagMatchClasses: true,
-			visibleText: linkLabel
+			visibleText: visibleLabel
 		});
 
 		const classes: string[] = [];
@@ -393,6 +395,7 @@ export class CMViewPlugin {
 			class: classes.join(" ")
 		});
 	}
+
 }
 
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
