@@ -364,18 +364,18 @@
 }
 
 /* Live Preview pseudo-icons (replaces CM widget spans) */
-.cm-editor .data-link-text[data-scl-icon-before]::before {
+.data-link-text[data-scl-icon-before]::before {
   content: attr(data-scl-icon-before);
   display: inline-block;
   flex-shrink: 0;
-  margin-right: 0.2em;
+  margin-right: 0;
 }
 
-.cm-editor .data-link-text[data-scl-icon-after]::after {
+.data-link-text[data-scl-icon-after]::after {
   content: attr(data-scl-icon-after);
   display: inline-block;
   flex-shrink: 0;
-  margin-left: 0.2em;
+  margin-left: 0;
 }
 
 /* Respect dedupe/hide flags from rule resolution */

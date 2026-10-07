@@ -1,9 +1,9 @@
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, createInlineIconSpan, endsWithEmoji, endsWithToken, parseSpaceSeparatedTokens, processValue, startsWithToken } from "../utils/shared-utils";
+import { cleanAttributeKey, endsWithEmoji, parseSpaceSeparatedTokens, processValue } from "../utils/shared-utils";
 
 /**
- * Completely purges all supercharged style properties, inline icon spans, and data-link attributes.
+ * Completely purges all supercharged style properties and data-link attributes.
  * ⚡ LEAK REMOVER: Iterates backward over element attributes to clear out stale values before fresh writes.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
@@ -20,6 +20,10 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 	
+	/**
+	 * Architectural Refinement: Inline icon spans are entirely decoupled from the DOM injection loop,
+	 * as structural pseudo-elements (::before / ::after) now handle presentation natively via CSS.
+	 */
 	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
 	const oldIconsCount: number = oldIcons.length;
 	for (let j = 0; j < oldIconsCount; j++) {
@@ -29,7 +33,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 
-	// 1. Gather all dynamic supercharged classes that need to be evicted
 	const classesToRemove: string[] = [];
 	const currentClasses: DOMTokenList = link.classList;
 	const currentClassesCount: number = currentClasses.length;
@@ -48,7 +51,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 			link.classList.remove(targetClass);
 		}
 	}
-
 
 	link.setCssStyles({
 		color: "",
@@ -119,10 +121,8 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
  */
 export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
-
 	const visibleText: string = (link.textContent ?? "").trim();
 
-	// 🚀 Execute unified logic targeting exclusively the clean visible string context
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.compiledRules, 
 		resolvedAttrs: newProps,
@@ -167,33 +167,21 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 			}
 		}
 
-		const iconBefore: string = resolution.iconBefore;
-		const iconAfter: string = resolution.iconAfter;
-
-		const skipBefore: boolean = resolution.classes.includes("scl-hide-before");
-		let skipAfter: boolean = resolution.classes.includes("scl-hide-after");
-
-		if (iconAfter.length > 0 && !skipAfter && endsWithEmoji(visibleText)) {
-			skipAfter = true;
-		}
-
-		if (iconBefore.length > 0 && !skipBefore) {
-			const spanBefore = createInlineIconSpan(link.ownerDocument, iconBefore, true);
-			const firstChild: ChildNode | null = link.firstChild;
-			if (firstChild !== null && firstChild !== spanBefore) {
-				link.insertBefore(spanBefore, firstChild);
-			}
-		}
-
-		if (iconAfter.length > 0 && !skipAfter) {
-			const spanAfter = createInlineIconSpan(link.ownerDocument, iconAfter, false);	
-			link.appendChild(spanAfter);
-		}
-
+		/**
+		 * Architectural Strategy Shift: We bypass imperative span generation. Instead, we pipe
+		 * rule-resolved attributes directly to data attributes, letting CSS layout models (::before / ::after)
+		 * handle structural visual representation deterministically.
+		 */
 		const resAttrs = resolution.attributes;
 		for (const attrKey in resAttrs) {
 			if (Object.prototype.hasOwnProperty.call(resAttrs, attrKey)) {
-				const attrValue: string = resAttrs[attrKey] || "";
+				let attrValue: string = resAttrs[attrKey] || "";
+				
+				// Handle emoji/token edge suppression configurations at the DOM layer
+				if (attrKey === "data-scl-icon-after" && endsWithEmoji(visibleText)) {
+					attrValue = "";
+				}
+
 				if (attrValue.length > 0) {
 					link.setAttribute(attrKey, attrValue);
 				}
@@ -215,7 +203,7 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 			if (domKey === "tags" && newValue !== null) {
 				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#\${t}`)).join(" ");
+				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
 			}
 
 			if (newValue !== null) {
@@ -227,7 +215,3 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed");
 }
-
-
-
-
