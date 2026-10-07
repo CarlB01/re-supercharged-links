@@ -363,3 +363,59 @@
 .cm-underline.scl-style-line-through { 
   text-decoration: line-through; 
 }
+
+/* Live Preview pseudo-icons (replaces CM widget spans) */
+.cm-editor .data-link-text[data-scl-icon-before]::before {
+  content: attr(data-scl-icon-before);
+  display: inline-block;
+  flex-shrink: 0;
+  margin-right: 0.2em;
+}
+
+.cm-editor .data-link-text[data-scl-icon-after]::after {
+  content: attr(data-scl-icon-after);
+  display: inline-block;
+  flex-shrink: 0;
+  margin-left: 0.2em;
+}
+
+/* Respect dedupe/hide flags from rule resolution */
+.cm-editor .data-link-text.scl-hide-before[data-scl-icon-before]::before {
+  content: "";
+  margin-right: 0;
+}
+
+.cm-editor .data-link-text.scl-hide-after[data-scl-icon-after]::after {
+  content: "";
+  margin-left: 0;
+}
+
+/* Alias split handling:
+   - no icons on pipe segment
+   - no trailing icon on owner when alias exists
+   - show trailing icon on alias segment */
+.cm-editor .cm-link-alias-pipe .data-link-text::before,
+.cm-editor .cm-link-alias-pipe .data-link-text::after {
+  content: "";
+  margin: 0;
+}
+
+.cm-editor .cm-link-has-alias .data-link-text[data-scl-icon-after]::after {
+  content: "";
+  margin-left: 0;
+}
+
+.cm-editor .cm-link-alias .data-link-text[data-scl-icon-before]::before {
+  content: attr(data-scl-icon-before);
+  display: inline-block;
+  flex-shrink: 0;
+  margin-right: 0.2em;
+}
+
+.cm-editor .cm-link-alias .data-link-text[data-scl-icon-after]::after {
+  content: attr(data-scl-icon-after);
+  display: inline-block;
+  flex-shrink: 0;
+  margin-left: 0.2em;
+}
+
