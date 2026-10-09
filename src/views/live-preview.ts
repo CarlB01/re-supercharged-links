@@ -358,7 +358,6 @@ export class CMViewPlugin {
 
 		const isDark: boolean = document.body.classList.contains("theme-dark");
 		
-		// Pass inn den FAKTISKE synlige teksten til eliminering-motoren
 		const resolution = resolveRuleResolution({
 			compiledRules: this.plugin.compiledRules,
 			resolvedAttrs: rawAttrs,
@@ -366,6 +365,10 @@ export class CMViewPlugin {
 			includeTagMatchClasses: true,
 			visibleText: visibleLabel
 		});
+
+		if (!resolution.hasMatch) {
+			return Decoration.mark({});
+		}
 
 		const classes: string[] = [];
 		const classCount: number = resolution.classes.length;
