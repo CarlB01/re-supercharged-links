@@ -26,18 +26,6 @@ interface IterationState {
 	decoratedRanges: Set<string>;
 }
 
-function isBaseInternalLinkOwner(nodeName: string): boolean {
-	const nodeNameLower: string = nodeName.toLowerCase().trim();
-
-	if (nodeNameLower === "hmd-internal-link") return true;
-
-	if (nodeNameLower.includes("link-alias")) return false;
-	if (nodeNameLower.includes("pipe")) return false;
-	if (nodeNameLower.includes("has-alias")) return false;
-
-	return false;
-}
-
 export function resolveLinkFile(app: App, linkText: string, activeFileBasename: string, isExternalType: boolean): TFile | null {
 	const firstTry: TFile | null = app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
 	if (firstTry !== null) return firstTry;

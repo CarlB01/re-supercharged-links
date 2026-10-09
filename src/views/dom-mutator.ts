@@ -178,6 +178,12 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 				let attrValue: string = resAttrs[attrKey] || "";
 				
 				// Handle emoji/token edge suppression configurations at the DOM layer
+				if (attrKey === "data-scl-icon-before" && attrValue.length > 0) {
+					if (visibleText.startsWith(attrValue)) {
+						attrValue = ""; 
+					}
+        }
+
 				if (attrKey === "data-scl-icon-after" && endsWithEmoji(visibleText)) {
 					attrValue = "";
 				}

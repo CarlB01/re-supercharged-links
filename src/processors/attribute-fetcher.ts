@@ -1,20 +1,9 @@
-// processors/attribute-fetcher
-
 import { App, getAllTags, TFile } from "obsidian";
 import { buildCacheKey, cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
 import { DataviewAPI, getDataviewApiInstance } from "../utils/obsidian-adapters";
 
 export type AttrCache = Map<string, Record<string, string>>;
-
-interface InternalPluginRegistry {
-	plugins: {
-		dataview?: {
-			enabled?: boolean;
-			api?: DataviewAPI;
-		};
-	};
-}
 
 let cachedDvApi: DataviewAPI | null = null;
 
