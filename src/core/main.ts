@@ -145,7 +145,8 @@ export default class ResuperchargedLinks extends Plugin {
 				const markdownView = view as ObsidianInternalMarkdownView;
 				const cm = markdownView.editor?.cm ?? null;
 				
-				if (cm !== null && typeof cm.dispatch === "function") {
+				// ⚡ STATE GUARD: Verify CodeMirror instance is active and the theme compartment field is present in the current state
+				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== undefined) {
 					try {
 						cm.dispatch({
 							effects: themeCompartment.reconfigure(currentTheme)
@@ -239,9 +240,6 @@ export default class ResuperchargedLinks extends Plugin {
 
 				// Step 5: Execute one clean, unified initial workspace sweep frame
 				updateVisibleLinks(this.app, this);
-
-				// Step 6: Push fully compiled theme config matrices down the editor extensions
-				this.refreshEditorThemes();
 			});
 		});
 

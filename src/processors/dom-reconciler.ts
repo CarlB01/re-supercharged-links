@@ -14,7 +14,7 @@ type RefreshScope = {
 };
 
 interface QueuedDOMMutation {
-	readonly element: HTMLElement;
+	readonly elementRef: WeakRef<HTMLElement>;
 	readonly props: Record<string, string>;
 	readonly plugin: ResuperchargedLinks;
 }
@@ -29,7 +29,7 @@ class DOMMutationBatcher {
 	 * ✅ ARTIFACT INJECTION: Accepts explicit core plugin instances to decouple thread scopes.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
-		this.queue.push({ element, props, plugin });
+		this.queue.push({ elementRef: new WeakRef(element), props, plugin });
 		if (!this.isProcessing) {
 			this.isProcessing = true;
 			window.requestAnimationFrame(() => this.processBatch());
@@ -49,10 +49,12 @@ class DOMMutationBatcher {
 		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
 		for (let i = 0; i < currentBatchSize; i++) {
 			const task: QueuedDOMMutation | null = this.queue.shift() ?? null;
-			
-			// ✅ SAFE COUPLING: Direct frame execution bound typesafely to the context-carried reference
-			if (task !== null && task.element.nodeType === 1 && task.element.isConnected) {
-				setLinkNewProps(task.element, task.props, task.plugin);
+			if (task === null) continue;
+
+			const element: HTMLElement | null = task.elementRef.deref() ?? null;
+
+			if (element !== null && element.nodeType === 1 && element.isConnected) {
+				setLinkNewProps(element, task.props, task.plugin);
 			}
 		}
 

@@ -220,20 +220,18 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		for (let j = 0; j < tagsArray.length; j++) {
 			const cleanTag: string | null = tagsArray[j] ?? null;
 			if (cleanTag !== null && cleanTag.length > 0) {
-				classList.push(`scl-match-tag-${cleanTag.replace(/^#/, "")}`);
+				classList.push(`scl-match-tag-${cleanTag}`);
 			}
 		}
 	}
 
-	// 🚀 Centralized Deduplication Engine (Strict DOM Alignment)
-	// We exclusively analyze the visible text stream to guard layout presentation elements.
 	const targetText: string = (input.visibleText ?? "").trim();
 
-	if (iconBefore.length > 0 && startsWithToken(targetText, iconBefore)) {
+	if (iconBefore.length > 0 && targetText.startsWith(iconBefore)) {
 		classList.push("scl-hide-before");
 	}
 
-	if (iconAfter.length > 0 && endsWithToken(targetText, iconAfter)) {
+	if (iconAfter.length > 0 && targetText.endsWith(iconAfter)) {
 		classList.push("scl-hide-after");
 	}
 
