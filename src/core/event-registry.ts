@@ -11,6 +11,8 @@ interface ObsidianWindowInternal { getContainer(): { doc: Document; } | null; }
 export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): void {
 	
 	const updateLinksDebounced = debounce((_file: TFile | null) => {
+		if (!app.workspace.layoutReady) return;
+
 		plugin.clearAttrCycleCache();
 		
 		const trackingActive: boolean = plugin.telemetry.getTrackingState();

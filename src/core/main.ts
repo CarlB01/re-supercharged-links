@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, MarkdownView } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, MarkdownView, TFile } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
@@ -134,6 +134,7 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+
 	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		
@@ -144,8 +145,8 @@ export default class ResuperchargedLinks extends Plugin {
 			if (view.getViewType() === "markdown") {
 				const markdownView = view as ObsidianInternalMarkdownView;
 				const cm = markdownView.editor?.cm ?? null;
-				
-				// ⚡ STATE GUARD: Verify CodeMirror instance is active and the theme compartment field is present in the current state
+				// Ensure CodeMirror is active and the theme compartment 
+				// is present in the current state tree to prevent asynchronous RangeErrors.
 				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== undefined) {
 					try {
 						cm.dispatch({
@@ -217,42 +218,29 @@ export default class ResuperchargedLinks extends Plugin {
 			themeCompartment.of(initialTheme)
 		]);
 
-		// 🚀 MASTER STARTUP ORCHESTRATOR
 		this.app.workspace.onLayoutReady((): void => {
-			// Step 1: Immediately flush the lifecycle caches clean on vault boot sequence
 			this.clearAttrCycleCache();
-
-			// Step 2: Mount passive backup structural workspace and file tree observers once
 			initViewObservers(this);
 
 			window.requestAnimationFrame((): void => {
-				// Step 3: Typesafely capture and rebuild the active editor view bounds if present
-				const activeLeaf: WorkspaceLeaf | null = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null;
-				if (activeLeaf !== null && typeof activeLeaf.rebuildView === "function") {
-					void activeLeaf.rebuildView();
-				}
-
-				// Step 4: Establish the modal dialog structure layout observation bridges safely
 				const currentDoc: Document | null = document ?? null;
 				if (currentDoc !== null) {
 					initModalObservers(this, currentDoc);
 				}
-
-				// Step 5: Execute one clean, unified initial workspace sweep frame
 				updateVisibleLinks(this.app, this);
 			});
 		});
 
 	}
 	
-	public override onunload(): void {
-		disconnectAllObservers(this);
-		removeStylingFromViews(this);
-		
+	public override onunload(): void {		
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 		this.activeAttributesSet.clear();
 		this.compiledRules = [];
+
+		disconnectAllObservers(this);
+		removeStylingFromViews(this);
 	}
 
 	public compileActiveAttributes(): void {
