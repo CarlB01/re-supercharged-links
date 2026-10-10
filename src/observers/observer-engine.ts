@@ -132,8 +132,10 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 				shouldTriggerSweep = true;
 				break;
 			} else if (mutation.type === "attributes" && isHtmlElement(mutation.target)) {
-				const targetEl = mutation.target as HTMLElement;
-				if (targetEl.classList.contains("multi-select-pill-content") || targetEl.classList.contains("metadata-link-inner")) {
+				if (
+					mutation.target.classList.contains("multi-select-pill-content") || 
+					mutation.target.classList.contains("metadata-link-inner")
+				) {
 					shouldTriggerSweep = true;
 					break;
 				}

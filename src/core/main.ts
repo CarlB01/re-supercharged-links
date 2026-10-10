@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, MarkdownView, TFile } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, debounce, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
