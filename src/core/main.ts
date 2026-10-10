@@ -5,7 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
-import { disconnectAllObservers, initModalObservers, initViewObservers, removeStylingFromViews } from '../observers/observer-engine';
+import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
@@ -222,15 +222,30 @@ export default class ResuperchargedLinks extends Plugin {
 			this.clearAttrCycleCache();
 			initViewObservers(this);
 
-			window.requestAnimationFrame((): void => {
-				const currentDoc: Document | null = document ?? null;
-				if (currentDoc !== null) {
-					initModalObservers(this, currentDoc);
-				}
-				updateVisibleLinks(this.app, this);
-			});
-		});
+			const currentDoc: Document | null = document ?? null;
+			if (currentDoc !== null) {
+				initModalObservers(this, currentDoc);
+			}
 
+			// Execute a comprehensive workspace sweep across ALL active window layers.
+			// This forces styling onto existing DOM elements (tabs, frontmatter, sidebars) 
+			// without destroying the CodeMirror historical state or causing race conditions.
+			this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+				const container: HTMLElement | null = leaf.view?.containerEl ?? null;
+				if (container !== null && container.isConnected) {
+					// Sweep the entire container for internal links, tab headers, and metadata fields
+					updateVisibleLinks(this.app, this);
+					
+					// Trigger active 3rd-party addon views or sidebar elements registered under observer filters
+					const viewType = leaf.view?.getViewType() ?? "";
+					if (viewType.length > 0) {
+						registerViewType(viewType, this, ".tree-item-inner, .nav-file-title-content, .tab-header-inner-title", true);
+					}
+				}
+			});
+			// Push fully compiled theme config matrices down the editor extensions safely
+			this.refreshEditorThemes();
+		});
 	}
 	
 	public override onunload(): void {		

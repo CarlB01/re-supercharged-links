@@ -1,5 +1,5 @@
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, endsWithToken, normalizeCachePath, parseSpaceSeparatedTokens, startsWithToken } from "../utils/shared-utils";
+import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens, stringifyTagsArray } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 export type DecorationToken = "italic" | "underline" | "line-through";
@@ -214,7 +214,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
 
 		if (tagsArray.length > 0) {
-			attributes["data-link-tags"] = tagsArray.map((t: string): string => (t.startsWith("#") ? t : `#${t}`)).join(" ");
+			attributes["data-link-tags"] = stringifyTagsArray(tagsArray);
 		}
 
 		for (let j = 0; j < tagsArray.length; j++) {

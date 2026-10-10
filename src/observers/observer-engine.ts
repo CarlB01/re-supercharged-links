@@ -116,44 +116,36 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		}
 	}
 
-	const config: MutationObserverInit = { subtree: true, childList: true, attributes: false };
+	// Catch frontmatter pill alterations instantly
+	const config: MutationObserverInit = { subtree: true, childList: true, attributes: true, attributeFilter: ["data-href", "class"] };
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
 		const recordsCount = records.length;
+		let shouldTriggerSweep = false;
+
 		for (let i = 0; i < recordsCount; i++) {
 			const mutation: MutationRecord | null = records[i] ?? null;
-			if (mutation === null || mutation.type !== "childList") continue;
+			if (mutation === null) continue;
 
-			mutation.addedNodes.forEach((node: Node): void => {
-				if (isHtmlElement(node)) {
-					const list: DOMTokenList = node.classList;
-
-					const isModal: boolean = list.contains("modal-container");
-					const isSuggest: boolean = list.contains("suggestion-container");
-					const isHoverPopup: boolean = list.contains("popover");
-
-					if (isModal || isSuggest || isHoverPopup) {
-						let selector = ".suggestion-title, .suggestion-note, .another-quick-switcher__item__title, .omnisearch-result__title > span, div.multi-select-pill-content, div.metadata-link-inner";
-						if (isSuggest) {
-							selector = ".suggestion-title, .suggestion-note";
-						}
-
-						updateContainer(node, plugin, selector);
-						
-						const modalKey = `modal-observer-${selector}`;
-						watchContainer(null, modalKey, node, plugin, selector);
-					}
-
-					const isPropertySection: boolean = list.contains("metadata-container") || list.contains("metadata-content") || node.querySelector(".metadata-properties") !== null;
-					if (isPropertySection) {
-						const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner";
-						updateContainer(node, plugin, propertySelector);
-						
-						const propertyKey = `property-panel-observer-${propertySelector}`;
-						watchContainer(null, propertyKey, node, plugin, propertySelector);
-					}
+			// Trigger sweep if elements are added, or if a frontmatter metadata link modifies its reference attributes
+			if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+				shouldTriggerSweep = true;
+				break;
+			} else if (mutation.type === "attributes" && isHtmlElement(mutation.target)) {
+				const targetEl = mutation.target as HTMLElement;
+				if (targetEl.classList.contains("multi-select-pill-content") || targetEl.classList.contains("metadata-link-inner")) {
+					shouldTriggerSweep = true;
+					break;
 				}
-			});
+			}
+		}
+
+		if (shouldTriggerSweep) {
+			const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner, .suggestion-title, .suggestion-note";
+			
+			// Execute a lightning fast frame-bound update over the active active document layer
+			const activeDoc = doc.body;
+			updateContainer(activeDoc, plugin, propertySelector);
 		}
 	});
 
@@ -161,6 +153,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	modalObserverRegistry.set(doc, observer);
 	plugin.modalObservers.push(observer);
 }
+
 
 function watchContainer(
 	viewType: string | null,

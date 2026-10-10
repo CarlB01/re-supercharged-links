@@ -1,6 +1,6 @@
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, endsWithEmoji, parseSpaceSeparatedTokens, processValue } from "../utils/shared-utils";
+import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTagsArray } from "../utils/shared-utils";
 
 /**
  * Completely purges all supercharged style properties and data-link attributes.
@@ -20,10 +20,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 	
-	/**
-	 * Architectural Refinement: Inline icon spans are entirely decoupled from the DOM injection loop,
-	 * as structural pseudo-elements (::before / ::after) now handle presentation natively via CSS.
-	 */
 	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
 	const oldIconsCount: number = oldIcons.length;
 	for (let j = 0; j < oldIconsCount; j++) {
@@ -39,8 +35,15 @@ export function clearExtraAttributes(link: HTMLElement): void {
 
 	for (let k = 0; k < currentClassesCount; k++) {
 		const cls: string | null = currentClasses.item(k);
-		if (cls !== null && (cls.startsWith("scl-match-") || cls.startsWith("scl-rule-"))) {
-			classesToRemove.push(cls);
+		if (cls !== null) {
+			if (
+				cls.startsWith("scl-match-") || 
+				cls.startsWith("scl-rule-") || 
+				cls === "scl-hide-before" || 
+				cls === "scl-hide-after"
+			) {
+				classesToRemove.push(cls);
+			}
 		}
 	}
 
@@ -68,25 +71,49 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
 	const textContent: string | null = el.textContent;
 
-	const candidates: string[] = [
-		el.getAttribute("data-tag") ?? "",
-		el.getAttribute("data-tags") ?? "",
-		hrefAttr ?? "",
-		textContent ?? ""
-	].filter((v: string): boolean => v.length > 0);
+	// ⚡ TYPESAFE GUARD: Fallback to empty string to permanently eliminate 'string | undefined' type errors
+	const c1: string = el.getAttribute("data-tag") || "";
+	const c2: string = el.getAttribute("data-tags") || "";
+	const c3: string = hrefAttr || "";
+	const c4: string = textContent || "";
 
-	const out: string[] = [];
-	for (const raw of candidates) {
-		const parts: string[] = parseSpaceSeparatedTokens(raw);
-		for (let i = 0; i < parts.length; i++) {
-			const token: string | null = parts[i] ?? null;
-			if (token !== null && token.length > 0) {
-				out.push(token);
-			}
+	const outSet = new Set<string>();
+
+	// ZERO-ARRAY COMPRESSION: Process strings sequentially to prevent garbage collection sweeps
+	if (c1.length > 0) {
+		const p = parseSpaceSeparatedTokens(c1);
+		for (let i = 0; i < p.length; i++) { 
+			const token = p[i];
+			if (token) outSet.add(token); 
 		}
 	}
-	return Array.from(new Set(out));
+	if (c2.length > 0) {
+		const p = parseSpaceSeparatedTokens(c2);
+		for (let i = 0; i < p.length; i++) { 
+			const token = p[i];
+			if (token) outSet.add(token); 
+		}
+	}
+	if (c3.length > 0) {
+		const p = parseSpaceSeparatedTokens(c3);
+		for (let i = 0; i < p.length; i++) { 
+			const token = p[i];
+			if (token) outSet.add(token); 
+		}
+	}
+	if (c4.length > 0) {
+		const p = parseSpaceSeparatedTokens(c4);
+		for (let i = 0; i < p.length; i++) { 
+			const token = p[i];
+			if (token) outSet.add(token); 
+		}
+	}
+
+	const out: string[] = [];
+	outSet.forEach((val) => out.push(val));
+	return out;
 }
+
 
 /**
  * Extends Supercharged styling frameworks safely to active tag chip nodes inside view containers.
@@ -102,9 +129,16 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 		if (n !== null && n.nodeType === 1) {
 			const htmlEl: HTMLElement = n as HTMLElement;
 			const tokens: string[] = extractTagTokensFromElement(htmlEl);
-			if (tokens.length === 0) continue;
-
-			const tagString: string = tokens.map((t: string): string => `#${t}`).join(" ");
+			const tokensLen = tokens.length;
+			if (tokensLen === 0) continue;
+			
+			let tagString = "";
+			for (let j = 0; j < tokensLen; j++) {
+				const t = tokens[j];
+				if (t) {
+					tagString += (tagString.length > 0 ? " #" : "#") + t;
+				}
+			}
 
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
 				htmlEl.setAttribute("data-link-tags", tagString);
@@ -198,8 +232,9 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 
 			if (domKey === "tags" && newValue !== null) {
 				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-				newValue = cleanTokens.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(" ");
+				newValue = stringifyTagsArray(cleanTokens);
 			}
+
 
 			if (newValue !== null) {
 				link.setAttribute(attributeName, newValue);

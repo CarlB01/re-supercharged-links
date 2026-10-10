@@ -66,6 +66,10 @@ class DOMMutationBatcher {
 	}
 }
 
+// Stores resolved file references for background tabs 
+// to prevent heavy, repetitive metadata cache lookups during high-frequency frame sweeps.
+const backgroundTabFileCache: WeakMap<HTMLElement, TFile> = new WeakMap<HTMLElement, TFile>();
+
 const domBatcher = new DOMMutationBatcher();
 
 /**
@@ -353,14 +357,38 @@ function updateLeafPropertiesPane(app: App, plugin: ResuperchargedLinks, file: T
 	return 0;
 }
 
-function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile, leaf: WorkspaceLeaf): number {
+function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile | null, leaf: WorkspaceLeaf): number {
 	const tabHeader = getTabHeaderElement(leaf);
-    if (tabHeader !== null) {
-		updateDivExtraAttributes(app, plugin, tabHeader, "", file.path);
+	if (tabHeader === null) return 0;
+
+	let resolvedFile: TFile | null = file;
+
+	// If the leaf context lacks a clean file binding sequence, check our local WeakMap cache
+	// first to bypass heavy, synchronous global metadata cache scans.
+	if (resolvedFile === null) {
+		const cachedFile = backgroundTabFileCache.get(tabHeader) ?? null;
+		if (cachedFile !== null) {
+			resolvedFile = cachedFile;
+		} else {
+			const rawTitleText: string = (tabHeader.textContent ?? "").trim();
+			if (rawTitleText.length > 0) {
+				resolvedFile = app.metadataCache.getFirstLinkpathDest(rawTitleText, "") ?? null;
+				if (resolvedFile !== null) {
+					// Commit to memory to protect subsequent frame cycles
+					backgroundTabFileCache.set(tabHeader, resolvedFile);
+				}
+			}
+		}
+	}
+
+	if (resolvedFile !== null) {
+		updateDivExtraAttributes(app, plugin, tabHeader, "", resolvedFile.path);
 		return 1;
 	}
+
 	return 0;
 }
+
 
 function updateLeafInternalLinks(
 	app: App, 
@@ -435,26 +463,63 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 	const attrCache: AttrCache = plugin.attrCycleCache;
 	let totalNodesStyled = 0;
 
-	const normalizedScope: RefreshScope | null = scope
-		? {
-				paths: new Set(Array.from(scope.paths).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0)),
-				prefixes: new Set(Array.from(scope.prefixes).map((p) => normalizePathForQueue(p)).filter((p) => p.length > 0))
-		  }
-		: null;
+	let normalizedScope: RefreshScope | null = null;
+	if (scope !== undefined && scope !== null) {
+		const pathSet = new Set<string>();
+		const prefixSet = new Set<string>();
 
-	app.workspace.iterateRootLeaves((leaf) => {
-		// 🚀 ADAPTER INTEGRATION: Safe structural narrowing instead of rigid inheritance checks
+		scope.paths.forEach((p: string) => {
+			const normalized = normalizePathForQueue(p);
+			if (normalized.length > 0) {
+				pathSet.add(normalized);
+			}
+		});
+
+		scope.prefixes.forEach((p: string) => {
+			const normalized = normalizePathForQueue(p);
+			if (normalized.length > 0) {
+				prefixSet.add(normalized);
+			}
+		});
+
+		normalizedScope = { paths: pathSet, prefixes: prefixSet };
+	}
+
+	// Iterate ALL leaves across the entire workspace (including background tabs)
+	app.workspace.iterateAllLeaves((leaf) => {
+		// Safe boundary checks without utilizing any-casts or triggering undefined errors
+		let trueViewFile: TFile | null = null;
+		const viewInstance: unknown = leaf.view;
+
+		if (typeof viewInstance === "object" && viewInstance !== null && "file" in viewInstance) {
+			const potentialFile: unknown = (viewInstance as Record<string, unknown>).file;
+			if (potentialFile instanceof TFile) {
+				trueViewFile = potentialFile;
+			}
+		}
+			
+		// Scrape and style background elements deterministically
+		totalNodesStyled += updateLeafTabHeader(app, plugin, trueViewFile, leaf);
+
+		// Narrow down to markdown views only for the internal body content and properties panel sweeps
 		const mdView: MarkdownView | null = getAsMarkdownView(leaf);
-		if (mdView === null || mdView.getMode() !== "preview" || mdView.file === null) return;
+		if (mdView === null) return;
 
-		const file: TFile = mdView.file;
-		if (normalizedScope !== null && !isPathInScope(file.path, normalizedScope)) return;
+		const activeFileFallback: TFile | null = trueViewFile !== null ? trueViewFile : (app.workspace.getActiveFile() ?? null);
+		
+		if (activeFileFallback === null) return;
+		if (normalizedScope !== null && !isPathInScope(activeFileFallback.path, normalizedScope)) return;
 
 		const markdownLeaf = { view: mdView };
 		
-		totalNodesStyled += updateLeafPropertiesPane(app, plugin, file, markdownLeaf);
-		totalNodesStyled += updateLeafTabHeader(app, plugin, file, leaf);
-		totalNodesStyled += updateLeafInternalLinks(app, plugin, file, markdownLeaf.view.containerEl, attrCache);
+		// Frontmatter panel components belong strictly to the layout file context
+		totalNodesStyled += updateLeafPropertiesPane(app, plugin, activeFileFallback, markdownLeaf);
+		
+		// Internal links inside the body should still only be swept via DOM if in preview mode,
+		// as CodeMirror 6 handles the active Live Preview editor body natively.
+		if (mdView.getMode() === "preview") {
+			totalNodesStyled += updateLeafInternalLinks(app, plugin, activeFileFallback, markdownLeaf.view.containerEl, attrCache);
+		}
 	});
 
 	if (plugin.telemetry && plugin.telemetry.getTrackingState()) {

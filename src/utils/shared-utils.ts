@@ -27,36 +27,6 @@ export const norm = (s: string | null): string => {
 };
 
 /**
- * Verifies if a normalized text string begins with a specific token literal.
- * Performance: Compares raw strings first to skip normalization on exact matches.
- */
-export const startsWithToken = (text: string | null, token: string | null): boolean => {
-	if (text === null || token === null || text.length === 0 || token.length === 0) return false;
-	if (text === token) return true;
-
-	const k: string = norm(token);
-	if (k.length === 0) return false;
-
-	const t: string = norm(text);
-	return t.startsWith(k);
-};
-
-/**
- * Advanced check verifying if a string ends with a specific token literal.
- * Prevents layout drift by verifying direct string positioning instead of speculative slicing.
- */
-export const endsWithToken = (text: string | null, token: string | null): boolean => {
-	if (text === null || token === null || text.length === 0 || token.length === 0) return false;
-	if (text === token) return true;
-
-	const k: string = norm(token);
-	if (k.length === 0 || text.length < k.length) return false;
-
-	const t: string = norm(text);
-	return t.endsWith(k);
-};
-
-/**
  * Normalizes metadata keys by swapping internal whitespaces with unified hyphen delimiters.
  */
 export function processKey(key: string): string {
@@ -72,17 +42,6 @@ export function processValue(key: string, value: string): string {
 		return value.slice(2, -2);
 	}
 	return value;
-}
-
-/**
- * Sanitizes and transforms loose structural strings into standard hashtag tokens.
- */
-export function normalizeTagToken(input: string): string {
-	const s: string = norm(input);
-	if (s.length === 0) return "";
-	
-	const clean = s.replace(/^[\s,;|]+|[\s,;|]+$/g, "");
-	return clean.startsWith("#") ? clean : `#${clean}`;
 }
 
 /**
@@ -159,7 +118,6 @@ export function normalizePathForQueue(input: string | null | undefined): string 
 }
 
 /**
- * 🚀 UNIFIED CACHE PATH NORMALIZATION ENGINE
  * Standardizes vault file paths across registries, indexers, and invalidation pipelines.
  * Enforces unified case folding to permanently eliminate ghost cache synchronization drifts.
  */
@@ -171,7 +129,6 @@ export function normalizeCachePath(path: string | null | undefined): string {
 
 /**
  * Granular linear scan processing space-separated strings via inline padding maps.
- * ⚡ ZERO-ARRAY TRICK: Drop-in replacement for array splits to minimize GC thread sweeps.
  */
 export function hasTagToken(rawTags: string | null | undefined, targetCleanTag: string): boolean {
 	const tags: string = (rawTags ?? "").toLowerCase();
@@ -183,7 +140,6 @@ export function hasTagToken(rawTags: string | null | undefined, targetCleanTag: 
 
 /**
  * Historical fallback array wrapper preserved for internal configuration parsing.
- * ⚡ LATMANNSKODE FJERNET: Byttet ut .filter().map() med en lynrask singel for-løkke.
  */
 export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): string[] {
 	if (!rawInput) return [];
@@ -204,7 +160,6 @@ export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): 
 
 /**
  * Filters and compacts a list of folder prefixes to purge redundant children from memory trees.
- * ⚡ LATMANNSKODE FJERNET: Replaced side-effect forEach arrays allocation with predictable index loop.
  */
 export function compactPrefixes(prefixes: string[]): string[] {
 	const len = prefixes.length;
@@ -222,7 +177,6 @@ export function compactPrefixes(prefixes: string[]): string[] {
 	cleaned.sort();
 
 	const output: string[] = [];
-	// ✅ FIXED: Isolated the explicit index allocation cleanly to separate structural segments
 	let currentParent: string = cleaned[0] || ""; 
 	if (currentParent.length > 0) {
 		output.push(currentParent);
@@ -308,7 +262,6 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
 		}
 
 		const cleanDisplayContent: string = displayContent.trim().toLowerCase();
-		// ✅ FIKSET: Fjernet den doble tildelingen som skapte den implisitte 'any'-feilen
 		const cleanResolvedPath: string = resolvedPath.trim().toLowerCase();
 
 		if (cleanResolvedPath === cleanSearchTarget || cleanDisplayContent === cleanSearchTarget) {
@@ -329,18 +282,6 @@ export const isPureAlphanumeric = (token: string): boolean => {
 };
 
 /**
- * Verifies if a raw text string ends with a standard layout, status, or presentation emoji.
- * Prevents appending redundant trailing icons when visual indicators are already present.
- */
-export const endsWithEmoji = (text: string | null | undefined): boolean => {
-	const s: string = text ?? "";
-	if (s.length <= 1) return false;
-	
-	return /([\u2695\u26aa\u26ab\ud83d\udc65\ud83d\udc64\u2600-\u27bf]|\p{Emoji_Presentation})$/u.test(s);
-};
-
-/**
- * 🔑 CENTRALIZED CACHE KEY FACTORY
  * Compiles a unified, versioned string checkpoint token for attribute cache lookups.
  * Synchronizes key structural formats perfectly across fetchers, indexers, and pruners.
  */
@@ -362,7 +303,6 @@ export function extractPathFromCacheKey(key: string): string | null {
 }
 
 /**
- * 🎨 CENTRALIZED INLINE ICON SPAWN ENGINE
  * Constructs a standardized, cross-window safe inline icon span element layout.
  * Synchronizes DOM structures perfectly across Live Preview, Reading Mode, and Settings.
  */
@@ -378,4 +318,22 @@ export function createInlineIconSpan(targetDocument: Document, icon: string, isB
 	span.setAttribute("contenteditable", "false");
 	
 	return span;
+}
+
+/**
+ * Fast linear scan that builds a unified space-separated hashtag string from raw tokens.
+ */
+export function stringifyTagsArray(tags: string[]): string {
+	const len = tags.length;
+	if (len === 0) return "";
+
+	// Mutate the array tokens directly in place to avoid creating new string pieces in a loop
+	for (let i = 0; i < len; i++) {
+		const t = tags[i];
+		if (t && t.length > 0 && !t.startsWith("#")) {
+			tags[i] = `#${t}`;
+		}
+	}
+
+	return tags.join(" ");
 }
