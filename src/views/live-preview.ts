@@ -26,24 +26,6 @@ interface IterationState {
 	decoratedRanges: Set<string>;
 }
 
-export function resolveLinkFile(app: App, linkText: string, activeFileBasename: string, isExternalType: boolean): TFile | null {
-	const firstTry: TFile | null = app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-	if (firstTry !== null) return firstTry;
-	if (!isExternalType) return null;
-
-	let decoded = "";
-	try {
-		decoded = decodeURIComponent(linkText);
-	} catch {
-		decoded = "";
-	}
-	if (decoded.length === 0) return null;
-
-	const abstractFile = app.vault.getAbstractFileByPath(decoded);
-	if (abstractFile instanceof TFile) return abstractFile;
-	return null;
-}
-
 export class CMViewPlugin {
 	public decorations: DecorationSet;
 	public app: App;
@@ -54,17 +36,99 @@ export class CMViewPlugin {
 		this.plugin = plugin;
 		this.decorations = this.buildDecorations(view);
 	}
+	
+	public destroy(): void {}
 
+	/**
+	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
+	 * Evaluates document and viewport state changes to selectively recalculate link decorations.
+	 * 
+	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
+	 */
 	public update(update: ViewUpdate): void {
+		// Optimize execution by filtering out lightweight updates (e.g., pure cursor movements).
+		// docChanged: Triggers when the user edits text, ensuring real-time rule evaluation.
+		// viewportChanged: Triggers during scrolling or resizing, ensuring newly revealed links are decorated.
 		if (update.docChanged || update.viewportChanged) {
+			// Recalculate and update the decoration range set for the currently visible viewport segments
 			this.decorations = this.buildDecorations(update.view);
 		}
 	}
 
-	public destroy(): void {}
+	/**
+	 * Orchestrates the decoration assembly chain for a specific link node.
+	 * Separates raw metadata retrieval from rule engine resolution before compiling the final mark.
+	 * 
+	 * @param file - The target Obsidian TFile mapped to this link destination.
+	 * @param visibleLabel - The actual raw or cleaned text string rendering inside the editor.
+	 * @returns A computed CodeMirror Mark Decoration containing styling hooks and attributes.
+	 */
+	public processLinkDecoration(file: TFile, visibleLabel: string): Decoration {
+		// 1. Core Data Gathering: Retrieve the current cached frontmatter/metadata attributes for the file
+		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
+			this.app,
+			this.plugin,
+			file,
+			true,
+			this.plugin.attrCycleCache
+		);
 
+		// 2. Attribute Preparation Layer: Map raw metadata values directly into frontend data-link arrays
+		const attributes = this.buildLinkAttributes(rawAttrs);
+
+		// Determine light/dark mode context state
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		
+		// 3. Rule Resolution Engine: Evaluate compiled system selectors against our prepared metadata dataset
+		const resolution = resolveRuleResolution({
+			compiledRules: this.plugin.compiledRules,
+			resolvedAttrs: rawAttrs,
+			isDark,
+			includeTagMatchClasses: true,
+			visibleText: visibleLabel
+		});
+
+		// Fallback Guard: If no engine configuration criteria matched, return an empty styling pass
+		if (!resolution.hasMatch) {
+			return Decoration.mark({});
+		}
+
+		// 4. Style Compression Layer: Isolate and compile matching runtime CSS classes
+		const classes: string[] = [];
+		const classCount: number = resolution.classes.length;
+		for (let i = 0; i < classCount; i++) {
+			const c: string = resolution.classes[i] ?? "";
+			if (c.length > 0) classes.push(c);
+		}
+
+		// 5. Rule Attribute Merging: Append resolved presentation layer attributes (like icons) to our element dataset
+		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
+			const cleanVal = attrValue ?? "";
+			if (cleanVal.length > 0) {
+				attributes[attrKey] = cleanVal;
+			}
+		}
+
+		// Return the complete layout instruction block straight back to the CodeMirror engine
+		return Decoration.mark({
+			attributes,
+			class: classes.join(" ")
+		});
+	}
+
+	/**
+	 * Synchronously constructs a reactive CodeMirror DecorationSet for the active viewport segments.
+	 * Optimized to minimize heap allocations (GC pressure) and avoid redundant sorting overhead.
+	 * 
+	 * @param view - The active editor view context dispatched by CodeMirror.
+	 * @param updateFrom - Optional structural lower boundary offset for partial layout updates.
+	 * @param updateTo - Optional structural upper boundary offset for partial layout updates.
+	 * @returns A highly optimized CodeMirror RangeSet containing calculated link marks.
+	 */
 	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
 		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
+		
+		// Safely extract the active Markdown workspace context; abort early if view context is absent
 		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (mdView === null || mdView.file === null) return builder.finish();
 
@@ -78,6 +142,7 @@ export class CMViewPlugin {
 			decoratedRanges: new Set<string>(),
 		};
 
+		// Cache length property locally to optimize assembly loop boundaries
 		const visibleRangesCount: number = view.visibleRanges.length;
 		for (let i = 0; i < visibleRangesCount; i++) {
 			const range: { from: number; to: number } | null = view.visibleRanges[i] ?? null;
@@ -86,11 +151,14 @@ export class CMViewPlugin {
 			const from: number = range.from;
 			const to: number = range.to;
 
+			// Bypass calculations entirely if a target update scope is supplied and falls outside this range block
 			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
 
 			state.from = from;
 			state.to = to;
 
+			// Chronologically stream tokens directly from the pre-computed active Lezer syntax tree.
+			// Because Lezer parses linearly, tokens are processed natively in ascending position order.
 			syntaxTree(view.state).iterate({
 				from,
 				to,
@@ -100,12 +168,30 @@ export class CMViewPlugin {
 			});
 		}
 
-		state.collectedDecos.sort((a, b) => {
-			if (a.from !== b.from) return a.from - b.from;
-			return a.to - b.to;
-		});
-
+		// RangeSetBuilder requires strict, monotonically increasing index entries.
+		// Since syntaxTree.iterate yields items chronologically, we evaluate sequence stability first.
 		const collectedCount: number = state.collectedDecos.length;
+		let requiresSorting = false;
+		
+		for (let i = 1; i < collectedCount; i++) {
+			const current: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i] ?? null;
+			const previous: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i - 1] ?? null;
+			
+			if (current !== null && previous !== null && current.from < previous.from) {
+				requiresSorting = true;
+				break;
+			}
+		}
+
+		// Perform fallback sorting routine only if an atypical nested token collision breaks linear order
+		if (requiresSorting) {
+			state.collectedDecos.sort((a, b) => {
+				if (a.from !== b.from) return a.from - b.from;
+				return a.to - b.to;
+			});
+		}
+
+		// Stream the structural decoration payloads sequentially straight into the final native builder
 		for (let i = 0; i < collectedCount; i++) {
 			const item: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i] ?? null;
 			if (item !== null) {
@@ -114,6 +200,169 @@ export class CMViewPlugin {
 		}
 
 		return builder.finish();
+	}
+
+	/**
+	 * Main orchestration handler for individual CodeMirror syntax tree tokens.
+	 * Dispatches token metadata evaluation to dedicated link-type engines.
+	 */
+	private processNodeToken(
+		view: EditorView,
+		node: CodeMirrorNodeRef,
+		state: IterationState,
+		updateFrom: number,
+		updateTo: number
+	): void {
+		// Performance Guard: Abandon execution if the token resides outside updated viewport regions
+		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
+
+		// Syntax Guard: Ignore structural brackets to eliminate wasteful evaluation cycles
+		const nodeNameLower: string = node.name.toLowerCase();
+		if (nodeNameLower.includes("formatting-link")) return;
+
+		// Deduplication Guard: Enforce strict single-pass execution per unique range key
+		const nodeRangeKey: string = `${node.from}-${node.to}`;
+		if (state.processedRanges.has(nodeRangeKey)) return;
+
+		// Extract context states mapped to default Obsidian WikiLink syntax tokens
+		const hasAliasClass: boolean =
+			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
+		const isAliasPipeToken: boolean =
+			nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
+		const isAliasToken: boolean =
+			(nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) &&
+			!isAliasPipeToken;
+
+		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
+
+		// Structural Filter: Verify token ownership credentials before allocating processing memory
+		if (!isAliasOnlyOwner && !isOwnerNode(node.name)) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
+
+		// 1. Path Resolution: Extract and clean the target destination string via decoupled resolution engine
+		const linkText: string = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
+		if (linkText.length === 0) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
+
+		// 2. Vault Catalog Mapping: Verify if the resolved path points to a valid physical abstract TFile
+		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
+		if (file === null) {
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
+
+		// CASE 1: Standardize handling for standalone closed/collapsed alias syntax nodes
+		if (isAliasOnlyOwner) {
+			const aliasLabel: string = this.getVisibleLabel(view, node.from, node.to); 
+			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, aliasLabel);
+			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
+
+		// CASE 2: Apply primary anchor decoration to active root token elements
+		const ownerLabel: string = this.getVisibleLabel(view, node.from, node.to); 
+		const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel);
+		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
+
+		// CASE 3: Delegate forward token lookahead handling for expanded active multi-part segments
+		if (hasAliasClass) {
+			this.processExpandedWikiLinkSegments(view, node, state, file);
+		}
+
+		// Lock token sequence execution state down for this operational layout pass
+		state.processedRanges.add(nodeRangeKey);
+	}
+
+	/**
+	 * Helper Method: Resolves the semantic target file path string from a WikiLink node token.
+	 * Encapsulates contextual line fallback searches cleanly away from the token loop core.
+	 */
+	private resolveWikiLinkTarget(view: EditorView, node: CodeMirrorNodeRef, isAliasOnlyOwner: boolean): string {
+		const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
+		const defaultPath: string = extractCleanLinkPath(rawLinkText);
+
+		if (!isAliasOnlyOwner) {
+			return defaultPath;
+		}
+
+		// Perform contextual line backward-scan fallback for closed alias nodes lacking core token properties
+		const lineForAlias = view.state.doc.lineAt(node.from);
+		const lineText: string = lineForAlias.text;
+		const relFrom: number = Math.max(0, node.from - lineForAlias.from);
+		const relTo: number = Math.max(0, node.to - lineForAlias.from);
+
+		const leftPart: string = lineText.slice(0, relFrom);
+		const rightPart: string = lineText.slice(relTo);
+		const openIdx: number = leftPart.lastIndexOf("[[");
+		const closeRel: number = rightPart.indexOf("]]");
+
+		if (openIdx !== -1 && closeRel !== -1) {
+			const closeIdx: number = relTo + closeRel;
+			const fullWikilink: string = lineText.slice(openIdx, closeIdx + 2);
+			const inner: string = fullWikilink.slice(2, -2);
+			const pipeIdx: number = inner.indexOf("|");
+			const target: string = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
+			
+			if (target.length > 0) {
+				return extractCleanLinkPath(target);
+			}
+		}
+
+		return defaultPath;
+	}
+
+	/**
+	 * Helper Method: Executes linear forward lookahead sweeps to identify, validate, 
+	 * and apply matched decorations to accompanying components of open/expanded WikiLinks.
+	 */
+	private processExpandedWikiLinkSegments(
+		view: EditorView, 
+		node: CodeMirrorNodeRef, 
+		state: IterationState, 
+		file: TFile
+	): void {
+		const line = view.state.doc.lineAt(node.from);
+		const pipeNode: CodeMirrorNodeRef | null = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
+
+		if (pipeNode !== null) {
+			const pipeLabel: string = this.getVisibleLabel(view, pipeNode.from, pipeNode.to);
+			this.decorateRangeOnce(state, pipeNode.from, pipeNode.to, this.processLinkDecoration(file, pipeLabel));
+			state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
+
+			const aliasNode: CodeMirrorNodeRef | null = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
+			if (aliasNode !== null) {
+				const aliasLabel: string = this.getVisibleLabel(view, aliasNode.from, aliasNode.to);
+				this.decorateRangeOnce(state, aliasNode.from, aliasNode.to, this.processLinkDecoration(file, aliasLabel));
+				state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
+			}
+		}
+	}
+
+	/**
+	 * Helper Method: Transforms raw file metadata records into normalized, 
+	 * standardized HTML-compliant 'data-link-*' attribute string dictionaries.
+	 * 
+	 * @param rawAttrs - The raw key-value string pairs extracted from frontmatter/metadata caches.
+	 * @returns A record containing prepared DOM attribute keys paired with their cleaned values.
+	 */
+	private buildLinkAttributes(rawAttrs: Record<string, string>): Record<string, string> {
+		const domAttributes: Record<string, string> = {};
+		
+		for (const key in rawAttrs) {
+			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
+				const val: string = rawAttrs[key] ?? "";
+				if (val.length > 0) {
+					domAttributes[`data-link-${key}`] = val;
+				}
+			}
+		}
+		
+		return domAttributes;
 	}
 
 	private findImmediateNodeAt(
@@ -140,121 +389,6 @@ export class CMViewPlugin {
 		return hit;
 	}
 
-	private processNodeToken(
-		view: EditorView,
-		node: CodeMirrorNodeRef,
-		state: IterationState,
-		updateFrom: number,
-		updateTo: number
-	): void {
-		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
-
-		const nodeNameLower: string = node.name.toLowerCase();
-		if (nodeNameLower.includes("formatting-link")) return;
-
-		const nodeRangeKey: string = `${node.from}-${node.to}`;
-		if (state.processedRanges.has(nodeRangeKey)) return;
-
-		const hasAliasClass: boolean =
-			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
-
-		const isAliasPipeToken: boolean =
-			nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
-
-		const isAliasToken: boolean =
-			(nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) &&
-			!isAliasPipeToken;
-
-		/**
-		 * In collapsed/closed Live Preview mode, an internal link with an alias is represented 
-		 * by a single text node containing the alias token, without the surrounding structural markers.
-		 */
-		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
-
-		if (!isAliasOnlyOwner && !isOwnerNode(node.name)) {
-			state.processedRanges.add(nodeRangeKey);
-			return;
-		}
-
-		const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
-		let linkText: string = extractCleanLinkPath(rawLinkText);
-
-		if (isAliasOnlyOwner) {
-			const lineForAlias = view.state.doc.lineAt(node.from);
-			const lineText: string = lineForAlias.text;
-			const relFrom: number = Math.max(0, node.from - lineForAlias.from);
-			const relTo: number = Math.max(0, node.to - lineForAlias.from);
-
-			const leftPart: string = lineText.slice(0, relFrom);
-			const rightPart: string = lineText.slice(relTo);
-			const openIdx: number = leftPart.lastIndexOf("[[");
-			const closeRel: number = rightPart.indexOf("]]");
-
-			if (openIdx !== -1 && closeRel !== -1) {
-				const closeIdx: number = relTo + closeRel;
-				const fullWikilink: string = lineText.slice(openIdx, closeIdx + 2);
-				const inner: string = fullWikilink.slice(2, -2);
-				const pipeIdx: number = inner.indexOf("|");
-				const target: string = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
-				if (target.length > 0) linkText = extractCleanLinkPath(target);
-			}
-		}
-
-		if (linkText.length === 0) {
-			state.processedRanges.add(nodeRangeKey);
-			return;
-		}
-
-		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
-		if (file === null) {
-			state.processedRanges.add(nodeRangeKey);
-			return;
-		}
-
-		// for closed links
-		if (isAliasOnlyOwner) {
-			const aliasLabel = this.getVisibleLabel(view, node.from, node.to); 
-			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, aliasLabel);
-			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
-			state.processedRanges.add(nodeRangeKey);
-			return;
-		}
-
-		const ownerLabel = this.getVisibleLabel(view, node.from, node.to); 
-		const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel);
-		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
-
-		if (hasAliasClass) {
-			const line = view.state.doc.lineAt(node.from);
-			const pipeNode = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
-
-			if (pipeNode) {
-				const pipeLabel = this.getVisibleLabel(view, pipeNode.from, pipeNode.to); // "|"
-				this.decorateRangeOnce(
-					state,
-					pipeNode.from,
-					pipeNode.to,
-					this.processLinkDecoration(file, pipeLabel)
-				);
-				state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
-
-				const aliasNode = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
-				if (aliasNode) {
-					const aliasLabel = this.getVisibleLabel(view, aliasNode.from, aliasNode.to); // F.eks. "petter"
-					this.decorateRangeOnce(
-						state,
-						aliasNode.from,
-						aliasNode.to,
-						this.processLinkDecoration(file, aliasLabel)
-					);
-					state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
-				}
-			}
-		}
-
-		state.processedRanges.add(nodeRangeKey);
-	}
-
 	private decorateRangeOnce(
 		state: IterationState,
 		from: number,
@@ -273,120 +407,24 @@ export class CMViewPlugin {
 		const clean: string = extractCleanLinkPath(raw);
 		return clean.length > 0 ? clean : raw.trim();
 	}
+}
 
-	private findAliasSegments(
-		view: EditorView,
-		searchFrom: number,
-		searchTo: number
-	): { from: number; to: number; kind: "pipe" | "alias" }[] {
-		const out: { from: number; to: number; kind: "pipe" | "alias" }[] = [];
-		const tree = syntaxTree(view.state);
+export function resolveLinkFile(app: App, linkText: string, activeFileBasename: string, isExternalType: boolean): TFile | null {
+	const firstTry: TFile | null = app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
+	if (firstTry !== null) return firstTry;
+	if (!isExternalType) return null;
 
-		tree.iterate({
-			from: searchFrom,
-			to: searchTo,
-			enter: (candidate: CodeMirrorNodeRef): void => {
-				const n: string = candidate.name.toLowerCase();
-				const from: number = candidate.from;
-				const to: number = candidate.to;
-
-				const isPipe: boolean = n.includes("cm-link-alias-pipe");
-				const isAlias: boolean = n.includes("cm-link-alias") && !n.includes("has-alias");
-
-				if (isPipe) {
-					out.push({ from, to, kind: "pipe" });
-				} else if (isAlias) {
-					out.push({ from, to, kind: "alias" });
-				}
-			}
-		});
-
-		out.sort((a, b) => a.from - b.from);
-		return out;
+	let decoded = "";
+	try {
+		decoded = decodeURIComponent(linkText);
+	} catch {
+		decoded = "";
 	}
-	private findNextAliasOrPipe(
-		tree: ReturnType<typeof syntaxTree>,
-		searchFrom: number,
-		searchTo: number
-	): { from: number; to: number } | null {
-		let bestFrom: number = Number.POSITIVE_INFINITY;
-		let bestTo: number = -1;
+	if (decoded.length === 0) return null;
 
-		tree.iterate({
-			from: searchFrom,
-			to: searchTo,
-			enter: (candidate: CodeMirrorNodeRef): void => {
-				const candidateName: string = candidate.name.toLowerCase();
-
-				const isPipe: boolean = candidateName.includes("cm-link-alias-pipe");
-				const isAlias: boolean = candidateName.includes("cm-link-alias") && !candidateName.includes("has-alias");
-				if (!isPipe && !isAlias) return;
-
-				const startsAfter: boolean = candidate.from >= searchFrom;
-				if (!startsAfter) return;
-
-				if (candidate.from < bestFrom) {
-					bestFrom = candidate.from;
-					bestTo = candidate.to;
-				}
-			}
-		});
-
-		if (!Number.isFinite(bestFrom) || bestTo < 0) {
-			return null;
-		}
-
-		return { from: bestFrom, to: bestTo };
-	}
-
-	public processLinkDecoration(file: TFile, visibleLabel: string): Decoration {
-		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
-			this.app,
-			this.plugin,
-			file,
-			true,
-			this.plugin.attrCycleCache
-		);
-
-		const attributes: Record<string, string> = {};
-		for (const key in rawAttrs) {
-			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
-				const val: string = rawAttrs[key] ?? "";
-				if (val.length > 0) attributes[`data-link-${key}`] = val;
-			}
-		}
-
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		
-		const resolution = resolveRuleResolution({
-			compiledRules: this.plugin.compiledRules,
-			resolvedAttrs: rawAttrs,
-			isDark,
-			includeTagMatchClasses: true,
-			visibleText: visibleLabel
-		});
-
-		if (!resolution.hasMatch) {
-			return Decoration.mark({});
-		}
-
-		const classes: string[] = [];
-		const classCount: number = resolution.classes.length;
-		for (let i = 0; i < classCount; i++) {
-			const c: string = resolution.classes[i] ?? "";
-			if (c.length > 0) classes.push(c);
-		}
-
-		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
-			if ((attrValue ?? "").length > 0) attributes[attrKey] = attrValue;
-		}
-
-		return Decoration.mark({
-			attributes,
-			class: classes.join(" ")
-		});
-	}
-
+	const abstractFile = app.vault.getAbstractFileByPath(decoded);
+	if (abstractFile instanceof TFile) return abstractFile;
+	return null;
 }
 
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
