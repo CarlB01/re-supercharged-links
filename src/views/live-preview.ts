@@ -202,7 +202,7 @@ export class CMViewPlugin {
 		return builder.finish();
 	}
 
-	/**
+/**
 	 * Main orchestration handler for individual CodeMirror syntax tree tokens.
 	 * Dispatches token metadata evaluation to dedicated link-type engines.
 	 */
@@ -213,18 +213,15 @@ export class CMViewPlugin {
 		updateFrom: number,
 		updateTo: number
 	): void {
-		// Performance Guard: Abandon execution if the token resides outside updated viewport regions
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
-		// Syntax Guard: Ignore structural brackets to eliminate wasteful evaluation cycles
 		const nodeNameLower: string = node.name.toLowerCase();
 		if (nodeNameLower.includes("formatting-link")) return;
 
-		// Deduplication Guard: Enforce strict single-pass execution per unique range key
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(nodeRangeKey)) return;
 
-		// Extract context states mapped to default Obsidian WikiLink syntax tokens
+		// Identify classic WikiLink properties
 		const hasAliasClass: boolean =
 			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
 		const isAliasPipeToken: boolean =
@@ -235,14 +232,25 @@ export class CMViewPlugin {
 
 		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
 
-		// Structural Filter: Verify token ownership credentials before allocating processing memory
-		if (!isAliasOnlyOwner && !isOwnerNode(node.name)) {
+		// Identify core Markdown link anchor tokens ([alias](target))
+		const isMarkdownAnchor: boolean = 
+			nodeNameLower === "link" || nodeNameLower === "linktext" || nodeNameLower.includes("escape-link");
+
+		// Structural Filter: Support both WikiLink modes and Markdown link anchors
+		if (!isAliasOnlyOwner && !isMarkdownAnchor && !isOwnerNode(node.name)) {
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
-		// 1. Path Resolution: Extract and clean the target destination string via decoupled resolution engine
-		const linkText: string = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
+		let linkText = "";
+
+		// 1. Path Resolution: Route token to the appropriate extraction engine
+		if (isMarkdownAnchor) {
+			linkText = this.resolveMarkdownLinkTarget(view, node);
+		} else {
+			linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
+		}
+
 		if (linkText.length === 0) {
 			state.processedRanges.add(nodeRangeKey);
 			return;
@@ -255,7 +263,7 @@ export class CMViewPlugin {
 			return;
 		}
 
-		// CASE 1: Standardize handling for standalone closed/collapsed alias syntax nodes
+		// CASE 1: Handle standalone closed/collapsed alias syntax nodes
 		if (isAliasOnlyOwner) {
 			const aliasLabel: string = this.getVisibleLabel(view, node.from, node.to); 
 			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, aliasLabel);
@@ -264,23 +272,65 @@ export class CMViewPlugin {
 			return;
 		}
 
-		// CASE 2: Apply primary anchor decoration to active root token elements
+		// CASE 2: Apply primary anchor decoration to active root token elements (Both WikiLinks and Markdown anchors)
 		const ownerLabel: string = this.getVisibleLabel(view, node.from, node.to); 
 		const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel);
 		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
 
-		// CASE 3: Delegate forward token lookahead handling for expanded active multi-part segments
+		// CASE 3: Delegate forward token lookahead handling for expanded active multi-part WikiLink segments
 		if (hasAliasClass) {
 			this.processExpandedWikiLinkSegments(view, node, state, file);
 		}
 
-		// Lock token sequence execution state down for this operational layout pass
 		state.processedRanges.add(nodeRangeKey);
 	}
 
 	/**
+	 * Helper Method: Resolves the semantic target file path string from standard Markdown links ([alias](target)).
+	 * Scans the pre-parsed syntax tree forward within the current line boundaries to securely locate the companion URL token.
+	 */
+	private resolveMarkdownLinkTarget(view: EditorView, node: CodeMirrorNodeRef): string {
+		const line = view.state.doc.lineAt(node.from);
+		let resolvedPath = "";
+
+		// Scan the Lezer syntax tree forward from the end of the text anchor token to the end of the line
+		syntaxTree(view.state).iterate({
+			from: node.to,
+			to: line.to,
+			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
+				const siblingNameLower = sibling.name.toLowerCase();
+				
+				// Identify the native URL token designated by CodeMirror for standard Markdown link destinations
+				if (siblingNameLower === "url" && !siblingNameLower.includes("formatting")) {
+					let rawUrl: string = view.state.doc.sliceString(sibling.from, sibling.to).trim();
+					
+					try {
+						rawUrl = decodeURIComponent(rawUrl);
+					} catch {
+						// Safe fallback preservation on URI decoding errors
+					}
+
+					// Strip standard bracket enclosures if formatted as `<path>`
+					if (rawUrl.startsWith("<") && rawUrl.endsWith(">")) {
+						rawUrl = rawUrl.substring(1, rawUrl.length - 1);
+					}
+
+					// Strip explicit file extensions if formatted as `path.md`
+					if (rawUrl.toLowerCase().endsWith(".md")) {
+						rawUrl = rawUrl.substring(0, rawUrl.length - 3);
+					}
+
+					resolvedPath = extractCleanLinkPath(rawUrl);
+					return false; // Break syntax tree iteration immediately on successful match
+				}
+			}
+		});
+
+		return resolvedPath;
+	}
+
+	/**
 	 * Helper Method: Resolves the semantic target file path string from a WikiLink node token.
-	 * Encapsulates contextual line fallback searches cleanly away from the token loop core.
 	 */
 	private resolveWikiLinkTarget(view: EditorView, node: CodeMirrorNodeRef, isAliasOnlyOwner: boolean): string {
 		const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
@@ -290,7 +340,6 @@ export class CMViewPlugin {
 			return defaultPath;
 		}
 
-		// Perform contextual line backward-scan fallback for closed alias nodes lacking core token properties
 		const lineForAlias = view.state.doc.lineAt(node.from);
 		const lineText: string = lineForAlias.text;
 		const relFrom: number = Math.max(0, node.from - lineForAlias.from);
