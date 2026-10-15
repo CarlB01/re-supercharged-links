@@ -45,38 +45,14 @@ export class CMViewPlugin {
 	 * 
 	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
 	 */
-		/**
-	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
-	 * Evaluates document, viewport, and selection state changes with high-performance filtering.
-	 * 
-	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
-	 */
 	public update(update: ViewUpdate): void {
-		// docChanged & viewportChanged require immediate architectural recalculations
-		if (update.docChanged || update.viewportChanged) {
+		// docChanged: Triggers during edits.
+		// viewportChanged: Triggers during scrolling.
+		// selectionSet: Triggers instantly during cursor movements (Essential for tracking open/closed active Markdown states).
+		if (update.docChanged || update.viewportChanged || update.selectionSet) {
 			this.decorations = this.buildDecorations(update.view);
-			return;
-		}
-
-		// High-Performance Cursor Optimization Layer:
-		// If only the selection/cursor changed, check if the movement actually impacts a line with link parameters
-		if (update.selectionSet) {
-			const oldHead = update.startState.selection.main.head;
-			const newHead = update.state.selection.main.head;
-
-			// Bypass execution entirely if the cursor position hasn't actually shifted
-			if (oldHead === newHead) return;
-
-			const currentLine = update.state.doc.lineAt(newHead);
-			const lineText = currentLine.text;
-			
-			// Only trigger the heavy decoration sweep if the active line lineText contains Markdown syntax indicators
-			if (lineText.includes("[") && (lineText.includes("](") || lineText.includes("](<"))) {
-				this.decorations = this.buildDecorations(update.view);
-			}
 		}
 	}
-
 
 	/**
 	 * Orchestrates the decoration assembly chain for a specific link node.
