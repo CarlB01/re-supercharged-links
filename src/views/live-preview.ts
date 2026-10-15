@@ -206,7 +206,7 @@ export class CMViewPlugin {
 	 * Main orchestration handler for individual CodeMirror syntax tree tokens.
 	 * Dispatches token metadata evaluation to dedicated link-type engines.
 	 */
-	private processNodeToken(
+		private processNodeToken(
 		view: EditorView,
 		node: CodeMirrorNodeRef,
 		state: IterationState,
@@ -216,12 +216,17 @@ export class CMViewPlugin {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
 		const nodeNameLower: string = node.name.toLowerCase();
-		if (nodeNameLower.includes("formatting-link")) return;
+		
+		// UTVIDET GUARD: Nå tillater vi også generelle lenker ("link") og URL-er, ikke bare "linktext"
+		if (nodeNameLower.includes("formatting-link") && 
+			nodeNameLower !== "linktext" && 
+			nodeNameLower !== "link") return;
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(nodeRangeKey)) return;
 
-		// Identify classic WikiLink properties
+
+		// Identify structural WikiLink tokens based on CodeMirror/Obsidian Lezer topology
 		const hasAliasClass: boolean =
 			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
 		const isAliasPipeToken: boolean =
@@ -232,30 +237,73 @@ export class CMViewPlugin {
 
 		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
 
-		// Identify core Markdown link anchor tokens ([alias](target))
-		const isMarkdownAnchor: boolean = 
-			nodeNameLower === "link" || nodeNameLower === "linktext" || nodeNameLower.includes("escape-link");
+// --- OPPDATERTE MARKDOWN-MARKØRER BASERT PÅ REELLE TOKENS ---
+		const isMarkdownTextAnchor: boolean = nodeNameLower === "linktext" || nodeNameLower === "link";
+		const isMarkdownUrlToken: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
 
-		// Structural Filter: Support both WikiLink modes and Markdown link anchors
-		if (!isAliasOnlyOwner && !isMarkdownAnchor && !isOwnerNode(node.name)) {
+		// Structural Filter: Slipper igjennom alt som faktisk er en lenke-komponent
+		if (!isAliasOnlyOwner && !isMarkdownTextAnchor && !isMarkdownUrlToken && !isOwnerNode(node.name) && !isAliasPipeToken) {
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
 		let linkText = "";
 
-		// 1. Path Resolution: Route token to the appropriate extraction engine
-		if (isMarkdownAnchor) {
+		// Path Resolution: Trekk ut stier basert på link-type
+		if (isMarkdownTextAnchor || isMarkdownUrlToken) {
 			linkText = this.resolveMarkdownLinkTarget(view, node);
 		} else {
 			linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
 		}
 
-		if (linkText.length === 0) {
-			state.processedRanges.add(nodeRangeKey);
-			return;
+		// =========================================================================
+		// 🛠️ UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (PRIORITY 1 & 2)
+		// =========================================================================
+		if (nodeNameLower === "link") {
+			const line = view.state.doc.lineAt(node.from);
+			const lineText = line.text;
+			let cleanTarget = "";
+			
+			// Hent ut filbanen trygt fra dokument-bufferen via inline-søk
+			const relativeFrom = node.from - line.from;
+			const forwardText = lineText.slice(relativeFrom);
+			
+			const openParenIdx = forwardText.indexOf("](");
+			if (openParenIdx !== -1) {
+				const closeParenIdx = forwardText.indexOf(")", openParenIdx);
+				if (closeParenIdx !== -1) {
+					let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
+					if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
+						rawPath = rawPath.slice(1, -1);
+					}
+					try {
+						cleanTarget = extractCleanLinkPath(decodeURIComponent(rawPath));
+						if (cleanTarget.toLowerCase().endsWith(".md")) {
+							cleanTarget = cleanTarget.substring(0, cleanTarget.length - 3);
+						}
+					} catch {
+						cleanTarget = extractCleanLinkPath(rawPath);
+					}
+				}
+			}
+
+			// Valider mot Obsidians Vault-katalog
+			const targetFile = resolveLinkFile(this.app, cleanTarget, state.activeFileBasename, false);
+			if (targetFile !== null) {
+				const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
+				
+				// Generer uniform dekorasjon via den felles regelmotoren
+				const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
+				
+				// Påfør stilen på hele Markdown-lenken som en stabil enhet
+				this.decorateRangeOnce(state, node.from, node.to, markdownDeco);
+				state.processedRanges.add(nodeRangeKey);
+				return;
+			}
 		}
 
+
+		// --- RESTEN AV DIN ORIGINALE KODE FORTSETTER UENDRET HERFRA ---
 		// 2. Vault Catalog Mapping: Verify if the resolved path points to a valid physical abstract TFile
 		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
 		if (file === null) {
@@ -263,18 +311,19 @@ export class CMViewPlugin {
 			return;
 		}
 
+		// --- HER DEFINERER VI DEN FELLES MERKELAPPEN FOR ALIAS, EIERE OG SIMULERING ---
+		const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
+
 		// CASE 1: Handle standalone closed/collapsed alias syntax nodes
 		if (isAliasOnlyOwner) {
-			const aliasLabel: string = this.getVisibleLabel(view, node.from, node.to); 
-			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, aliasLabel);
+			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
 		// CASE 2: Apply primary anchor decoration to active root token elements (Both WikiLinks and Markdown anchors)
-		const ownerLabel: string = this.getVisibleLabel(view, node.from, node.to); 
-		const ownerDeco: Decoration = this.processLinkDecoration(file, ownerLabel);
+		const ownerDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
 
 		// CASE 3: Delegate forward token lookahead handling for expanded active multi-part WikiLink segments
@@ -285,7 +334,7 @@ export class CMViewPlugin {
 		state.processedRanges.add(nodeRangeKey);
 	}
 
-	/**
+		/**
 	 * Helper Method: Resolves the semantic target file path string from standard Markdown links ([alias](target)).
 	 * Scans the pre-parsed syntax tree forward within the current line boundaries to securely locate the companion URL token.
 	 */
@@ -293,14 +342,12 @@ export class CMViewPlugin {
 		const line = view.state.doc.lineAt(node.from);
 		let resolvedPath = "";
 
-		// Scan the Lezer syntax tree forward from the end of the text anchor token to the end of the line
 		syntaxTree(view.state).iterate({
-			from: node.to,
+			from: node.from,
 			to: line.to,
 			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 				const siblingNameLower = sibling.name.toLowerCase();
 				
-				// Identify the native URL token designated by CodeMirror for standard Markdown link destinations
 				if (siblingNameLower === "url" && !siblingNameLower.includes("formatting")) {
 					let rawUrl: string = view.state.doc.sliceString(sibling.from, sibling.to).trim();
 					
@@ -310,12 +357,10 @@ export class CMViewPlugin {
 						// Safe fallback preservation on URI decoding errors
 					}
 
-					// Strip standard bracket enclosures if formatted as `<path>`
 					if (rawUrl.startsWith("<") && rawUrl.endsWith(">")) {
 						rawUrl = rawUrl.substring(1, rawUrl.length - 1);
 					}
 
-					// Strip explicit file extensions if formatted as `path.md`
 					if (rawUrl.toLowerCase().endsWith(".md")) {
 						rawUrl = rawUrl.substring(0, rawUrl.length - 3);
 					}
