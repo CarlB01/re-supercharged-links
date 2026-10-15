@@ -41,19 +41,42 @@ export class CMViewPlugin {
 
 	/**
 	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
-	 * Evaluates document and viewport state changes to selectively recalculate link decorations.
+	 * Evaluates document, viewport, and selection state changes to selectively recalculate link decorations.
+	 * 
+	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
+	 */
+		/**
+	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
+	 * Evaluates document, viewport, and selection state changes with high-performance filtering.
 	 * 
 	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
 	 */
 	public update(update: ViewUpdate): void {
-		// Optimize execution by filtering out lightweight updates (e.g., pure cursor movements).
-		// docChanged: Triggers when the user edits text, ensuring real-time rule evaluation.
-		// viewportChanged: Triggers during scrolling or resizing, ensuring newly revealed links are decorated.
+		// docChanged & viewportChanged require immediate architectural recalculations
 		if (update.docChanged || update.viewportChanged) {
-			// Recalculate and update the decoration range set for the currently visible viewport segments
 			this.decorations = this.buildDecorations(update.view);
+			return;
+		}
+
+		// High-Performance Cursor Optimization Layer:
+		// If only the selection/cursor changed, check if the movement actually impacts a line with link parameters
+		if (update.selectionSet) {
+			const oldHead = update.startState.selection.main.head;
+			const newHead = update.state.selection.main.head;
+
+			// Bypass execution entirely if the cursor position hasn't actually shifted
+			if (oldHead === newHead) return;
+
+			const currentLine = update.state.doc.lineAt(newHead);
+			const lineText = currentLine.text;
+			
+			// Only trigger the heavy decoration sweep if the active line lineText contains Markdown syntax indicators
+			if (lineText.includes("[") && (lineText.includes("](") || lineText.includes("](<"))) {
+				this.decorations = this.buildDecorations(update.view);
+			}
 		}
 	}
+
 
 	/**
 	 * Orchestrates the decoration assembly chain for a specific link node.
@@ -202,11 +225,12 @@ export class CMViewPlugin {
 		return builder.finish();
 	}
 
-/**
+	/**
 	 * Main orchestration handler for individual CodeMirror syntax tree tokens.
-	 * Dispatches token metadata evaluation to dedicated link-type engines.
+	 * Evaluates node characteristics and coordinates active production pipelines.
+	 * Includes parallel context-aware real-time diagnostic simulation matrices.
 	 */
-		private processNodeToken(
+	private processNodeToken(
 		view: EditorView,
 		node: CodeMirrorNodeRef,
 		state: IterationState,
@@ -217,14 +241,13 @@ export class CMViewPlugin {
 
 		const nodeNameLower: string = node.name.toLowerCase();
 		
-		// UTVIDET GUARD: Nå tillater vi også generelle lenker ("link") og URL-er, ikke bare "linktext"
+		// Guard Clause: Allow formatting boundaries while letting anchors pass through safely
 		if (nodeNameLower.includes("formatting-link") && 
 			nodeNameLower !== "linktext" && 
 			nodeNameLower !== "link") return;
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(nodeRangeKey)) return;
-
 
 		// Identify structural WikiLink tokens based on CodeMirror/Obsidian Lezer topology
 		const hasAliasClass: boolean =
@@ -237,84 +260,149 @@ export class CMViewPlugin {
 
 		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
 
-// --- OPPDATERTE MARKDOWN-MARKØRER BASERT PÅ REELLE TOKENS ---
-		const isMarkdownTextAnchor: boolean = nodeNameLower === "linktext" || nodeNameLower === "link";
-		const isMarkdownUrlToken: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
+		// Identify structural Markdown link components under active editor viewports
+		const isMarkdownAnchor: boolean = nodeNameLower === "link" || nodeNameLower === "linktext";
+		const isMarkdownUrl: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
 
-		// Structural Filter: Slipper igjennom alt som faktisk er en lenke-komponent
-		if (!isAliasOnlyOwner && !isMarkdownTextAnchor && !isMarkdownUrlToken && !isOwnerNode(node.name) && !isAliasPipeToken) {
+		// Structural Filter: Route verified link tokens straight into matching pipelines
+		if (!isAliasOnlyOwner && !isMarkdownAnchor && !isMarkdownUrl && !isOwnerNode(node.name) && !isAliasPipeToken) {
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
 		let linkText = "";
 
-		// Path Resolution: Trekk ut stier basert på link-type
-		if (isMarkdownTextAnchor || isMarkdownUrlToken) {
+		// Path Resolution: Extract logical catalog pathways across active token blocks
+		if (isMarkdownAnchor || isMarkdownUrl) {
 			linkText = this.resolveMarkdownLinkTarget(view, node);
 		} else {
 			linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
 		}
 
 		// =========================================================================
-		// 🛠️ UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (PRIORITY 1 & 2)
+		// 🔬 LIVE DIAGNOSTIC SIMULATION LAYER FOR MARKDOWN LINKS (POSTERITY MATRICES)
 		// =========================================================================
 		if (nodeNameLower === "link") {
-			const line = view.state.doc.lineAt(node.from);
-			const lineText = line.text;
-			let cleanTarget = "";
+			const currentLine = view.state.doc.lineAt(node.from);
+			const lineText = currentLine.text;
+			const rawTextContent = view.state.doc.sliceString(node.from, node.to);
 			
-			// Hent ut filbanen trygt fra dokument-bufferen via inline-søk
-			const relativeFrom = node.from - line.from;
+			// Detect parameter bracket indexes to secure boundaries relative to node positioning
+			const relativeFrom = node.from - currentLine.from;
 			const forwardText = lineText.slice(relativeFrom);
 			
-			const openParenIdx = forwardText.indexOf("](");
+			let openParenIdx = forwardText.indexOf("](");
+			if (openParenIdx === -1) openParenIdx = forwardText.indexOf("](<");
+			
+			let closeParenIdx = -1;
 			if (openParenIdx !== -1) {
-				const closeParenIdx = forwardText.indexOf(")", openParenIdx);
-				if (closeParenIdx !== -1) {
-					let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
-					if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
-						rawPath = rawPath.slice(1, -1);
-					}
-					try {
-						cleanTarget = extractCleanLinkPath(decodeURIComponent(rawPath));
-						if (cleanTarget.toLowerCase().endsWith(".md")) {
-							cleanTarget = cleanTarget.substring(0, cleanTarget.length - 3);
-						}
-					} catch {
-						cleanTarget = extractCleanLinkPath(rawPath);
-					}
+				closeParenIdx = forwardText.indexOf(")", openParenIdx);
+			}
+
+			// Telemetry Parser: Determine if the cursor currently rests inside the active text or parameter region
+			const primarySelection = view.state.selection.main;
+			const cursorRelPos = primarySelection.head - node.from;
+			
+			let isVisuallyOpen = primarySelection.head >= node.from && primarySelection.head <= node.to;
+			if (!isVisuallyOpen && openParenIdx !== -1 && closeParenIdx !== -1) {
+				if (cursorRelPos >= openParenIdx && cursorRelPos <= closeParenIdx + 1) {
+					isVisuallyOpen = true;
 				}
 			}
 
-			// Valider mot Obsidians Vault-katalog
-			const targetFile = resolveLinkFile(this.app, cleanTarget, state.activeFileBasename, false);
+			// Uniform path extraction mirroring our successful in-memory diagnostic core
+			let testCleanPath = rawTextContent;
+			if (openParenIdx !== -1 && closeParenIdx !== -1) {
+				let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
+				if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
+					rawPath = rawPath.slice(1, -1);
+				}
+				testCleanPath = rawPath;
+			}
+
+			try {
+				testCleanPath = decodeURIComponent(testCleanPath).trim();
+			} catch {
+				// Safe fallback
+			}
+			
+			if (testCleanPath.toLowerCase().endsWith(".md")) {
+				testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
+			}
+			testCleanPath = extractCleanLinkPath(testCleanPath);
+
+			const testFileLookup = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
+			const lookupReport = testFileLookup !== null ? "MATCH_FUNNET ✅" : "IKKE_FUNNET ❌";
+
+			// Stream telemetry straight to the active debugging console layer
+			console.log(
+				`%c[MD-TILSTANDS-TEST] Node: "${node.name}" | Tilstand: ${isVisuallyOpen ? "ÅPEN 📂" : "LUKKET 📁"} | Tekst i DOM: "${rawTextContent}" | Mål-sti: "${testCleanPath}" [${lookupReport}]`,
+				isVisuallyOpen
+					? "color: #ffaa00; font-weight: bold; background: #221100; padding: 2px;"
+					: "color: #00ffaa; font-weight: bold; background: #002211; padding: 2px;"
+			);
+		}
+
+		// =========================================================================
+		// 🛠️ UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (BOMBARDE-STRATEGI)
+		// =========================================================================
+		if (isMarkdownAnchor || isMarkdownUrl) {
+			const currentLine = view.state.doc.lineAt(node.from);
+			const lineText = currentLine.text;
+			
+			let testCleanPath = "";
+			const openParenIdx = lineText.indexOf("](");
+			const openParenAngleIdx = lineText.indexOf("](<");
+			const activeParenIdx = openParenAngleIdx !== -1 ? openParenAngleIdx : openParenIdx;
+
+			if (activeParenIdx !== -1) {
+				const closeParenIdx = lineText.indexOf(")", activeParenIdx);
+				if (closeParenIdx !== -1) {
+					const startOffset = openParenAngleIdx !== -1 ? 3 : 2;
+					let rawPath = lineText.slice(activeParenIdx + startOffset, closeParenIdx).trim();
+					if (rawPath.endsWith(">")) {
+						rawPath = rawPath.slice(0, -1);
+					}
+					testCleanPath = rawPath;
+				}
+			} else {
+				testCleanPath = view.state.doc.sliceString(node.from, node.to);
+			}
+
+			try {
+				testCleanPath = decodeURIComponent(testCleanPath).trim();
+			} catch {
+				// Fallback
+			}
+			
+			if (testCleanPath.toLowerCase().endsWith(".md")) {
+				testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
+			}
+			testCleanPath = extractCleanLinkPath(testCleanPath);
+
+			const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
+			
 			if (targetFile !== null) {
 				const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
-				
-				// Generer uniform dekorasjon via den felles regelmotoren
 				const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
 				
-				// Påfør stilen på hele Markdown-lenken som en stabil enhet
 				this.decorateRangeOnce(state, node.from, node.to, markdownDeco);
 				state.processedRanges.add(nodeRangeKey);
 				return;
 			}
 		}
 
-
-		// --- RESTEN AV DIN ORIGINALE KODE FORTSETTER UENDRET HERFRA ---
-		// 2. Vault Catalog Mapping: Verify if the resolved path points to a valid physical abstract TFile
+		// =========================================================================
+		// 🛠️ STANDARD WIKILINK PRODUCTION PIPELINE (UNTOUCHED)
+		// =========================================================================
 		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
 		if (file === null) {
 			state.processedRanges.add(nodeRangeKey);
 			return;
 		}
 
-		// --- HER DEFINERER VI DEN FELLES MERKELAPPEN FOR ALIAS, EIERE OG SIMULERING ---
 		const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
 
-		// CASE 1: Handle standalone closed/collapsed alias syntax nodes
 		if (isAliasOnlyOwner) {
 			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
@@ -322,11 +410,9 @@ export class CMViewPlugin {
 			return;
 		}
 
-		// CASE 2: Apply primary anchor decoration to active root token elements (Both WikiLinks and Markdown anchors)
 		const ownerDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
 
-		// CASE 3: Delegate forward token lookahead handling for expanded active multi-part WikiLink segments
 		if (hasAliasClass) {
 			this.processExpandedWikiLinkSegments(view, node, state, file);
 		}

@@ -388,26 +388,18 @@
 }
 
 /* =========================================================================
-   5) 🚀 DETERMINISTIC POSITIONAL ICON REFLECTION LAYER
+   5) 🚀 CLEAN CODE-MIRROR OPEN-LINK SUPPRESSION LAYER
    ========================================================================= */
 
-/* Absolute suppression on the syntax pipe separator marker when open */
+/* Absolute enforcement to block inherited pseudo-elements on syntax pipe segments */
 .cm-editor .cm-link-alias-pipe .data-link-text::before,
-.cm-editor .cm-link-alias-pipe .data-link-text::after {
-  display: none;
+.cm-editor .cm-link-alias-pipe .data-link-text::after,
+.cm-editor .cm-link-alias-pipe .cm-underline::before,
+.cm-editor .cm-link-alias-pipe .cm-underline::after {
+  display: none !important;
 }
 
-/* Suppress the trailing icon on the link path node when open */
-.cm-editor .cm-link-has-alias .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* 
-   MATHEMATICAL ALIAS RULE:
-   Only suppress the leading icon on the alias segment if the link is actually OPEN.
-   By using strict adjacent sibling combinators (+), we ensure that an open link 
-   never bleeds over and accidentally hides prepend icons on subsequent closed links!
-*/
-.cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
+/* Structural icon inhibition for raw URL segments to safeguard clean layouts */
+.cm-editor .cm-string.cm-url .data-link-text[data-scl-icon-before]::before {
   display: none;
 }
