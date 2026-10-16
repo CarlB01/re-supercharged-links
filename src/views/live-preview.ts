@@ -31,6 +31,9 @@ export class CMViewPlugin {
 	public app: App;
 	public plugin: ResuperchargedLinks;
 
+	private lastLineNumber: number = -1;
+	private lastLineHadLinks: boolean = false;
+
 	constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
 		this.app = app;
 		this.plugin = plugin;
@@ -42,16 +45,57 @@ export class CMViewPlugin {
 	/**
 	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
 	 * Evaluates document, viewport, and selection state changes to selectively recalculate link decorations.
-	 * 
 	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
 	 */
 	public update(update: ViewUpdate): void {
-		// docChanged: Triggers during edits.
-		// viewportChanged: Triggers during scrolling.
-		// selectionSet: Triggers instantly during cursor movements (Essential for tracking open/closed active Markdown states).
-		if (update.docChanged || update.viewportChanged || update.selectionSet) {
+    // 1. Document Content & Viewport Changes
+    // Always recalculate decorations immediately if the text is edited or the view scrolls.
+    if (update.docChanged || update.viewportChanged) {
 			this.decorations = this.buildDecorations(update.view);
-		}
+			try {
+				const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
+				this.lastLineNumber = currentLine.number;
+				this.lastLineHadLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
+			} catch {
+				// Safe fallback containment
+			}
+			return;
+    }
+
+    // 2. Pure Selection/Cursor Movements
+    // Optimize performance during cursor movement to prevent redundant syntax tree traversal.
+    if (update.selectionSet) {
+        try {
+					const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
+					const currentLineNumber = currentLine.number;
+
+					// PERFORMANCE BARRIER 1: Horizontal cursor movement on the exact same line
+					if (currentLineNumber === this.lastLineNumber) {
+						// If the active line contains zero link syntax, completely abort evaluation (0% CPU impact)
+						if (!this.lastLineHadLinks) return;
+						
+						// If link syntax is present, re-evaluate to capture real-time state changes (open/collapsed)
+						this.decorations = this.buildDecorations(update.view);
+						return;
+					}
+
+					// PERFORMANCE BARRIER 2: Vertical navigation jumping to a completely new line
+					this.lastLineNumber = currentLineNumber;
+					const currentLineHasLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
+
+					// Bypass execution entirely if neither the departed line nor the arrived line contains link nodes
+					if (!this.lastLineHadLinks && !currentLineHasLinks) {
+						this.lastLineHadLinks = currentLineHasLinks;
+						return;
+					}
+
+					this.lastLineHadLinks = currentLineHasLinks;
+				this.decorations = this.buildDecorations(update.view);
+			} catch {
+				// Fail-safe fallback execution block
+				this.decorations = this.buildDecorations(update.view);
+			}
+    }
 	}
 
 	/**
@@ -217,10 +261,12 @@ export class CMViewPlugin {
 
 		const nodeNameLower: string = node.name.toLowerCase();
 		
-		// Guard Clause: Allow formatting boundaries while letting anchors pass through safely
-		if (nodeNameLower.includes("formatting-link") && 
-			nodeNameLower !== "linktext" && 
-			nodeNameLower !== "link") return;
+		const isMarkdownFormatting = nodeNameLower.includes("formatting-link") || nodeNameLower.includes("formatting-link-string");
+
+		if (isMarkdownFormatting && 
+    nodeNameLower !== "linktext" && 
+    nodeNameLower !== "link" && 
+    !nodeNameLower.includes("string_url")) return; // Slipper igjennom alt som har med URL eller lenke-formatering å gjøre
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(nodeRangeKey)) return;
@@ -255,118 +301,89 @@ export class CMViewPlugin {
 			linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
 		}
 
-		// =========================================================================
-		// 🔬 LIVE DIAGNOSTIC SIMULATION LAYER FOR MARKDOWN LINKS (POSTERITY MATRICES)
-		// =========================================================================
-		if (nodeNameLower === "link") {
-			const currentLine = view.state.doc.lineAt(node.from);
-			const lineText = currentLine.text;
-			const rawTextContent = view.state.doc.sliceString(node.from, node.to);
-			
-			// Detect parameter bracket indexes to secure boundaries relative to node positioning
-			const relativeFrom = node.from - currentLine.from;
-			const forwardText = lineText.slice(relativeFrom);
-			
-			let openParenIdx = forwardText.indexOf("](");
-			if (openParenIdx === -1) openParenIdx = forwardText.indexOf("](<");
-			
-			let closeParenIdx = -1;
-			if (openParenIdx !== -1) {
-				closeParenIdx = forwardText.indexOf(")", openParenIdx);
-			}
+	// UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (MULTI-LINK BOUNDARY CONTEXT)
+	if (isMarkdownAnchor || isMarkdownUrl) {
+		if (nodeNameLower !== "link") {
+			// Delegate responsibility exclusively to the structural "link" node wrapper
+			state.processedRanges.add(nodeRangeKey);
+			return;
+		}
 
-			// Telemetry Parser: Determine if the cursor currently rests inside the active text or parameter region
-			const primarySelection = view.state.selection.main;
-			const cursorRelPos = primarySelection.head - node.from;
-			
-			let isVisuallyOpen = primarySelection.head >= node.from && primarySelection.head <= node.to;
-			if (!isVisuallyOpen && openParenIdx !== -1 && closeParenIdx !== -1) {
-				if (cursorRelPos >= openParenIdx && cursorRelPos <= closeParenIdx + 1) {
-					isVisuallyOpen = true;
-				}
-			}
+		const currentLine = view.state.doc.lineAt(node.from);
+		const lineText = currentLine.text;
+	
+    // Calculate node position relative to the line boundary to isolate multi-link tracks
+    const relativeFrom = node.from - currentLine.from;
+    const forwardText = lineText.slice(relativeFrom);
 
-			// Uniform path extraction mirroring our successful in-memory diagnostic core
-			let testCleanPath = rawTextContent;
-			if (openParenIdx !== -1 && closeParenIdx !== -1) {
-				let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
-				if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
+    let openParenIdx = forwardText.indexOf("](");
+    if (openParenIdx === -1) openParenIdx = forwardText.indexOf("](<");
+    
+    let closeParenIdx = -1;
+    if (openParenIdx !== -1) {
+        closeParenIdx = forwardText.indexOf(")", openParenIdx);
+    }
+
+    let testCleanPath = "";
+    let linkEndPosition = node.to; // Fallback boundary if no URL pattern is active
+
+    if (openParenIdx !== -1 && closeParenIdx !== -1) {
+			// Isolate the path string belonging strictly to this contextual segment
+			let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
+			if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
 					rawPath = rawPath.slice(1, -1);
-				}
-				testCleanPath = rawPath;
 			}
+			testCleanPath = rawPath;
+			// Dynamically compute the exact absolute end position of this specific Markdown link structure
+			linkEndPosition = node.from + closeParenIdx + 1;
+    } else {
+			testCleanPath = view.state.doc.sliceString(node.from, node.to);
+    }
 
-			try {
-				testCleanPath = decodeURIComponent(testCleanPath).trim();
-			} catch {
-				// Safe fallback
-			}
+    try {
+			testCleanPath = decodeURIComponent(testCleanPath).trim();
+    } catch {
+			// Fallback preservation on URI decoding errors
+    }
+    
+    if (testCleanPath.toLowerCase().endsWith(".md")) {
+        testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
+    }
+    testCleanPath = extractCleanLinkPath(testCleanPath);
+
+    const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
+    if (targetFile !== null) {
+			const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
+			const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
 			
-			if (testCleanPath.toLowerCase().endsWith(".md")) {
-				testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
-			}
-			testCleanPath = extractCleanLinkPath(testCleanPath);
+			// CONSTRAINED SINGLE-PASS INJECTION: Iterate strictly between the start of the text 
+			// bracket and the precise end of the closing parenthesis to avoid cross-contamination on dense lines.
+			syntaxTree(view.state).iterate({
+				from: node.from,
+				to: linkEndPosition,
+				enter: (sibling) => {
+					const sName = sibling.name.toLowerCase();
+					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
 
-			const testFileLookup = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
-			const lookupReport = testFileLookup !== null ? "MATCH_FUNNET ✅" : "IKKE_FUNNET ❌";
-
-			// Stream telemetry straight to the active debugging console layer
-			console.log(
-				`%c[MD-TILSTANDS-TEST] Node: "${node.name}" | Tilstand: ${isVisuallyOpen ? "ÅPEN 📂" : "LUKKET 📁"} | Tekst i DOM: "${rawTextContent}" | Mål-sti: "${testCleanPath}" [${lookupReport}]`,
-				isVisuallyOpen
-					? "color: #ffaa00; font-weight: bold; background: #221100; padding: 2px;"
-					: "color: #00ffaa; font-weight: bold; background: #002211; padding: 2px;"
-			);
-		}
-
-		// =========================================================================
-		// 🛠️ UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (BOMBARDE-STRATEGI)
-		// =========================================================================
-		if (isMarkdownAnchor || isMarkdownUrl) {
-			const currentLine = view.state.doc.lineAt(node.from);
-			const lineText = currentLine.text;
-			
-			let testCleanPath = "";
-			const openParenIdx = lineText.indexOf("](");
-			const openParenAngleIdx = lineText.indexOf("](<");
-			const activeParenIdx = openParenAngleIdx !== -1 ? openParenAngleIdx : openParenIdx;
-
-			if (activeParenIdx !== -1) {
-				const closeParenIdx = lineText.indexOf(")", activeParenIdx);
-				if (closeParenIdx !== -1) {
-					const startOffset = openParenAngleIdx !== -1 ? 3 : 2;
-					let rawPath = lineText.slice(activeParenIdx + startOffset, closeParenIdx).trim();
-					if (rawPath.endsWith(">")) {
-						rawPath = rawPath.slice(0, -1);
+					// Group and process exactly the 6 token signatures isolated within this link's personal viewport
+					if (
+						(sName.includes("formatting-link") && sText === "[") ||
+						(sName === "link") ||
+						(sName.includes("formatting-link") && sText === "]") ||
+						(sName.includes("formatting-link") && sText === "(") ||
+						(sName.includes("string_url")) ||
+						(sName.includes("formatting-link") && sText === ")")
+					) {
+						this.decorateRangeOnce(state, sibling.from, sibling.to, markdownDeco);
+						state.processedRanges.add(`${sibling.from}-${sibling.to}`);
 					}
-					testCleanPath = rawPath;
 				}
-			} else {
-				testCleanPath = view.state.doc.sliceString(node.from, node.to);
-			}
-
-			try {
-				testCleanPath = decodeURIComponent(testCleanPath).trim();
-			} catch {
-				// Fallback
-			}
-			
-			if (testCleanPath.toLowerCase().endsWith(".md")) {
-				testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
-			}
-			testCleanPath = extractCleanLinkPath(testCleanPath);
-
-			const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
-			
-			if (targetFile !== null) {
-				const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
-				const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
-				
-				this.decorateRangeOnce(state, node.from, node.to, markdownDeco);
-				state.processedRanges.add(nodeRangeKey);
-				return;
-			}
-		}
+			});
+			return;
+    }
+    state.processedRanges.add(nodeRangeKey);
+    return;
+}
 
 		// =========================================================================
 		// 🛠️ STANDARD WIKILINK PRODUCTION PIPELINE (UNTOUCHED)
