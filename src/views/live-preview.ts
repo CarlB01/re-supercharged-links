@@ -376,7 +376,7 @@ export class CMViewPlugin {
 
 	/**
 	 * Isolated Production Pipeline for structural WikiLinks ([[path|alias]]).
-	 * Re-integrates the original stable line-slicing logic to guarantee zero cross-contamination.
+	 * Computes absolute node boundaries and streams unified decorations linearly via AST layout.
 	 */
 	private processWikiLinkPipeline(
 		view: EditorView,
@@ -385,14 +385,51 @@ export class CMViewPlugin {
 		nodeNameLower: string,
 		nodeRangeKey: string
 	): boolean {
-		const hasAliasClass: boolean = nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
-		const isAliasPipeToken: boolean = nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
-		const isAliasToken: boolean = (nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) && !isAliasPipeToken;
-		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
+		// Enforce constraint: Only let the primary anchor nodes coordinate the inline sequence sweep
+		const isPrimaryAnchor = nodeNameLower.includes("hmd-internal-link") || nodeNameLower.includes("link-has-alias") || nodeNameLower.includes("cm-link-has-alias");
+		if (!isPrimaryAnchor) {
+			state.processedRanges.add(nodeRangeKey);
+			return true;
+		}
 
-		// 1. Path Resolution: Execute the original stable string slice routine
-		const linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
-		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
+		const currentLine = view.state.doc.lineAt(node.from);
+		let targetPathToken = "";
+		let wikiEndPosition = node.to;
+		let isKjedeLukket = false; // 🔑 THE SAFETY LOCK: Restricts multi-link bleed
+
+		// UNIFIED WIKILINK LOOKAHEAD: Scan forward within line boundaries to resolve path string and lock the closing brackets
+		syntaxTree(view.state).iterate({
+			from: node.from,
+			to: currentLine.to,
+			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
+				if (isKjedeLukket) return true;
+
+				const sibName = sibling.name.toLowerCase();
+				
+				if (sibName.includes("hmd-internal-link") || sibName.includes("link-has-alias") || sibName.includes("cm-link-has-alias")) {
+					if (targetPathToken.length === 0) {
+						targetPathToken = view.state.doc.sliceString(sibling.from, sibling.to);
+					}
+				}
+				
+				// MEMORY OPTIMIZATION: Shield heap allocations by only string-slicing explicit formatting elements
+				if (sibName.includes("formatting")) {
+					if (view.state.doc.sliceString(sibling.from, sibling.to) === "]]" && sibling.from >= node.to) {
+						wikiEndPosition = sibling.to;
+						isKjedeLukket = true;
+					}
+				}
+				return true;
+			}
+		});
+
+		// Fallback block if the tree is completely collapsed/closed
+		if (targetPathToken.length === 0) {
+			targetPathToken = view.state.doc.sliceString(node.from, node.to);
+		}
+
+		const cleanPath = extractCleanLinkPath(targetPathToken);
+		const file: TFile | null = resolveLinkFile(this.app, cleanPath, state.activeFileBasename, false);
 		
 		if (file === null) {
 			state.processedRanges.add(nodeRangeKey);
@@ -400,88 +437,34 @@ export class CMViewPlugin {
 		}
 
 		const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
+		const wikiDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 
-		// 2. Production Layer: Apply decorations using your original stable logic flow
-		if (isAliasOnlyOwner) {
-			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
-			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
-			state.processedRanges.add(nodeRangeKey);
-			return true;
-		}
+		// CONSTRAINED SINGLE-PASS INJECTION: Paint exactly the tokens isolated within this link's validated boundaries
+		syntaxTree(view.state).iterate({
+			from: node.from,
+			to: wikiEndPosition,
+			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
+				const sName = sibling.name.toLowerCase();
+				
+				// Target internal links, aliases, and the pipe character cleanly under a unified selection matrix
+				const isEkteWikiNode = 
+					sName.includes("hmd-internal-link") || 
+					sName.includes("cm-link-has-alias") || 
+					sName.includes("link-has-alias") || 
+					sName.includes("cm-link-alias") ||
+					sName.includes("link-alias");
 
-		const ownerDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
-		this.decorateRangeOnce(state, node.from, node.to, ownerDeco);
+				if (isEkteWikiNode) {
+					this.decorateRangeOnce(state, sibling.from, sibling.to, wikiDeco);
+					state.processedRanges.add(`${sibling.from}-${sibling.to}`);
+				}
+				return true;
+			}
+		});
 
-		if (hasAliasClass) {
-			this.processExpandedWikiLinkSegments(view, node, state, file);
-		}
-
-		state.processedRanges.add(nodeRangeKey);
 		return true;
 	}
 
-	/**
-	 * Helper Method: Resolves the semantic target file path string from a WikiLink node token.
-	 */
-	private resolveWikiLinkTarget(view: EditorView, node: CodeMirrorNodeRef, isAliasOnlyOwner: boolean): string {
-		const rawLinkText: string = view.state.doc.sliceString(node.from, node.to);
-		const defaultPath: string = extractCleanLinkPath(rawLinkText);
-
-		if (!isAliasOnlyOwner) {
-			return defaultPath;
-		}
-
-		const lineForAlias = view.state.doc.lineAt(node.from);
-		const lineText: string = lineForAlias.text;
-		const relFrom: number = Math.max(0, node.from - lineForAlias.from);
-		const relTo: number = Math.max(0, node.to - lineForAlias.from);
-
-		const leftPart: string = lineText.slice(0, relFrom);
-		const rightPart: string = lineText.slice(relTo);
-		const openIdx: number = leftPart.lastIndexOf("[[");
-		const closeRel: number = rightPart.indexOf("]]");
-
-		if (openIdx !== -1 && closeRel !== -1) {
-			const closeIdx: number = relTo + closeRel;
-			const fullWikilink: string = lineText.slice(openIdx, closeIdx + 2);
-			const inner: string = fullWikilink.slice(2, -2);
-			const pipeIdx: number = inner.indexOf("|");
-			const target: string = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
-			
-			if (target.length > 0) {
-				return extractCleanLinkPath(target);
-			}
-		}
-
-		return defaultPath;
-	}
-
-	/**
-	 * Helper Method: Executes linear forward lookahead sweeps to identify, validate, 
-	 * and apply matched decorations to accompanying components of open/expanded WikiLinks.
-	 */
-	private processExpandedWikiLinkSegments(
-		view: EditorView, 
-		node: CodeMirrorNodeRef, 
-		state: IterationState, 
-		file: TFile
-	): void {
-		const line = view.state.doc.lineAt(node.from);
-		const pipeNode: CodeMirrorNodeRef | null = this.findImmediateNodeAt(view, node.to, line.to, "link-alias-pipe");
-
-		if (pipeNode !== null) {
-			const pipeLabel: string = this.getVisibleLabel(view, pipeNode.from, pipeNode.to);
-			this.decorateRangeOnce(state, pipeNode.from, pipeNode.to, this.processLinkDecoration(file, pipeLabel));
-			state.processedRanges.add(`${pipeNode.from}-${pipeNode.to}`);
-
-			const aliasNode: CodeMirrorNodeRef | null = this.findImmediateNodeAt(view, pipeNode.to, line.to, "link-alias");
-			if (aliasNode !== null) {
-				const aliasLabel: string = this.getVisibleLabel(view, aliasNode.from, aliasNode.to);
-				this.decorateRangeOnce(state, aliasNode.from, aliasNode.to, this.processLinkDecoration(file, aliasLabel));
-				state.processedRanges.add(`${aliasNode.from}-${aliasNode.to}`);
-			}
-		}
-	}
 
 	/**
 	 * Helper Method: Transforms raw file metadata records into normalized, 
@@ -503,30 +486,6 @@ export class CMViewPlugin {
 		}
 		
 		return domAttributes;
-	}
-
-	private findImmediateNodeAt(
-		view: EditorView,
-		from: number,
-		to: number,
-		expectedNamePart: string
-	): CodeMirrorNodeRef | null {
-		const tree = syntaxTree(view.state);
-		let hit: CodeMirrorNodeRef | null = null;
-
-		tree.iterate({
-			from,
-			to,
-			enter: (n: CodeMirrorNodeRef): void => {
-				if (hit !== null) return;
-				const name: string = n.name.toLowerCase();
-				if (n.from === from && name.includes(expectedNamePart)) {
-					hit = { name: n.name, from: n.from, to: n.to };
-				}
-			}
-		});
-
-		return hit;
 	}
 
 	private decorateRangeOnce(
