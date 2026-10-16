@@ -60,6 +60,7 @@ export function isHtmlElement(node: unknown): node is HTMLElement {
 
 /**
  * Isolates core target path layouts by stripping outer wikilink notation, fragments, and alias pipes.
+ * Fully harmonizes string tracks by safely shedding trailing markdown extensions.
  */
 export function extractCleanLinkPath(rawText: string | null | undefined): string {
 	const text: string = rawText ?? "";
@@ -81,6 +82,10 @@ export function extractCleanLinkPath(rawText: string | null | undefined): string
 	const hashIdx = cleanText.indexOf("#");
 	if (hashIdx !== -1) {
 		cleanText = cleanText.substring(0, hashIdx);
+	}
+
+	if (cleanText.toLowerCase().endsWith(".md")) {
+		cleanText = cleanText.substring(0, cleanText.length - 3);
 	}
 	
 	return cleanText.trim();

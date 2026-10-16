@@ -312,10 +312,11 @@
    4) 🚀 UTILITY CLASSES FOR THE IN-MEMORY RUNTIME ENGINE
    ========================================================================= */
 
+.cm-line .data-link-text,
+.suggestion-item .data-link-text,
+.search-result-file-matches .data-link-text,
 .data-link-text {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
+  display: inline;
   vertical-align: baseline;
 }
 
@@ -454,4 +455,11 @@
 /* Skal kun vise etter-ikon. Vi fjerner før-ikonet på det aller siste leddet i kjeden. */
 .cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url + .cm-formatting-link-string .data-link-text[data-scl-icon-before]::before {
   display: none;
+}
+
+/* Forces the closed CM6 link underline node to respect the parent's supercharged color definition */
+.cm-link .data-link-text .cm-underline,
+.cm-link .data-link-text[data-link-color] .cm-underline,
+.data-link-text[data-link-color] .cm-underline {
+  color: inherit;
 }

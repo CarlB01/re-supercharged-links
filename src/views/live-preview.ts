@@ -377,6 +377,7 @@ export class CMViewPlugin {
 	/**
 	 * Isolated Production Pipeline for structural WikiLinks ([[path|alias]]).
 	 * Computes absolute node boundaries and streams unified decorations linearly via AST layout.
+	 * Dynamically evaluates token-level labels to prevent icon duplication across open segments.
 	 */
 	private processWikiLinkPipeline(
 		view: EditorView,
@@ -436,9 +437,6 @@ export class CMViewPlugin {
 			return true;
 		}
 
-		const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
-		const wikiDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
-
 		// CONSTRAINED SINGLE-PASS INJECTION: Paint exactly the tokens isolated within this link's validated boundaries
 		syntaxTree(view.state).iterate({
 			from: node.from,
@@ -455,7 +453,21 @@ export class CMViewPlugin {
 					sName.includes("link-alias");
 
 				if (isEkteWikiNode) {
-					this.decorateRangeOnce(state, sibling.from, sibling.to, wikiDeco);
+					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
+					
+					if (sText === "|") {
+						// LIGHTWEIGHT STYLE MATCH: Pass an empty string to bypass icon de-duplication rules completely.
+						// This retains seamless visual styling (color/weight) across the open link sequence 
+						// while protecting the frame budget from redundant lookups.
+						const pipeDeco: Decoration = this.processLinkDecoration(file, "");
+						this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
+					} else {
+						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+						const localizedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel);
+
+						this.decorateRangeOnce(state, sibling.from, sibling.to, localizedDeco);
+					}
+					
 					state.processedRanges.add(`${sibling.from}-${sibling.to}`);
 				}
 				return true;
@@ -464,7 +476,6 @@ export class CMViewPlugin {
 
 		return true;
 	}
-
 
 	/**
 	 * Helper Method: Transforms raw file metadata records into normalized, 
@@ -554,9 +565,17 @@ export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension
 		if (fontStyle === "line-through") ruleStyles["text-decoration"] = "line-through";
 
 		if (Object.keys(ruleStyles).length > 0) {
-			const selector: string = `&.data-link-text.scl-rule-${runtimeId}, .scl-rule-${runtimeId} .cm-underline, .scl-rule-${runtimeId}`;
+			// Construct a high-specificity selector chain to force color inheritance 
+			// down to the innermost .cm-underline node within closed Live Preview links.
+			const selector: string = 
+				`&.data-link-text.scl-rule-${runtimeId}, ` +
+				`.scl-rule-${runtimeId} .cm-underline, ` +
+				`.cm-link:has(.scl-rule-${runtimeId}) .cm-underline, ` + // Targets the parent container if supported
+				`.scl-rule-${runtimeId}`;
+				
 			themeSpec[selector] = ruleStyles;
 		}
+
 	}
 
 	return EditorView.theme(themeSpec);

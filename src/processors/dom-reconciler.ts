@@ -82,16 +82,32 @@ export function processPopupContextNode(
 	isDark: boolean, 
 	globalCache: AttrCache
 ): boolean {
-	const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
+
 	let resolvedPath = "";
 	
-	if (parentItem !== null && parentItem.instanceOf(Element) && parentItem.instanceOf(HTMLElement)) {
-		resolvedPath = parentItem.getAttribute("data-path") || parentItem.getAttribute("data-href") || "";
+	// Traversal Layer 1: Query the surrounding container frame for explicit canonical data bindings
+	const parentItem: Element | null = node.closest(".suggestion-item, .another-quick-switcher__item, .omnisearch-result");
+	
+	// Defensive approach: Check nodeType to guarantee it safe for standard getAttribute extraction
+	if (parentItem !== null && parentItem.nodeType === 1) {
+		const htmlParent = parentItem as HTMLElement;
+		resolvedPath = htmlParent.getAttribute("data-path") ?? htmlParent.getAttribute("data-href") ?? "";
 	}
+	
+	// Traversal Layer 2: Fall back to native target node structural tracking tokens if parent context yields nothing
+	if (resolvedPath.length === 0) {
+		resolvedPath = node.getAttribute("data-path") ?? node.getAttribute("data-href") ?? "";
+	}
+	
+	// Traversal Layer 3: Extract the raw text stream from the layout segment as an ultimate fallback
+	// CRITICAL: Retain exact space alignment tokens to prevent real-time search string fragmentation
 	if (resolvedPath.length === 0) {
 		resolvedPath = node.textContent ?? "";
 	}
-	if (resolvedPath.length === 0) return false;
+	
+	if (resolvedPath.length === 0) {
+		return false;
+	}
 
 	const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "") ?? null;
 	if (dest === null) return false;
@@ -162,9 +178,9 @@ export function updateContainer(
 	return styledCount;
 }
 
-	
 /**
  * Contextual attribute updater targeting interface boundaries and multi-select pill layouts.
+ * Optimized via direct DOM-attribute mapping to bypass heavy string parsing sweeps.
  */
 export function updateDivExtraAttributes(
 	app: App,
@@ -177,22 +193,21 @@ export function updateDivExtraAttributes(
 	const parent: HTMLElement | null = link.parentElement ?? null;
 	if (filterCollapsible && parent !== null && parent.classList.contains("mod-collapsible")) return;
 
-	let resolvedLinkName: string | null = linkName;
+	// 🚀 DIRECT DOM PATH EXTRACTION: Bypasses string counting by prioritizing native cache tokens
+	let resolvedLinkName = linkName;
 	if (resolvedLinkName === null) {
-		const ownHref: string | null = link.getAttribute("data-href");
-		const rawText: string = link.textContent ?? "";
+		resolvedLinkName = link.getAttribute("data-href") || link.getAttribute("href") || "";
 		
-		if (ownHref !== null && ownHref.length > 0) {
-			resolvedLinkName = ownHref;
-		} else if (parent !== null) {
-			resolvedLinkName = parent.getAttribute("data-path") || parent.getAttribute("data-href") || parent.getAttribute("href") || null;
+		if (resolvedLinkName.length === 0 && parent !== null) {
+			resolvedLinkName = parent.getAttribute("data-path") || parent.getAttribute("data-href") || parent.getAttribute("href") || "";
 		}
-		if (resolvedLinkName === null && rawText.length > 0) {
-			resolvedLinkName = rawText;
+		
+		if (resolvedLinkName.length === 0) {
+			resolvedLinkName = link.textContent ?? "";
 		}
 	}
 
-	if (resolvedLinkName === null || resolvedLinkName.length === 0) return;
+	if (resolvedLinkName.length === 0) return;
 
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
@@ -201,7 +216,6 @@ export function updateDivExtraAttributes(
 	if (dest === null) return;
 
 	const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
-	// ✅ FIXED: Explicitly pass the active plugin object context directly down the chain
 	domBatcher.enqueue(link, localProps, plugin);
 }
 

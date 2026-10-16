@@ -225,7 +225,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		}
 	}
 
-	const targetText: string = (input.visibleText ?? "").trim();
+	const targetText: string = (input.visibleText ?? "");
 
 	if (iconBefore.length > 0 && targetText.startsWith(iconBefore)) {
 		classList.push("scl-hide-before");
