@@ -260,112 +260,99 @@ export class CMViewPlugin {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
 		const nodeNameLower: string = node.name.toLowerCase();
-		
 		const isMarkdownFormatting = nodeNameLower.includes("formatting-link") || nodeNameLower.includes("formatting-link-string");
 
-		if (isMarkdownFormatting && 
-    nodeNameLower !== "linktext" && 
-    nodeNameLower !== "link" && 
-    !nodeNameLower.includes("string_url")) return; // Slipper igjennom alt som har med URL eller lenke-formatering å gjøre
+		if (isMarkdownFormatting && nodeNameLower !== "linktext" && nodeNameLower !== "link" && !nodeNameLower.includes("string_url")) return;
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
 		if (state.processedRanges.has(nodeRangeKey)) return;
 
-		// Identify structural WikiLink tokens based on CodeMirror/Obsidian Lezer topology
-		const hasAliasClass: boolean =
-			nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
-		const isAliasPipeToken: boolean =
-			nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
-		const isAliasToken: boolean =
-			(nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) &&
-			!isAliasPipeToken;
-
-		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
-
-		// Identify structural Markdown link components under active editor viewports
 		const isMarkdownAnchor: boolean = nodeNameLower === "link" || nodeNameLower === "linktext";
 		const isMarkdownUrl: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
 
-		// Structural Filter: Route verified link tokens straight into matching pipelines
-		if (!isAliasOnlyOwner && !isMarkdownAnchor && !isMarkdownUrl && !isOwnerNode(node.name) && !isAliasPipeToken) {
-			state.processedRanges.add(nodeRangeKey);
-			return;
-		}
-
-		let linkText = "";
-
-		// Path Resolution: Extract logical catalog pathways across active token blocks
+		// 🚀 ROUTE TO ISOLATED MARKDOWN PIPELINE
 		if (isMarkdownAnchor || isMarkdownUrl) {
-			linkText = this.resolveMarkdownLinkTarget(view, node);
-		} else {
-			linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
+			const handled = this.processMarkdownLinkPipeline(view, node, state, nodeNameLower, nodeRangeKey);
+			if (handled) return;
 		}
 
-	// UNIFIED MARKDOWN LINK PRODUCTION PIPELINE (MULTI-LINK BOUNDARY CONTEXT)
-	if (isMarkdownAnchor || isMarkdownUrl) {
+		// 🚀 ROUTE TO ISOLATED WIKILINK PIPELINE
+		// Captures standard, aliased, and open/expanded WikiLink states via AST topology
+		const isWikiAnchor = nodeNameLower.includes("hmd-internal-link") || nodeNameLower.includes("link-has-alias") || nodeNameLower.includes("cm-link-has-alias");
+		if (isWikiAnchor || isOwnerNode(node.name)) {
+			const handled = this.processWikiLinkPipeline(view, node, state, nodeNameLower, nodeRangeKey);
+			if (handled) return;
+		}
+	}
+
+	/**
+	 * Isolated Production Pipeline for standard Markdown links ([alias](target)).
+	 * Processes structural tokens linearly and injects unified decorations across all siblings.
+	 */
+	private processMarkdownLinkPipeline(
+		view: EditorView,
+		node: CodeMirrorNodeRef,
+		state: IterationState,
+		nodeNameLower: string,
+		nodeRangeKey: string
+	): boolean {
 		if (nodeNameLower !== "link") {
-			// Delegate responsibility exclusively to the structural "link" node wrapper
+			// Enforce strict constraint letting only the top-level parent "link" node execute the lane iteration
 			state.processedRanges.add(nodeRangeKey);
-			return;
+			return true;
 		}
 
 		const currentLine = view.state.doc.lineAt(node.from);
 		const lineText = currentLine.text;
-	
-    // Calculate node position relative to the line boundary to isolate multi-link tracks
-    const relativeFrom = node.from - currentLine.from;
-    const forwardText = lineText.slice(relativeFrom);
+		
+		const relativeFrom = node.from - currentLine.from;
+		const forwardText = lineText.slice(relativeFrom);
 
-    let openParenIdx = forwardText.indexOf("](");
-    if (openParenIdx === -1) openParenIdx = forwardText.indexOf("](<");
-    
-    let closeParenIdx = -1;
-    if (openParenIdx !== -1) {
-        closeParenIdx = forwardText.indexOf(")", openParenIdx);
-    }
+		let openParenIdx = forwardText.indexOf("](");
+		if (openParenIdx === -1) openParenIdx = forwardText.indexOf("](<");
+		
+		let closeParenIdx = -1;
+		if (openParenIdx !== -1) {
+			closeParenIdx = forwardText.indexOf(")", openParenIdx);
+		}
 
-    let testCleanPath = "";
-    let linkEndPosition = node.to; // Fallback boundary if no URL pattern is active
+		let testCleanPath = "";
+		let linkEndPosition = node.to;
 
-    if (openParenIdx !== -1 && closeParenIdx !== -1) {
-			// Isolate the path string belonging strictly to this contextual segment
+		if (openParenIdx !== -1 && closeParenIdx !== -1) {
 			let rawPath = forwardText.slice(openParenIdx + 2, closeParenIdx).trim();
 			if (rawPath.startsWith("<") && rawPath.endsWith(">")) {
-					rawPath = rawPath.slice(1, -1);
+				rawPath = rawPath.slice(1, -1);
 			}
 			testCleanPath = rawPath;
-			// Dynamically compute the exact absolute end position of this specific Markdown link structure
 			linkEndPosition = node.from + closeParenIdx + 1;
-    } else {
+		} else {
 			testCleanPath = view.state.doc.sliceString(node.from, node.to);
-    }
+		}
 
-    try {
+		try {
 			testCleanPath = decodeURIComponent(testCleanPath).trim();
-    } catch {
-			// Fallback preservation on URI decoding errors
-    }
-    
-    if (testCleanPath.toLowerCase().endsWith(".md")) {
-        testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
-    }
-    testCleanPath = extractCleanLinkPath(testCleanPath);
+		} catch {
+			// Fallback containment
+		}
+		
+		if (testCleanPath.toLowerCase().endsWith(".md")) {
+			testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
+		}
+		testCleanPath = extractCleanLinkPath(testCleanPath);
 
-    const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
-    if (targetFile !== null) {
+		const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
+		if (targetFile !== null) {
 			const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
 			const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
 			
-			// CONSTRAINED SINGLE-PASS INJECTION: Iterate strictly between the start of the text 
-			// bracket and the precise end of the closing parenthesis to avoid cross-contamination on dense lines.
 			syntaxTree(view.state).iterate({
 				from: node.from,
 				to: linkEndPosition,
-				enter: (sibling) => {
+				enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 					const sName = sibling.name.toLowerCase();
 					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
 
-					// Group and process exactly the 6 token signatures isolated within this link's personal viewport
 					if (
 						(sName.includes("formatting-link") && sText === "[") ||
 						(sName === "link") ||
@@ -377,30 +364,49 @@ export class CMViewPlugin {
 						this.decorateRangeOnce(state, sibling.from, sibling.to, markdownDeco);
 						state.processedRanges.add(`${sibling.from}-${sibling.to}`);
 					}
+					return true;
 				}
 			});
-			return;
-    }
-    state.processedRanges.add(nodeRangeKey);
-    return;
-}
+			return true;
+		}
 
-		// =========================================================================
-		// 🛠️ STANDARD WIKILINK PRODUCTION PIPELINE (UNTOUCHED)
-		// =========================================================================
+		state.processedRanges.add(nodeRangeKey);
+		return true;
+	}
+
+	/**
+	 * Isolated Production Pipeline for structural WikiLinks ([[path|alias]]).
+	 * Re-integrates the original stable line-slicing logic to guarantee zero cross-contamination.
+	 */
+	private processWikiLinkPipeline(
+		view: EditorView,
+		node: CodeMirrorNodeRef,
+		state: IterationState,
+		nodeNameLower: string,
+		nodeRangeKey: string
+	): boolean {
+		const hasAliasClass: boolean = nodeNameLower.includes("cm-link-has-alias") || nodeNameLower.includes("link-has-alias");
+		const isAliasPipeToken: boolean = nodeNameLower.includes("cm-link-alias-pipe") || nodeNameLower.includes("link-alias-pipe");
+		const isAliasToken: boolean = (nodeNameLower.includes("cm-link-alias") || nodeNameLower.includes("link-alias")) && !isAliasPipeToken;
+		const isAliasOnlyOwner: boolean = isAliasToken && !hasAliasClass;
+
+		// 1. Path Resolution: Execute the original stable string slice routine
+		const linkText = this.resolveWikiLinkTarget(view, node, isAliasOnlyOwner);
 		const file: TFile | null = resolveLinkFile(this.app, linkText, state.activeFileBasename, false);
+		
 		if (file === null) {
 			state.processedRanges.add(nodeRangeKey);
-			return;
+			return true;
 		}
 
 		const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
 
+		// 2. Production Layer: Apply decorations using your original stable logic flow
 		if (isAliasOnlyOwner) {
 			const aliasOnlyDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
 			this.decorateRangeOnce(state, node.from, node.to, aliasOnlyDeco);
 			state.processedRanges.add(nodeRangeKey);
-			return;
+			return true;
 		}
 
 		const ownerDeco: Decoration = this.processLinkDecoration(file, visibleLabel);
@@ -411,46 +417,7 @@ export class CMViewPlugin {
 		}
 
 		state.processedRanges.add(nodeRangeKey);
-	}
-
-		/**
-	 * Helper Method: Resolves the semantic target file path string from standard Markdown links ([alias](target)).
-	 * Scans the pre-parsed syntax tree forward within the current line boundaries to securely locate the companion URL token.
-	 */
-	private resolveMarkdownLinkTarget(view: EditorView, node: CodeMirrorNodeRef): string {
-		const line = view.state.doc.lineAt(node.from);
-		let resolvedPath = "";
-
-		syntaxTree(view.state).iterate({
-			from: node.from,
-			to: line.to,
-			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
-				const siblingNameLower = sibling.name.toLowerCase();
-				
-				if (siblingNameLower === "url" && !siblingNameLower.includes("formatting")) {
-					let rawUrl: string = view.state.doc.sliceString(sibling.from, sibling.to).trim();
-					
-					try {
-						rawUrl = decodeURIComponent(rawUrl);
-					} catch {
-						// Safe fallback preservation on URI decoding errors
-					}
-
-					if (rawUrl.startsWith("<") && rawUrl.endsWith(">")) {
-						rawUrl = rawUrl.substring(1, rawUrl.length - 1);
-					}
-
-					if (rawUrl.toLowerCase().endsWith(".md")) {
-						rawUrl = rawUrl.substring(0, rawUrl.length - 3);
-					}
-
-					resolvedPath = extractCleanLinkPath(rawUrl);
-					return false; // Break syntax tree iteration immediately on successful match
-				}
-			}
-		});
-
-		return resolvedPath;
+		return true;
 	}
 
 	/**
