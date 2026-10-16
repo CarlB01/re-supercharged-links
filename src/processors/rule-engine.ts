@@ -46,6 +46,8 @@ interface ResolveRuleResolutionInput {
 	readonly includeTagMatchClasses: boolean;
 	readonly visibleText?: string;
 	readonly fallbackText?: string;
+	readonly skipIconBefore?: boolean;
+	readonly skipIconAfter?: boolean;
 }
 
 export function sanitizeRule(rule: CSSLink): CSSLink {
@@ -206,8 +208,14 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if (backgroundColor.length > 0 && backgroundColor !== "transparent") attributes["data-link-bg"] = backgroundColor;
 	if (fontWeight !== "normal") attributes["data-link-weight"] = fontWeight;
 	if (decorations.length > 0) attributes["data-link-style-decoration"] = decorations.join(" ");
-	if (iconBefore.length > 0) attributes["data-scl-icon-before"] = iconBefore;
-	if (iconAfter.length > 0) attributes["data-scl-icon-after"] = iconAfter;
+
+	if (!input.skipIconBefore && iconBefore.length > 0) {
+		attributes["data-scl-icon-before"] = iconBefore;
+	}
+	if (!input.skipIconAfter && iconAfter.length > 0) {
+		attributes["data-scl-icon-after"] = iconAfter;
+	}
+
 
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";

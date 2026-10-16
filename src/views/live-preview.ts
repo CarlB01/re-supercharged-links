@@ -106,7 +106,12 @@ export class CMViewPlugin {
 	 * @param visibleLabel - The actual raw or cleaned text string rendering inside the editor.
 	 * @returns A computed CodeMirror Mark Decoration containing styling hooks and attributes.
 	 */
-	public processLinkDecoration(file: TFile, visibleLabel: string): Decoration {
+	public processLinkDecoration(
+		file: TFile, 
+		visibleLabel: string, 
+		skipIconBefore = false, 
+		skipIconAfter = false
+	): Decoration {
 		// 1. Core Data Gathering: Retrieve the current cached frontmatter/metadata attributes for the file
 		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
 			this.app,
@@ -128,7 +133,9 @@ export class CMViewPlugin {
 			resolvedAttrs: rawAttrs,
 			isDark,
 			includeTagMatchClasses: true,
-			visibleText: visibleLabel
+			visibleText: visibleLabel,
+			skipIconBefore, 
+			skipIconAfter
 		});
 
 		// Fallback Guard: If no engine configuration criteria matched, return an empty styling pass
@@ -288,6 +295,7 @@ export class CMViewPlugin {
 	/**
 	 * Isolated Production Pipeline for standard Markdown links ([alias](target)).
 	 * Processes structural tokens linearly and injects unified decorations across all siblings.
+	 * Dynamically evaluates token-level labels to prevent icon duplication across open segments.
 	 */
 	private processMarkdownLinkPipeline(
 		view: EditorView,
@@ -343,25 +351,45 @@ export class CMViewPlugin {
 
 		const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
 		if (targetFile !== null) {
-			const visibleLabel: string = this.getVisibleLabel(view, node.from, node.to);
-			const markdownDeco: Decoration = this.processLinkDecoration(targetFile, visibleLabel);
 			
+			// 🌟 LOCAL CURSOR TRACKING MATRIX: Proven via parallel log verification to be 100% stable
+			const cursorHead = view.state.selection.main.head;
+			const isLinkOpen = cursorHead >= node.from && cursorHead <= linkEndPosition;
+
 			syntaxTree(view.state).iterate({
 				from: node.from,
 				to: linkEndPosition,
 				enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 					const sName = sibling.name.toLowerCase();
-					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
+					
+					const isTargetFormatting = sName.includes("formatting-link");
+					const isAliasText = sName === "link";
+					const isUrlText = sName.includes("string_url");
 
-					if (
-						(sName.includes("formatting-link") && sText === "[") ||
-						(sName === "link") ||
-						(sName.includes("formatting-link") && sText === "]") ||
-						(sName.includes("formatting-link") && sText === "(") ||
-						(sName.includes("string_url")) ||
-						(sName.includes("formatting-link") && sText === ")")
-					) {
-						this.decorateRangeOnce(state, sibling.from, sibling.to, markdownDeco);
+					if (isTargetFormatting || isAliasText || isUrlText) {
+						if (isTargetFormatting) {
+							// Formatting components ([, ], (, )): Omit all affix icon attributes completely
+							const formatDeco: Decoration = this.processLinkDecoration(targetFile, "", true, true);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, formatDeco);
+						} else if (isAliasText) {
+							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+							
+							if (!isLinkOpen) {
+								// Context: Closed State. Renders as a single visual capsule. Enable both prepend and append icons natively.
+								const closedDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, false);
+								this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
+							} else {
+								// Context: Open State (Leading segment). Render prepend icon, but suppress append icon to avoid layout collision.
+								const aliasDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, true);
+								this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
+							}
+						} else if (isUrlText) {
+							// Context: Open State (Terminal URL segment). Suppress prepend icon, render append icon at the outer terminal boundary.
+							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+							const urlDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, true, false);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, urlDeco);
+						}
+						
 						state.processedRanges.add(`${sibling.from}-${sibling.to}`);
 					}
 					return true;
@@ -456,10 +484,7 @@ export class CMViewPlugin {
 					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
 					
 					if (sText === "|") {
-						// LIGHTWEIGHT STYLE MATCH: Pass an empty string to bypass icon de-duplication rules completely.
-						// This retains seamless visual styling (color/weight) across the open link sequence 
-						// while protecting the frame budget from redundant lookups.
-						const pipeDeco: Decoration = this.processLinkDecoration(file, "");
+						const pipeDeco: Decoration = this.processLinkDecoration(file, "", true);
 						this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
 					} else {
 						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);

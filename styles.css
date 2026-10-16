@@ -404,56 +404,12 @@
 }
 
 /* 
-   MATHEMATICAL ALIAS RULE:
-   Only suppress the leading icon on the alias segment if the link is actually OPEN.
-   By using strict adjacent sibling combinators (+), we ensure that an open link 
-   never bleeds over and accidentally hides prepend icons on subsequent closed links!
+MATHEMATICAL ALIAS RULE:
+Only suppress the leading icon on the alias segment if the link is actually OPEN.
+By using strict adjacent sibling combinators (+), we ensure that an open link 
+never bleeds over and accidentally hides prepend icons on subsequent closed links!
 */
 .cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
-  display: none;
-}
-
-/* =========================================================================
-   6) 🚀 DETERMINISTIC MARKDOWN LINK ICON REFLECTION LAYER (MULTI-LINK SAFE)
-   ========================================================================= */
-
-/* --- LEDD 1: Start-klammen `[` --- */
-/* Skal kun vise før-ikon. Vi fjerner etter-ikonet. */
-.cm-line.cm-active .cm-formatting-link .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* --- LEDD 2: Selve tekst-noden --- */
-/* Hemmer før- og etter-ikon fullstendig. Triffes kun når den kommer rett etter `[`. */
-.cm-line.cm-active .cm-formatting-link + .cm-link .data-link-text[data-scl-icon-before]::before,
-.cm-line.cm-active .cm-formatting-link + .cm-link .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* --- LEDD 3: Slutt-klammen `]` --- */
-/* Hemmer ikoner. Triffes kun i kjeden: [ -> tekst -> ] */
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link .data-link-text[data-scl-icon-before]::before,
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* --- LEDD 4: Start-parentes `(` --- */
-/* Hemmer ikoner. Triffes kun i kjeden: [ -> tekst -> ] -> ( */
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string .data-link-text[data-scl-icon-before]::before,
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* --- LEDD 5: Selve URL-strengen --- */
-/* Hemmer ikoner. Triffes kun i kjeden: [ -> tekst -> ] -> ( -> url */
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url .data-link-text[data-scl-icon-before]::before,
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* --- LEDD 6: Slutt-parentes `)` --- */
-/* Skal kun vise etter-ikon. Vi fjerner før-ikonet på det aller siste leddet i kjeden. */
-.cm-line.cm-active .cm-formatting-link + .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url + .cm-formatting-link-string .data-link-text[data-scl-icon-before]::before {
   display: none;
 }
 
