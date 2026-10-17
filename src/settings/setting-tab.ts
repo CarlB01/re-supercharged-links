@@ -24,80 +24,14 @@ export default class SCLSettingTab extends PluginSettingTab {
 	public activeEditIndex: number | null = null;
 	private paneStyleEl: HTMLStyleElement | null = null;
 
-	private _generateSnippet(): void {
-		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
-		this.plugin.clearAttrCycleCache();
-
-		// Step 2: Sweep and rebuild all currently visible links via the reconciler engine
-		updateVisibleLinks(this.app, this.plugin);
-		
-		// Step 3: Force CodeMirror extensions to re-evaluate active inline widget properties
-		this.plugin.refreshEditorThemes();
-
-		// STEP 4: READ MODE REBUILD FORCE CONDUIT
-		// Iterates through all open workspace leaves and forces a native structural view rebuild.
-		// This forces Obsidian's MarkdownPostProcessor to re-run instantly over Reading Mode documents,
-		// rendering your fresh icon configurations in real-time without requiring a file close/re-open.
-		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			if (leaf.view instanceof MarkdownView) {
-				if (typeof leaf.rebuildView === "function") {
-					void leaf.rebuildView();
-				}
-			}
-		});
-
-		window.requestAnimationFrame((): void => {
-			this.compilePaneStyles();
-		});
-	}
-
-
-	override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
-		if (key === "scl_rules_search") {
-			this.handleSearchQuery(value);
-		} else if (key.startsWith("scl_")) {
-			this.handleRuleFieldUpdate(key, value);
-			this.plugin.bumpRuleConfigVersion();
-		} else {
-			this.handleGlobalSettingUpdate(key, value);
-			if (key === "enableTagChips" || key === "getFromInlineField") {
-				this.plugin.bumpRuleConfigVersion();
-			}
-		}
-		await this.applyRuleMutationRefresh(silent);
-	}
-
 	constructor(app: App, plugin: ResuperchargedLinks) {
 		super(app, plugin);
 		this.plugin = plugin;
 		this.debouncedGenerate = debounce(() => { void this._generateSnippet(); }, 300, true);
+		this.debouncedSaveSettings = debounce(() => { void this.plugin.saveSettings(); }, 180, true);
+
 		void this._generateSnippet();
-
-		this.plugin.registerDomEvent(this.containerEl, "click", (e: MouseEvent) => {
-			const target: HTMLElement | null = (e.target as HTMLElement) ?? null;
-			if (target === null) return;
-			
-			const clickedRow: HTMLElement | null = target.closest(".scl-clickable-row") ?? null;
-			if (clickedRow === null || target.closest(".clickable-icon, button, input, select, .scl-bg-capsule, .scl-color-dot")) return;
-
-			const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
-			const filteredSelectors: CSSLink[] = this.getFilteredSelectors(selectors);
-			const allRows: Element[] = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
-			const index: number = allRows.indexOf(clickedRow);
-			
-			const selector: CSSLink | null = filteredSelectors[index] ?? null;
-			if (selector === null) return;
-
-			const actualIndex: number = selectors.indexOf(selector);
-			clearColorHistory();
-
-			this.activeEditIndex = this.activeEditIndex === actualIndex ? null : actualIndex;
-			this.refreshUI();
-		});
-
-		this.debouncedSaveSettings = debounce((): void => {
-			void this.plugin.saveSettings();
-		}, 180, true);
+		this.registerRowClickHandler();
 	}
 
 	public hide(): void {
@@ -114,85 +48,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 	public refreshUI(): void { 
 		this.update(); 
-	}
-
-	private getFilteredSelectors(selectors: CSSLink[]): CSSLink[] {
-		const q: string = cleanSearchQuery(this.rulesSearchQuery);
-		if (q.length === 0) return selectors;
-		return selectors.filter((s: CSSLink): boolean => {
-			return [s.type ?? "", s.name ?? "", s.value ?? "", s.iconBefore ?? "", s.iconAfter ?? ""]
-				.join(" ")
-				.toLowerCase()
-				.includes(q);
-		});
-	}
-
-	private renderRuleBadges(setting: Setting, selector: CSSLink): void {
-		const badgeContainer: HTMLElement = setting.controlEl.createSpan({ cls: "scl-badge-container" });
-		createColorCapsule(badgeContainer, selector.lightBgColor ?? "transparent", selector.lightColor ?? "", "Light mode", "var(--text-normal)");
-		createColorCapsule(badgeContainer, selector.darkBgColor ?? "transparent", selector.darkColor ?? "", "Dark mode", "var(--text-muted)");
-	}
-
-	private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
-		const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
-		const grip: HTMLElement = wrap.createEl("button", {
-			cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
-			attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
-		});
-
-		setIcon(grip, "grip-vertical");
-		let longPressTriggered: boolean = false;
-
-		const moveBy = (direction: number): void => {
-			const targetIndex: number = index + direction;
-			if (targetIndex < 0 || targetIndex >= selectors.length) return;
-
-			clearColorHistory();
-
-			void moveRule(this.plugin, selectors, index, direction, {
-				activeEditIndex: this.activeEditIndex,
-				setActiveEditIndex: (next: number | null): void => {
-					this.activeEditIndex = next;
-				},
-				onAfterMove: (): void => {
-					this._generateSnippet();
-					this.refreshUI();
-				},
-				onAnimate: null
-			});
-		};
-
-		const onLongPress = debounce((): void => {
-			longPressTriggered = true;
-			moveBy(-1);
-		}, 380, true);
-
-		const cancelLongPress = (): void => {
-			onLongPress.cancel();
-		};
-
-		this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
-		this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
-		this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
-
-		this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => {
-			if (e.pointerType === "touch") {
-				longPressTriggered = false;
-				onLongPress();
-			}
-		});
-
-		this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => {
-			e.preventDefault();
-			e.stopPropagation();
-
-			if (longPressTriggered) {
-				longPressTriggered = false;
-				return;
-			}
-
-			moveBy(e.shiftKey ? -1 : 1);
-		});
 	}
 
 	override getControlValue(key: string): unknown {
@@ -215,6 +70,21 @@ export default class SCLSettingTab extends PluginSettingTab {
 			}
 		}
 		return null;
+	}
+
+	override async setControlValue(key: string, value: unknown, silent = false): Promise<void> {
+		if (key === "scl_rules_search") {
+			this.handleSearchQuery(value);
+		} else if (key.startsWith("scl_")) {
+			this.handleRuleFieldUpdate(key, value);
+			this.plugin.bumpRuleConfigVersion();
+		} else {
+			this.handleGlobalSettingUpdate(key, value);
+			if (key === "enableTagChips" || key === "getFromInlineField") {
+				this.plugin.bumpRuleConfigVersion();
+			}
+		}
+		await this.applyRuleMutationRefresh(silent);
 	}
 
 	override getSettingDefinitions(): SettingDefinitionItem[] {
@@ -297,83 +167,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 		});
 
 		return definitions;
-	}
-
-	private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
-		setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
-		setting.settingEl.addClass("markdown-rendered");
-		if (isEditing) setting.settingEl.addClass("is-active");
-		
-		setting.settingEl.setAttribute("data-index", String(index));
-		setting.nameEl.empty();
-		
-		renderRuleSentence(setting.nameEl, selector, index);
-
-		this.renderRuleBadges(setting, selector);
-		this.renderReorderGrip(setting, index, selectors);
-
-		window.requestAnimationFrame((): void => {
-			this.compilePaneStyles();
-		});
-	}
-
-	private generateUniqueColors(): { light: string; dark: string } {
-		const hue: number = Math.floor(Math.random() * 360);
-		const hslToHex = (h: number, s: number, l: number): string => {
-			l /= 100;
-			const a = (s * Math.min(l, 1 - l)) / 100;
-			const f = (n: number): string => {
-				const k: number = (n + h / 30) % 12;
-				const color: number = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-				return Math.round(255 * color).toString(16).padStart(2, "0");
-			};
-			return `#${f(0)}${f(8)}${f(4)}`;
-		};
-		return { light: hslToHex(hue, 65, 35), dark: hslToHex(hue, 80, 75) };
-	}
-
-	private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
-
-	private handleRuleFieldUpdate(key: string, value: unknown): void {
-		const { prop, uid: runtimeUid } = parseControlValueKey(key);
-		const targetIdx: number = parseInt(runtimeUid, 10);
-
-		if (isNaN(targetIdx)) return;
-
-		const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
-		const selector: CSSLink | null = selectors[targetIdx] ?? null;
-		const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
-
-		if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
-			const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
-
-			let cleanValue = value;
-			if (prop === "value" && typeof value === "string" && selector.type === "tag") {
-				cleanValue = value.trim().replace(/^#/, "");
-			}
-
-			if (prop === "value" && selector.match === "contains" && typeof cleanValue === "string") {
-				const token = cleanValue.trim();
-				if (token.length > 0 && token.length < 2 && isPureAlphanumeric(token)) {
-					new Notice("Contains value must be at least 2 characters for letters/numbers (symbols like @ are allowed).");
-					return;
-				}
-				cleanValue = token;
-			}
-
-			ruleProxy[prop] = cleanValue;
-
-			const sanitized: CSSLink = sanitizeRule(selector);
-			selector.match = sanitized.match;
-			selector.value = sanitized.value;
-
-			this.plugin.settings.selectors[targetIdx] = selector;
-		}
-	}
-
-	private handleGlobalSettingUpdate(key: string, value: unknown): void {
-		const settingsProxy = this.plugin.settings as unknown as Record<string, unknown>;
-		settingsProxy[key] = value;
 	}
 
 	public compilePaneStyles(): void {
@@ -473,6 +266,218 @@ export default class SCLSettingTab extends PluginSettingTab {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Registers the DOM click event listener on the container element.
+	 * Orchestrates the rule detail panel expansion toggle framework cleanly.
+	 */
+	private registerRowClickHandler(): void {
+		this.plugin.registerDomEvent(this.containerEl, "click", (e: MouseEvent): void => {
+			const target: HTMLElement | null = (e.target as HTMLElement) ?? null;
+			if (target === null) return;
+			
+			const clickedRow: HTMLElement | null = target.closest(".scl-clickable-row") ?? null;
+			if (clickedRow === null || target.closest(".clickable-icon, button, input, select, .scl-bg-capsule, .scl-color-dot")) return;
+
+			const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
+			const filteredSelectors: CSSLink[] = this.getFilteredSelectors(selectors);
+			const allRows: Element[] = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
+			const index: number = allRows.indexOf(clickedRow);
+			
+			const selector: CSSLink | null = filteredSelectors[index] ?? null;
+			if (selector === null) return;
+
+			const actualIndex: number = selectors.indexOf(selector);
+			
+			clearColorHistory();
+
+			this.activeEditIndex = this.activeEditIndex === actualIndex ? null : actualIndex;
+			this.refreshUI();
+		});
+	}
+
+	private _generateSnippet(): void {
+		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
+		this.plugin.clearAttrCycleCache();
+
+		// Step 2: Sweep and rebuild all currently visible links via the reconciler engine
+		updateVisibleLinks(this.app, this.plugin);
+		
+		// Step 3: Force CodeMirror extensions to re-evaluate active inline widget properties
+		this.plugin.refreshEditorThemes();
+
+		// STEP 4: READ MODE REBUILD FORCE CONDUIT
+		// Iterates through all open workspace leaves and forces a native structural view rebuild.
+		// This forces Obsidian's MarkdownPostProcessor to re-run instantly over Reading Mode documents,
+		// rendering your fresh icon configurations in real-time without requiring a file close/re-open.
+		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				if (typeof leaf.rebuildView === "function") {
+					void leaf.rebuildView();
+				}
+			}
+		});
+
+		window.requestAnimationFrame((): void => {
+			this.compilePaneStyles();
+		});
+	}
+
+	private getFilteredSelectors(selectors: CSSLink[]): CSSLink[] {
+		const q: string = cleanSearchQuery(this.rulesSearchQuery);
+		if (q.length === 0) return selectors;
+		return selectors.filter((s: CSSLink): boolean => {
+			return [s.type ?? "", s.name ?? "", s.value ?? "", s.iconBefore ?? "", s.iconAfter ?? ""]
+				.join(" ")
+				.toLowerCase()
+				.includes(q);
+		});
+	}
+
+	private renderRuleBadges(setting: Setting, selector: CSSLink): void {
+		const badgeContainer: HTMLElement = setting.controlEl.createSpan({ cls: "scl-badge-container" });
+		createColorCapsule(badgeContainer, selector.lightBgColor ?? "transparent", selector.lightColor ?? "", "Light mode", "var(--text-normal)");
+		createColorCapsule(badgeContainer, selector.darkBgColor ?? "transparent", selector.darkColor ?? "", "Dark mode", "var(--text-muted)");
+	}
+
+	private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
+		const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
+		const grip: HTMLElement = wrap.createEl("button", {
+			cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
+			attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
+		});
+
+		setIcon(grip, "grip-vertical");
+		let longPressTriggered: boolean = false;
+
+		const moveBy = (direction: number): void => {
+			const targetIndex: number = index + direction;
+			if (targetIndex < 0 || targetIndex >= selectors.length) return;
+
+			clearColorHistory();
+
+			void moveRule(this.plugin, selectors, index, direction, {
+				activeEditIndex: this.activeEditIndex,
+				setActiveEditIndex: (next: number | null): void => {
+					this.activeEditIndex = next;
+				},
+				onAfterMove: (): void => {
+					this._generateSnippet();
+					this.refreshUI();
+				},
+				onAnimate: null
+			});
+		};
+
+		const onLongPress = debounce((): void => {
+			longPressTriggered = true;
+			moveBy(-1);
+		}, 380, true);
+
+		const cancelLongPress = (): void => {
+			onLongPress.cancel();
+		};
+
+		this.plugin.registerDomEvent(grip, "pointerup", cancelLongPress);
+		this.plugin.registerDomEvent(grip, "pointercancel", cancelLongPress);
+		this.plugin.registerDomEvent(grip, "pointerleave", cancelLongPress);
+
+		this.plugin.registerDomEvent(grip, "pointerdown", (e: PointerEvent): void => {
+			if (e.pointerType === "touch") {
+				longPressTriggered = false;
+				onLongPress();
+			}
+		});
+
+		this.plugin.registerDomEvent(grip, "click", (e: MouseEvent): void => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			if (longPressTriggered) {
+				longPressTriggered = false;
+				return;
+			}
+
+			moveBy(e.shiftKey ? -1 : 1);
+		});
+	}
+
+	private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
+		setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
+		setting.settingEl.addClass("markdown-rendered");
+		if (isEditing) setting.settingEl.addClass("is-active");
+		
+		setting.settingEl.setAttribute("data-index", String(index));
+		setting.nameEl.empty();
+		
+		renderRuleSentence(setting.nameEl, selector, index);
+
+		this.renderRuleBadges(setting, selector);
+		this.renderReorderGrip(setting, index, selectors);
+
+		window.requestAnimationFrame((): void => {
+			this.compilePaneStyles();
+		});
+	}
+
+	private generateUniqueColors(): { light: string; dark: string } {
+		const hue: number = Math.floor(Math.random() * 360);
+		const hslToHex = (h: number, s: number, l: number): string => {
+			l /= 100;
+			const a = (s * Math.min(l, 1 - l)) / 100;
+			const f = (n: number): string => {
+				const k: number = (n + h / 30) % 12;
+				const color: number = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+				return Math.round(255 * color).toString(16).padStart(2, "0");
+			};
+			return `#${f(0)}${f(8)}${f(4)}`;
+		};
+		return { light: hslToHex(hue, 65, 35), dark: hslToHex(hue, 80, 75) };
+	}
+
+	private handleSearchQuery(value: unknown): void { this.rulesSearchQuery = String(value ?? ""); this.refreshUI(); }
+
+	private handleRuleFieldUpdate(key: string, value: unknown): void {
+		const { prop, uid: runtimeUid } = parseControlValueKey(key);
+		const targetIdx: number = parseInt(runtimeUid, 10);
+
+		if (isNaN(targetIdx)) return;
+
+		const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
+		const selector: CSSLink | null = selectors[targetIdx] ?? null;
+		const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
+
+		if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
+			const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
+
+			let cleanValue = value;
+			if (prop === "value" && typeof value === "string" && selector.type === "tag") {
+				cleanValue = value.trim().replace(/^#/, "");
+			}
+
+			if (prop === "value" && selector.match === "contains" && typeof cleanValue === "string") {
+				const token = cleanValue.trim();
+				if (token.length > 0 && token.length < 2 && isPureAlphanumeric(token)) {
+					new Notice("Contains value must be at least 2 characters for letters/numbers (symbols like @ are allowed).");
+					return;
+				}
+				cleanValue = token;
+			}
+
+			ruleProxy[prop] = cleanValue;
+
+			const sanitized: CSSLink = sanitizeRule(selector);
+			selector.match = sanitized.match;
+			selector.value = sanitized.value;
+
+			this.plugin.settings.selectors[targetIdx] = selector;
+		}
+	}
+
+	private handleGlobalSettingUpdate(key: string, value: unknown): void {
+		const settingsProxy = this.plugin.settings as unknown as Record<string, unknown>;
+		settingsProxy[key] = value;
 	}
 
 	/**

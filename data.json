@@ -109,9 +109,10 @@
     {
       "type": "tag",
       "value": "psykisk",
-      "lightColor": "#9a36dd",
-      "darkColor": "#c38cf2",
-      "lightBgColor": "#def9dd"
+      "lightColor": "#a078ba",
+      "darkColor": "#cd1818",
+      "lightBgColor": "#91bc8f",
+      "darkBgColor": "#1916ac"
     }
   ],
   "scl_value_10": "haha",

@@ -5,6 +5,27 @@ import ResuperchargedLinks from "../../core/main";
 // Persistent timeline registry. Survives UI refreshes, cleared only when detail pane closes.
 export const colorTimelines: Record<string, { past: string[]; future: string[] }> = {};
 
+interface ColorRowConfig {
+  setting: Setting;
+  plugin: ResuperchargedLinks;
+  selector: CSSLink;
+  propKey: 'lightColor' | 'darkColor' | 'lightBgColor' | 'darkBgColor';
+  modeName: string;
+  fallbackColor: string;
+  isBackground: boolean;
+  setControlValue: (key: string, value: unknown, silent: boolean) => void | Promise<void>;
+  refreshUI: () => void;
+  index: number; 
+}
+
+interface HistoryButtonBlueprint {
+  cls: string;
+  icon: string;
+  label: string;
+  shouldDisable: () => boolean;
+  onExecute: () => Promise<void>;
+}
+
 /**
  * Public cleanup utility called by SettingTab to clear session memories when closing details.
  */
@@ -16,27 +37,71 @@ export function clearColorHistory(): void {
   }
 }
 
-interface ColorRowConfig {
-  setting: Setting;
-  plugin: ResuperchargedLinks;
-  selector: CSSLink;
-  propKey: 'lightColor' | 'darkColor' | 'lightBgColor' | 'darkBgColor';
-  modeName: string;
-  fallbackColor: string;
-  isBackground: boolean;
-  // 🔑 CONTRACT HARMONIZATION: Allow the control parameter proxy to return void or Promise to align with Obsidian
-  setControlValue: (key: string, value: unknown, silent: boolean) => void | Promise<void>;
-  refreshUI: () => void;
-  // 🔑 RUNTIME INDEXING: Pass the sequential array index instead of a static string hash UID
-  index: number; 
+/**
+ * Factory routine to inject and wire standard control action buttons with consistent layouts.
+ */
+function createHistoryActionButton(
+  setting: Setting,
+  historyKey: string,
+  blueprint: HistoryButtonBlueprint,
+  onPostAction: () => void
+): void {
+  setting.addExtraButton((btn) => {
+    const el: HTMLElement = btn.extraSettingsEl;
+    el.addClass(blueprint.cls);
+    el.setAttribute("data-key", historyKey);
+    setIcon(el, blueprint.icon);
+    el.setAttribute("aria-label", blueprint.label);
+
+    btn.onClick(async (): Promise<void> => {
+      if (blueprint.shouldDisable()) return;
+      await blueprint.onExecute();
+      onPostAction();
+    });
+  });
 }
 
+/**
+ * Synchronizes the visibility and interactive state of the history buttons.
+ * Guarantees positional stability by dimming icons instead of shifting DOM nodes.
+ */
+function updateHistoryButtonStates(setting: Setting, historyKey: string, past: string[], future: string[]): void {
+  const row: HTMLElement = setting.settingEl;
+  const uEl: HTMLElement | null = row.querySelector(`.scl-undo-btn[data-key="${historyKey}"]`);
+  const rEl: HTMLElement | null = row.querySelector(`.scl-redo-btn[data-key="${historyKey}"]`);
+  
+  const isHistoryActive: boolean = past.length > 1 || future.length > 0;
+
+  if (uEl !== null) {
+    if (isHistoryActive) {
+      uEl.show();
+      uEl.toggleClass("is-disabled", past.length <= 1);
+      uEl.style.opacity = past.length <= 1 ? "0.3" : "1";
+      uEl.style.pointerEvents = past.length <= 1 ? "none" : "auto";
+    } else {
+      uEl.hide();
+    }
+  }
+
+  if (rEl !== null) {
+    if (isHistoryActive) {
+      rEl.show();
+      rEl.toggleClass("is-disabled", future.length === 0);
+      rEl.style.opacity = future.length === 0 ? "0.3" : "1";
+      rEl.style.pointerEvents = future.length === 0 ? "none" : "auto";
+    } else {
+      rEl.hide();
+    }
+  }
+}
+
+/**
+ * Builds a layout-stable color configuration row with unified undo/redo capabilities.
+ */
 export function buildUnifiedColorRow(config: ColorRowConfig): void {
   const { setting, plugin, selector, propKey, fallbackColor, isBackground, setControlValue, refreshUI, index } = config;
   
-  // 🔑 INDEX BRIDGE: Construct transaction history registration key directly around the runtime sequence index
   const historyKey = `${propKey}_${index}`;
-
   const modelProxy = selector as unknown as Record<string, string>;
 
   if (!colorTimelines[historyKey]) {
@@ -45,98 +110,88 @@ export function buildUnifiedColorRow(config: ColorRowConfig): void {
 
   const timeline = colorTimelines[historyKey];
 
-  // 1. ADD DEDICATED UNDO BUTTON NODE
-  setting.addExtraButton((undoBtn) => {
-    const el = undoBtn.extraSettingsEl;
-    el.addClass("scl-undo-btn");
-    el.setAttribute("data-key", historyKey);
-    setIcon(el, "undo");
-    el.setAttribute("aria-label", "Undo step");
-
-    if (timeline.past.length <= 1) el.hide(); else el.show();
-
-    undoBtn.onClick(async () => {
-      if (timeline.past.length <= 1) return;
-      
-      const current = timeline.past.pop()!;
-      timeline.future.push(current);
-      
-      const previous = timeline.past[timeline.past.length - 1] ?? "";
-      
-      modelProxy[propKey] = previous;
-
-      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
-      await setControlValue(`scl_${propKey}_${index}`, previous, false);
-      refreshUI();
-    });
-  });
-
-  // 2. ADD DEDICATED REDO BUTTON NODE
-  setting.addExtraButton((redoBtn) => {
-    const el = redoBtn.extraSettingsEl;
-    el.addClass("scl-redo-btn");
-    el.setAttribute("data-key", historyKey);
-    setIcon(el, "redo");
-    el.setAttribute("aria-label", "Redo step");
-
-    if (timeline.future.length === 0) el.hide(); else el.show();
-
-    redoBtn.onClick(async () => {
-      if (timeline.future.length === 0) return;
-
-      const next = timeline.future.pop()!;
-      timeline.past.push(next);
-      
-      modelProxy[propKey] = next;
-
-      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
-      await setControlValue(`scl_${propKey}_${index}`, next, false);
-      refreshUI();
-    });
-  });
-
-  // 3. ADD TOTAL RESET COMPONENT BUTTON
-  setting.addExtraButton((b) => b.setIcon("rotate-ccw").setTooltip("Reset to default").onClick(async () => {
-    const defaultVal = isBackground ? "transparent" : "";
-    const lastSaved = timeline.past[timeline.past.length - 1];
-
-    if (defaultVal !== lastSaved) {
-      timeline.past.push(defaultVal);
-      timeline.future = []; 
-    }
-
-    modelProxy[propKey] = defaultVal;
-    // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
-    await setControlValue(`scl_${propKey}_${index}`, defaultVal, false);
+  const handleStateMutation = (): void => {
+    updateHistoryButtonStates(setting, historyKey, timeline.past, timeline.future);
     refreshUI();
-  }));
+  };
+
+  // ⚡ DEKLARATIV MATRISE: Her mater vi inn verdiene for hver knapp i sekvens
+  const blueprints: HistoryButtonBlueprint[] = [
+    {
+      cls: "scl-undo-btn",
+      icon: "undo",
+      label: "Undo step",
+      shouldDisable: () => timeline.past.length <= 1,
+      onExecute: async (): Promise<void> => {
+        const current: string | undefined = timeline.past.pop();
+        if (current !== undefined) {
+          timeline.future.push(current);
+        }
+        const previous: string = timeline.past[timeline.past.length - 1] ?? "";
+        modelProxy[propKey] = previous;
+        await setControlValue(`scl_${propKey}_${index}`, previous, false);
+      }
+    },
+    {
+      cls: "scl-redo-btn",
+      icon: "redo",
+      label: "Redo step",
+      shouldDisable: () => timeline.future.length === 0,
+      onExecute: async (): Promise<void> => {
+        const next: string | undefined = timeline.future.pop();
+        if (next !== undefined) {
+          timeline.past.push(next);
+        }
+        modelProxy[propKey] = next ?? "";
+        await setControlValue(`scl_${propKey}_${index}`, modelProxy[propKey], false);
+      }
+    },
+    {
+      cls: "scl-reset-btn",
+      icon: "rotate-ccw",
+      label: "Reset to default",
+      shouldDisable: () => false,
+      onExecute: async (): Promise<void> => {
+        const defaultVal: string = isBackground ? "transparent" : "";
+        const lastSaved: string = timeline.past[timeline.past.length - 1] ?? "";
+        if (defaultVal !== lastSaved) {
+          timeline.past.push(defaultVal);
+          timeline.future = [];
+        }
+        modelProxy[propKey] = defaultVal;
+        await setControlValue(`scl_${propKey}_${index}`, defaultVal, false);
+      }
+    }
+  ];
+
+  // Injekter knappene basert på matrisen
+  for (let i = 0; i < blueprints.length; i++) {
+    const bp = blueprints[i];
+    if (bp !== undefined) {
+      createHistoryActionButton(setting, historyKey, bp, handleStateMutation);
+    }
+  }
 
   // 4. ATTACH THE NATIVE OBISIDIAN COLOR PICKER
   setting.addColorPicker((cp) => {
-    const currentVal = modelProxy[propKey];
+    const currentVal: string = modelProxy[propKey] ?? "";
     cp.setValue(currentVal && currentVal !== "transparent" ? currentVal : fallbackColor);
     
-    cp.onChange(async (v) => {
-      const lastSaved = timeline.past[timeline.past.length - 1];
-      
+    cp.onChange(async (v: string): Promise<void> => {
+      const lastSaved: string = timeline.past[timeline.past.length - 1] ?? "";
       if (v !== lastSaved) {
         timeline.past.push(v);
-        timeline.future = []; 
+        timeline.future = [];
       }
-
-      const row = setting.settingEl;
-      const uEl = row.querySelector(`.scl-undo-btn[data-key="${historyKey}"]`) as HTMLElement;
-      const rEl = row.querySelector(`.scl-redo-btn[data-key="${historyKey}"]`) as HTMLElement;
-      
-      if (uEl) { if (timeline.past.length <= 1) uEl.hide(); else uEl.show(); }
-      if (rEl) { if (timeline.future.length === 0) rEl.hide(); else rEl.show(); }
-
-      // 🔑 INDEX CONSOLIDATION: Force the active row index parameter into the control registration channel
+      updateHistoryButtonStates(setting, historyKey, timeline.past, timeline.future);
       await setControlValue(`scl_${propKey}_${index}`, v, true);
     });
 
-    plugin.registerDomEvent(cp.colorPickerEl, "change", () => {
+    plugin.registerDomEvent(cp.colorPickerEl, "change", (): void => {
       refreshUI();
     });
   });
+
+  updateHistoryButtonStates(setting, historyKey, timeline.past, timeline.future);
 }
+
