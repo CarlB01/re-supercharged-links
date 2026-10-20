@@ -1,26 +1,39 @@
+import { setIcon } from "obsidian";
+
 /**
  * Renders an isolated color capsule component representing light/dark theme property profiles.
+ * Compliance Edition: Zero inline styles, fully driven by CSS variables and classes.
  */
 export function createColorCapsule(
   parent: HTMLElement,
-  bgColor: string | undefined,
-  textColor: string | undefined,
+  bgColor: string,
+  textColor: string,
   modeName: string,
   fallbackText: string
 ): void {
-  const capsule = parent.createSpan({
-    cls: modeName.includes("Dark") ? "scl-bg-capsule is-dark" : "scl-bg-capsule"
+  const isDark: boolean = modeName.includes("Dark");
+  
+  const capsule: HTMLSpanElement = parent.createSpan({
+    cls: isDark ? "scl-bg-capsule is-dark" : "scl-bg-capsule"
   });
 
-  capsule.setAttr("title", `${modeName} background: ${bgColor ?? "transparent"}`);
+  const safeBgColor: string = bgColor.length > 0 ? bgColor : "transparent";
+  capsule.setAttr("title", `${modeName} background: ${safeBgColor}`);
 
-  if (bgColor && bgColor !== "transparent") {
-    capsule.style.backgroundColor = bgColor;
+  if (safeBgColor !== "transparent") {
+    capsule.style.setProperty("--scl-capsule-bg", safeBgColor);
   } else {
     capsule.addClass("is-transparent");
   }
 
-  const dot = capsule.createSpan({ cls: "scl-color-dot" });
-  dot.setAttr("title", `${modeName} text color: ${textColor ?? "default"}`);
-  dot.style.setProperty("--scl-dot-color", textColor ?? fallbackText);
+  const iconName: string = isDark ? "moon" : "sun";
+
+  const iconEl: HTMLSpanElement = capsule.createSpan({ cls: "scl-color-icon" });
+  
+  const safeTextColor: string = textColor.length > 0 ? textColor : fallbackText;
+  iconEl.setAttr("title", `${modeName} text color: ${safeTextColor}`);
+  
+  iconEl.style.setProperty("--scl-capsule-color", safeTextColor);
+
+  setIcon(iconEl, iconName);
 }

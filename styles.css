@@ -46,6 +46,7 @@
       border: 1px solid var(--background-modifier-border);
       box-sizing: border-box;
       flex-shrink: 0;
+      background-color: var(--scl-capsule-bg, transparent);
 
       &.is-transparent {
         background-color: var(--background-primary);
@@ -62,18 +63,25 @@
       }
     }
 
-    /* Distinct interior dot container matrix */
-    .scl-color-dot {
-      display: inline-block;
+    /* Distinct interior Lucide icon container matrix */
+    .scl-color-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       width: 14px;
       height: 14px;
       min-width: 14px;
       min-height: 14px;
-      border-radius: 50%;
-      border: 1px solid rgba(0, 0, 0, 0.15);
       box-sizing: border-box;
       flex-shrink: 0;
-      background-color: var(--scl-dot-color);
+
+      /* Target the nested Lucide vector engine safely */
+      svg {
+        width: 100%;
+        height: 100%;
+        stroke-width: 2.5px; /* Gjør sol- og månestrekene rene og tydelige */
+        color: var(--scl-capsule-color, var(--text-normal)); /* Fallback til normal tekstfarge */
+      }
     }
 
     /* Primary link node preview layout context */

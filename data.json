@@ -4,19 +4,19 @@
   "selectors": [
     {
       "type": "tag",
-      "value": "her",
-      "iconBefore": "👩🏼‍🎤",
-      "lightColor": "#be557f",
-      "darkColor": "#ff5555"
-    },
-    {
-      "type": "tag",
       "value": "him",
       "iconBefore": "👤",
       "lightColor": "#5773ff",
       "darkColor": "#a9b6f9",
       "fontWeight": "lighter",
       "fontStyle": "italic"
+    },
+    {
+      "type": "tag",
+      "value": "her",
+      "iconBefore": "👩🏼‍🎤",
+      "lightColor": "#be557f",
+      "darkColor": "#ff5555"
     },
     {
       "type": "tag",
@@ -109,10 +109,11 @@
     {
       "type": "tag",
       "value": "psykisk",
-      "lightColor": "#a078ba",
-      "darkColor": "#cd1818",
-      "lightBgColor": "#91bc8f",
-      "darkBgColor": "#1916ac"
+      "lightColor": "#841dc9",
+      "darkColor": "#f93434",
+      "lightBgColor": "#ddd95f",
+      "darkBgColor": "#1916ac",
+      "fontStyle": "italic"
     }
   ],
   "scl_value_10": "haha",
