@@ -13,20 +13,13 @@
     },
     {
       "type": "tag",
-      "value": "her",
-      "iconBefore": "👩🏼‍🎤",
-      "lightColor": "#be557f",
-      "darkColor": "#ff5555"
-    },
-    {
-      "type": "tag",
       "value": "tekst",
       "iconBefore": "📄",
-      "lightColor": "#c9ae26",
+      "lightColor": "#8826c9",
       "darkColor": "#dbdc79",
       "fontWeight": "lighter",
       "fontStyle": "line-through",
-      "lightBgColor": "#f9c3c3",
+      "lightBgColor": "#fbeeee",
       "darkBgColor": "#664d4d"
     },
     {
@@ -70,10 +63,12 @@
       "type": "tag",
       "value": "symptom",
       "iconBefore": "🛌",
-      "lightColor": "#b9c606",
-      "darkColor": "#f0f971",
+      "lightColor": "#c64906",
+      "darkColor": "#71f9cc",
       "lightBgColor": "#fffedb",
-      "darkBgColor": "#5a4861"
+      "darkBgColor": "#5a4861",
+      "fontWeight": "bold",
+      "fontStyle": "line-through"
     },
     {
       "type": "tag",
@@ -86,14 +81,6 @@
     },
     {
       "type": "tag",
-      "value": "hun",
-      "lightColor": "#6f1f93",
-      "darkColor": "#f28cb8",
-      "iconAfter": "🀄️",
-      "lightBgColor": "#e0d23e"
-    },
-    {
-      "type": "attribute",
       "value": "klinikk",
       "iconBefore": "🏥",
       "lightBgColor": "#dad8d8",
@@ -101,19 +88,31 @@
     },
     {
       "type": "tag",
-      "value": "fri",
-      "lightColor": "#543636",
-      "darkColor": "#f2e58c",
-      "lightBgColor": "#41e1df"
+      "value": "hun",
+      "lightColor": "#6f1f93",
+      "darkColor": "#f28cb8",
+      "iconAfter": "🀄️",
+      "lightBgColor": "#e0d23e"
     },
     {
       "type": "tag",
-      "value": "psykisk",
-      "lightColor": "#841dc9",
+      "value": "fri",
+      "lightColor": "#f90606",
+      "darkColor": "#f2e58c",
+      "lightBgColor": "#d0f0f0",
+      "fontWeight": "bold",
+      "iconBefore": "🏙️"
+    },
+    {
+      "type": "tag",
+      "value": "psykis",
+      "lightColor": "#6a11a2",
       "darkColor": "#f93434",
       "lightBgColor": "#ddd95f",
       "darkBgColor": "#1916ac",
-      "fontStyle": "italic"
+      "fontStyle": "italic",
+      "iconBefore": "🤸🏼",
+      "fontWeight": "lighter"
     }
   ],
   "scl_value_10": "haha",

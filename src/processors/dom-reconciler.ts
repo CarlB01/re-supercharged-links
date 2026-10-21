@@ -501,7 +501,6 @@ export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?
 
 	// Iterate ALL leaves across the entire workspace (including background tabs)
 	app.workspace.iterateAllLeaves((leaf) => {
-		// Safe boundary checks without utilizing any-casts or triggering undefined errors
 		let trueViewFile: TFile | null = null;
 		const viewInstance: unknown = leaf.view;
 

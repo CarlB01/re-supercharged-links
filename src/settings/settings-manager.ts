@@ -59,10 +59,9 @@ export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ setting
 	
 	let dataRepaired: boolean = loadedData === null;
 
-	// ⚡ CENTRALIZED ROOT PURGE (Ingestion): Instantly evicts obsolete root parameters from RAM
 	for (let i = 0; i < GLOBAL_ROOT_GARBAGE_KEYS.length; i++) {
-		const garbageKey = GLOBAL_ROOT_GARBAGE_KEYS[i];
-		if (garbageKey !== undefined && dataProxy[garbageKey] !== undefined) {
+		const garbageKey: string = GLOBAL_ROOT_GARBAGE_KEYS[i] ?? "";
+		if (garbageKey.length > 0 && dataProxy[garbageKey] !== undefined) {
 			delete dataProxy[garbageKey];
 			dataRepaired = true;
 		}
@@ -143,11 +142,10 @@ export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings
 
 	const settingsClone: SCLSettings = cloneSettingsObject(settings);
 	
-	// ⚡ CENTRALIZED ROOT PURGE (Egress): Strips explicit defaults before JSON disk serialization
 	const rawSettingsProxy = settingsClone as unknown as Record<string, unknown>;
 	for (let i = 0; i < GLOBAL_ROOT_GARBAGE_KEYS.length; i++) {
-		const garbageKey = GLOBAL_ROOT_GARBAGE_KEYS[i];
-		if (garbageKey !== undefined && rawSettingsProxy[garbageKey] !== undefined) {
+		const garbageKey: string = GLOBAL_ROOT_GARBAGE_KEYS[i] ?? "";
+		if (garbageKey.length > 0 && rawSettingsProxy[garbageKey] !== undefined) {
 			delete rawSettingsProxy[garbageKey];
 		}
 	}

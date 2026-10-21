@@ -75,27 +75,18 @@
       box-sizing: border-box;
       flex-shrink: 0;
 
-      /* Target the nested Lucide vector engine safely */
       svg {
         width: 100%;
         height: 100%;
-        stroke-width: 2.5px; /* Gjør sol- og månestrekene rene og tydelige */
-        color: var(--scl-capsule-color, var(--text-normal)); /* Fallback til normal tekstfarge */
+        stroke-width: 2.5px;
+        color: var(--scl-capsule-color, var(--text-normal));
       }
     }
 
-    /* Primary link node preview layout context */
+    /* Primary link node preview layout context - Cleaned up to support native links */
     .data-link-text {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      height: 20px;       
-      border-radius: 4px; 
-      border: 1px solid var(--background-modifier-border);
-      box-sizing: border-box;
-      padding: 0 3px;     
-      margin: 0 4px;      
       white-space: nowrap;
+      margin: 0 4px;      
     }
 
     button {
@@ -289,29 +280,6 @@
    3) GLOBAL COMPONENT INTERREACTIONS & RUNTIME UTILITY CLASSES
    ========================================================================= */
 
-.scl-color-row input[type="color"] {
-  -webkit-appearance: none;
-  appearance: none;
-  inline-size: 32px;
-  block-size: 32px;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  overflow: hidden;
-
-  &::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
-
-  &::-webkit-color-swatch {
-    border: none;
-    border-radius: 50%;
-  }
-}
-
 .scl-undo-btn, .scl-redo-btn {
   transition: opacity 0.15s ease-in-out;
 }
@@ -333,15 +301,6 @@
   font-size: 0.85em;
   display: inline-block;
   flex-shrink: 0;
-}
-
-/* Clean spatial boundaries isolated to direction tags (No fixed absolute metrics) */
-.scl-inline-icon-before { 
-  display: inline-block; 
-}
-
-.scl-inline-icon-after { 
-  display: inline-block; 
 }
 
 /* Typography override hooks mapped directly to baseline structural classes */
@@ -411,12 +370,7 @@
   display: none;
 }
 
-/* 
-MATHEMATICAL ALIAS RULE:
-Only suppress the leading icon on the alias segment if the link is actually OPEN.
-By using strict adjacent sibling combinators (+), we ensure that an open link 
-never bleeds over and accidentally hides prepend icons on subsequent closed links!
-*/
+/* Only suppress prepend icons on open aliases */
 .cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
   display: none;
 }

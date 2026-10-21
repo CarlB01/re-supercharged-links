@@ -1,28 +1,35 @@
 import { CSSLink } from "../../types/css-link";
-import { cleanAttributeKey } from "../../utils/shared-utils";
+import { cleanRuleValue, cleanAttributeKey } from "../../utils/shared-utils";
 
 /**
- * Renders the standalone preview link node inside the settings tab row framework.
- * 🔑 RUNTIME INDEX MATRIX: Uses the dynamic row sequence index (index) instead of selector.uid.
+ * Renders the preview link node as an authentic framework link.
+ * This allows the core observer and layout engines to catch and style it automatically.
  */
 export function renderPreviewNote(parent: HTMLElement, selector: CSSLink, index: number): void {
-  // ⚡ FIX: Assign the lightweight runtime class index (scl-rule-0, scl-rule-1)
-  const noteSpan = parent.createSpan({ 
-    cls: `data-link-text scl-rule-${index}` 
+  // ⚡ DELT RUTINE: Bruker din standardiserte verdi-vasker
+  const val: string = cleanRuleValue(selector.value); 
+
+  const noteAnchor = parent.createEl("a", { 
+    cls: `internal-link data-link-text scl-rule-${index}`,
+    text: "Note"
   });
 
-  const val: string = (selector.value || "").trim();
+  noteAnchor.setAttribute("href", val);
+  noteAnchor.setAttribute("data-href", val);
 
   if (selector.type === "tag") {
-    noteSpan.setAttribute("data-link-tags", val);
+    // ⚡ DELT RUTINE: Garanterer nøyaktig ett #-tegn i datagrunnlaget for tagger
+    noteAnchor.setAttribute("data-link-tags", val.length > 0 ? `#${val}` : "");
+    noteAnchor.setAttribute("data-tag", val);
   } else if (selector.type === "attribute") {
+    // ⚡ DELT RUTINE: Konverterer frontmatter-navn til lower-hyphen delimitation
     const key: string = cleanAttributeKey(selector.name);
-    if (key.length > 0) noteSpan.setAttribute(`data-link-${key}`, val);
-  } else {
-    noteSpan.setAttribute("data-link-path", val);
+    if (key.length > 0) {
+      noteAnchor.setAttribute(`data-link-${key}`, val);
+    }
+  } else if (selector.type === "path") {
+    noteAnchor.setAttribute("data-link-path", val);
   }
-
-  noteSpan.setText("Note");
 }
 
 /**

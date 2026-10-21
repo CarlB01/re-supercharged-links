@@ -1,7 +1,7 @@
 // utils/shared-utils
 
 /**
- * Performs a typesafe structural clone of settings blocks without using any-casts.
+ * Performs a typesafe structural clone of settings blocks.
  */
 export function cloneSettingsObject<T>(obj: T): T {
 	return JSON.parse(JSON.stringify(obj)) as T;

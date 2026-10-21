@@ -1,17 +1,15 @@
-// settings/setting-tab
-
 import { App, debounce, PluginSettingTab, SettingDefinitionItem, Setting, SettingGroupItem, setIcon, Notice, WorkspaceLeaf, MarkdownView } from "obsidian";
 import { CSSLink } from "../types/css-link";
-import { clearColorHistory } from "./components/color-row-factory";
+import { clearColorHistory, createColorCapsule } from "./components/color-row-factory";
 import { getRuleDetailItems } from "./components/detail-rows-factory";
 import { renderRuleSentence } from "./components/rule-renderer";
 import { moveRule } from "./components/rule-order-engine";
-import { cleanSearchQuery, createInlineIconSpan, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
-import { createColorCapsule } from "./components/color-capsule";
+import { cleanAttributeKey, cleanRuleValue, cleanSearchQuery, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
 import { sanitizeRule } from "../processors/rule-engine";
 import { updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "../core/main";
 import { EDITABLE_PROPERTIES } from "./settings-constants";
+import { setLinkNewProps } from "../views/dom-mutator";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -108,7 +106,14 @@ export default class SCLSettingTab extends PluginSettingTab {
 			{
 				render: (setting: Setting): void => {
 					setting.setName("Search").setDesc("Filter style rules.").settingEl.addClass("scl-search-row");
-					setting.addSearch((cb): void => { cb.setPlaceholder("Search style rules...").setValue(this.rulesSearchQuery).onChange((value: string | null): void => { this.rulesSearchQuery = value ?? ""; this.refreshUI(); }); });
+					setting.addSearch((cb): void => { 
+						cb.setPlaceholder("Search style rules...")
+							.setValue(this.rulesSearchQuery)
+							.onChange((value: string | null): void => { 
+								this.rulesSearchQuery = value ?? ""; 
+								this.refreshUI(); 
+							}); 
+					});
 				}
 			},
 			...(existingRuleItems.length > 0 ? existingRuleItems : [{ name: "No matching rules", desc: "Try another search term." }])
@@ -123,25 +128,31 @@ export default class SCLSettingTab extends PluginSettingTab {
 				name: "Create a new style rule",
 				desc: "Add a new template selector with preconfigured colors.",
 				render: (setting: Setting): void => {
-					setting.addButton((btn): void => { btn.setButtonText("Create").onClick((): void => {
-						const newSelector: CSSLink = new CSSLink();
-						newSelector.type = "tag";
-						newSelector.value = "new-tag";
-						const generatedColors = this.generateUniqueColors();
-						newSelector.lightColor = generatedColors.light;
-						newSelector.darkColor = generatedColors.dark;
-						newSelector.lightBgColor = "transparent";
-						newSelector.darkBgColor = "transparent";
-						
-						selectors.push(newSelector);
-						this.plugin.bumpRuleConfigVersion();
-						this.plugin.compileActiveAttributes();
-						void this.plugin.saveSettings();
-						void this._generateSnippet();
-						
-						this.activeEditIndex = selectors.length - 1;
-						this.refreshUI();
-					}); });
+					setting.addButton((btn): void => { 
+						btn.setButtonText("Create").onClick((): void => {
+							const newSelector: CSSLink = new CSSLink();
+							newSelector.type = "tag";
+							newSelector.value = "new-tag";
+							const generatedColors = this.generateUniqueColors();
+							newSelector.lightColor = generatedColors.light;
+							newSelector.darkColor = generatedColors.dark;
+							newSelector.lightBgColor = "transparent";
+							newSelector.darkBgColor = "transparent";
+							
+							// ⚡ RINGVIRKNING-FIX: Nullstill søkefeltet helt ved opprettelse.
+							// Dette garanterer at den nye regelen ikke blir kvalt av et aktivt søkefilter!
+							this.rulesSearchQuery = "";
+							
+							selectors.push(newSelector);
+							this.plugin.bumpRuleConfigVersion();
+							this.plugin.compileActiveAttributes();
+							void this.plugin.saveSettings();
+							void this._generateSnippet();
+							
+							this.activeEditIndex = selectors.length - 1;
+							this.refreshUI();
+						}); 
+					});
 				}
 			}]
 		});
@@ -171,133 +182,110 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 	public compilePaneStyles(): void {
 		const selectors: CSSLink[] = this.plugin.settings?.selectors ?? [];
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const selectorsCount = selectors.length;
+		
+		// ⚡ SØKESIKRING: Vi itererer kun over reglene som faktisk kom seg gjennom søkefilteret
+		const filteredSelectors = this.getFilteredSelectors(selectors);
+		const filteredCount = filteredSelectors.length;
 
-		for (let i: number = 0; i < selectorsCount; i++) {
-			const rule: CSSLink | null = selectors[i] ?? null;
+		for (let i = 0; i < filteredCount; i++) {
+			const rule: CSSLink | null = filteredSelectors[i] ?? null;
 			if (rule === null) continue;
 
-			const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`[data-index="${i}"]`) ?? null;
+			// Finn den nøyaktige master-indeksen for å kunne slå opp i DOM-en
+			const masterIndex = selectors.indexOf(rule);
+			if (masterIndex === -1) continue;
+
+			// ⚡ FIX: Vi søker i HELE containeren etter den unike hovedraden for denne regelen.
+			// Dette gjør oss immune mot ekstra detaljrader som ligger skutt inn som søsken-elementer!
+			const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.scl-main-rule-row[data-index="${masterIndex}"]`) ?? null;
 			if (rowEl === null) continue;
 
-			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${i}`) ?? null;
+			// Finn forhåndsvisnings-lenken trygt inne i akkurat denne spesifikke hovedraden
+			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${masterIndex}`) ?? null;
 			if (noteEl === null) continue;
 
-			const activeColor: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-			const activeBg: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
+			const rawValue: string = cleanRuleValue(rule.value);
+
+			// 1. Konstruer en typesikker mock-payload for kjerne-motoren
+			const mockProps: Record<string, string> = {};
 			
-			if (noteEl !== null) {
-				const targetStyles: Partial<CSSStyleDeclaration> = {
-					color: activeColor.length > 0 ? activeColor : "var(--text-normal)",
-					backgroundColor: (activeBg.length > 0 && activeBg !== "transparent") ? activeBg : "transparent",
-					fontWeight: (rule.fontWeight && rule.fontWeight !== "normal") ? rule.fontWeight : "normal",
-					fontStyle: "normal",
-					textDecoration: "none"
-				};
+			if (rule.type === "tag" && rawValue.length > 0) {
+				mockProps["tags"] = rawValue;
+			} else if (rule.type === "attribute") {
+				const attrKey: string = cleanAttributeKey(rule.name);
+				if (attrKey.length > 0) {
+					mockProps[attrKey] = rawValue;
+				}
+			} else if (rule.type === "path" && rawValue.length > 0) {
+				mockProps["path"] = rawValue;
+			}
+
+			// 2. Kjøre stilingen 100 % synkront på denne isolerte noden
+			setLinkNewProps(noteEl, mockProps, this.plugin);
+
+			// 3. Oppdater beskrivende tekst-elementer dynamisk i denne raden
+			if (rule.type === "tag") {
+				const tagAnchor = rowEl.querySelector<HTMLElement>("a.tag");
+				if (tagAnchor !== null) {
+					tagAnchor.setText(rawValue.length > 0 ? `#${rawValue}` : "#");
+				}
+			} else if (rule.type === "attribute") {
+				const boldElements = rowEl.querySelectorAll("b");
+				const attrName: string = rule.name || "empty";
+				const boldCount = boldElements.length;
 				
-				if (rule.fontStyle === "italic") {
-					targetStyles.fontStyle = "italic";
-				} else if (rule.fontStyle === "underline") {
-					targetStyles.textDecoration = "underline";
-				} else if (rule.fontStyle === "line-through") {
-					targetStyles.textDecoration = "line-through";
-				}
-
-				noteEl.setCssStyles(targetStyles);
-
-				const val: string = (rule.value || "").trim();
-				if (rule.type === "tag" && val.length > 0) {
-					const cleanTag = val.replace(/^#/, "");
-					noteEl.setAttribute("data-link-tags", `#${cleanTag}`);
-				}
-
-				const valText: string = rule.value || "empty";
-				
-				if (rule.type === "tag") {
-					const tagAnchor = rowEl.querySelector<HTMLElement>("a.tag");
-					if (tagAnchor !== null) {
-						const cleanDisplayTag = valText.trim().replace(/^#/, "");
-						tagAnchor.setText(`#${cleanDisplayTag}`);
-					}
-				} else if (rule.type === "attribute") {
-					const boldElements = rowEl.querySelectorAll("b");
-					const attrName: string = rule.name || "empty";
-					
-					const boldCount = boldElements.length;
-					for (let k = 0; k < boldCount; k++) {
-						const bEl = boldElements[k];
-						if (bEl instanceof HTMLElement) {
-							if (k === 0) bEl.setText(attrName);
-							if (k === 1) bEl.setText(valText);
-						}
-					}
-				} else {
-					const boldElement = rowEl.querySelector("b");
-					if (boldElement instanceof HTMLElement) {
-						boldElement.setText(valText);
+				for (let k = 0; k < boldCount; k++) {
+					const bEl = boldElements[k];
+					if (bEl instanceof HTMLElement) {
+						if (k === 0) bEl.setText(attrName);
+						if (k === 1) bEl.setText(rawValue.length > 0 ? rawValue : "empty");
 					}
 				}
-
-				const badgeContainer = rowEl.querySelector(".scl-badge-container");
-				if (badgeContainer instanceof HTMLElement) {
-					badgeContainer.empty();
-					createColorCapsule(badgeContainer, rule.lightBgColor ?? "transparent", rule.lightColor ?? "", "Light mode", "var(--text-normal)");
-					createColorCapsule(badgeContainer, rule.darkBgColor ?? "transparent", rule.darkColor ?? "", "Dark mode", "var(--text-muted)");
+			} else {
+				const boldElement = rowEl.querySelector("b");
+				if (boldElement instanceof HTMLElement) {
+					boldElement.setText(rawValue.length > 0 ? rawValue : "empty");
 				}
+			}
 
-				const oldIcons: NodeListOf<Element> = noteEl.querySelectorAll(".scl-inline-icon");
-				const oldIconsCount = oldIcons.length;
-				for (let j = 0; j < oldIconsCount; j++) {
-					const icon = oldIcons[j] ?? null;
-					if (icon !== null) icon.remove();
-				}
-
-				const iconBefore: string = (rule.iconBefore ?? "").trim();
-				const iconAfter: string = (rule.iconAfter ?? "").trim();
-
-				if (iconBefore.length > 0) {
-					const spanBefore = createInlineIconSpan(this.containerEl.ownerDocument, iconBefore, true);
-					noteEl.insertBefore(spanBefore, noteEl.firstChild);
-				}
-				if (iconAfter.length > 0) {
-					const spanAfter = createInlineIconSpan(this.containerEl.ownerDocument, iconAfter, false);
-					noteEl.appendChild(spanAfter);
-				}
+			// 4. Synkroniser fargekapslene (badges) for raden
+			const badgeContainer = rowEl.querySelector(".scl-badge-container");
+			if (badgeContainer instanceof HTMLElement) {
+				badgeContainer.empty();
+				createColorCapsule(badgeContainer, rule.lightBgColor ?? "transparent", rule.lightColor ?? "", "Light mode", "var(--text-normal)");
+				createColorCapsule(badgeContainer, rule.darkBgColor ?? "transparent", rule.darkColor ?? "", "Dark mode", "var(--text-muted)");
 			}
 		}
 	}
 
-	/**
-	 * Registers the DOM click event listener on the container element.
-	 * Orchestrates the rule detail panel expansion toggle framework cleanly.
-	 */
 	private registerRowClickHandler(): void {
 		this.plugin.registerDomEvent(this.containerEl, "click", (e: MouseEvent): void => {
 			const target: HTMLElement | null = (e.target as HTMLElement) ?? null;
 			if (target === null) return;
 			
+			// Finn nærmeste hovedrad-element (ignorerer detaljradene)
 			const clickedRow: HTMLElement | null = target.closest(".scl-clickable-row") ?? null;
+			
+			// Avbryt hvis brukeren klikket på ikoner, knapper, input-felter eller fargevelgere
 			if (clickedRow === null || target.closest(".clickable-icon, button, input, select, .scl-bg-capsule, .scl-color-dot")) return;
 
-			const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
-			const filteredSelectors: CSSLink[] = this.getFilteredSelectors(selectors);
-			const allRows: Element[] = Array.from(this.containerEl.querySelectorAll(".vertical-tab-content-container .scl-clickable-row"));
-			const index: number = allRows.indexOf(clickedRow);
+			// ⚡ SØKE- OG EKSPANDERINGS-SIKRING:
+			// I stedet for å telle rader i DOM-en, henter vi den ekte master-indeksen direkte fra attributtet!
+			const dataIndexAttr = clickedRow.getAttribute("data-index");
+			if (dataIndexAttr === null) return;
 			
-			const selector: CSSLink | null = filteredSelectors[index] ?? null;
-			if (selector === null) return;
+			const actualIndex: number = parseInt(dataIndexAttr, 10);
+			if (isNaN(actualIndex)) return;
 
-			const actualIndex: number = selectors.indexOf(selector);
-			
 			clearColorHistory();
 
+			// Hvis raden allerede var åpen, lukkes den. Hvis ikke, åpnes den nøyaktig riktige raden.
 			this.activeEditIndex = this.activeEditIndex === actualIndex ? null : actualIndex;
 			this.refreshUI();
 		});
 	}
 
-	private _generateSnippet(): void {
+	public _generateSnippet(): void {
 		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
 		this.plugin.clearAttrCycleCache();
 
@@ -342,14 +330,34 @@ export default class SCLSettingTab extends PluginSettingTab {
 	}
 
 	private renderReorderGrip(setting: Setting, index: number, selectors: CSSLink[]): void {
-		const wrap: HTMLElement = setting.controlEl.createDiv({ cls: "scl-reorder-inline" });
+		// ⚡ SØKESIKRING: Sjekk om brukeren filtrerer listen akkurat nå
+		const isFiltering = this.rulesSearchQuery.trim().length > 0;
+
+		// Hvis søk er aktivt, legger vi på en 'is-disabled' klasse på containeren
+		const wrap: HTMLElement = setting.controlEl.createDiv({ 
+			cls: isFiltering ? "scl-reorder-inline is-disabled" : "scl-reorder-inline" 
+		});
+
 		const grip: HTMLElement = wrap.createEl("button", {
 			cls: "clickable-icon extra-setting-button mod-drag-handle scl-grip-btn",
-			attr: { "aria-label": "Reorder (tap: down, long-press/Shift: up)", type: "button" }
+			attr: { 
+				"aria-label": isFiltering ? "Reorder (disabled during search)" : "Reorder (tap: down, long-press/Shift: up)", 
+				type: "button" 
+			}
 		});
 
 		setIcon(grip, "grip-vertical");
-		let longPressTriggered: boolean = false;
+
+		// Hvis vi søker, skrur vi av knappen og avbryter før event-lyttere blir registrert
+		if (isFiltering) {
+			grip.setAttribute("disabled", "true");
+			grip.style.opacity = "0.3";
+			grip.style.cursor = "not-allowed";
+			return; 
+		}
+
+		// --- Resten av din originale, velfungerende kode kjører kun når søkefeltet er tomt ---
+		let longPressTriggered = false;
 
 		const moveBy = (direction: number): void => {
 			const targetIndex: number = index + direction;
@@ -446,14 +454,14 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 		const selectors: CSSLink[] = this.plugin.settings.selectors ?? [];
 		const selector: CSSLink | null = selectors[targetIdx] ?? null;
-		const editableProps: string[] = ["type", "name", "value", "iconBefore", "iconAfter", "lightColor", "darkColor", "lightBgColor", "darkBgColor", "fontWeight", "fontStyle"];
 
-		if (selector !== null && prop.length > 0 && editableProps.includes(prop)) {
+		if (selector !== null && prop.length > 0 && EDITABLE_PROPERTIES.includes(prop)) {
 			const ruleProxy: Record<string, unknown> = selector as unknown as Record<string, unknown>;
 
-			let cleanValue = value;
-			if (prop === "value" && typeof value === "string" && selector.type === "tag") {
-				cleanValue = value.trim().replace(/^#/, "");
+			let cleanValue: unknown = value === undefined || value === null ? "" : value;
+			
+			if (prop === "value" && typeof cleanValue === "string" && selector.type === "tag") {
+				cleanValue = cleanValue.trim().replace(/^#/, "");
 			}
 
 			if (prop === "value" && selector.match === "contains" && typeof cleanValue === "string") {
@@ -470,8 +478,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const sanitized: CSSLink = sanitizeRule(selector);
 			selector.match = sanitized.match;
 			selector.value = sanitized.value;
-
-			this.plugin.settings.selectors[targetIdx] = selector;
 		}
 	}
 

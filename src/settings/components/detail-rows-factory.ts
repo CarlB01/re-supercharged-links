@@ -1,7 +1,6 @@
 import { Setting, SettingDefinitionItem, App } from "obsidian";
 import { CSSLink } from "../../types/css-link";
 import { buildUnifiedColorRow, clearColorHistory } from "./color-row-factory";
-import { updateVisibleLinks } from "../../processors/dom-reconciler";
 import ResuperchargedLinks from "../../core/main";
 import { DROPDOWN_OPTIONS, COLOR_ROW_CONFIGS } from "../settings-constants";
 
@@ -16,6 +15,7 @@ export interface ISCLSettingTab {
 	update(): void;
 	containerEl: HTMLElement;
 	compilePaneStyles(): void; 
+	_generateSnippet(): void; 
 }
 
 function createDetailRow(
@@ -49,9 +49,10 @@ export function getRuleDetailItems(
 
 	const applySilent = async (propName: string, value: string): Promise<void> => {
 		await tab.setControlValue(`scl_${propName}_${index}`, value, true);
+		tab.plugin.compileActiveAttributes();
 		triggerStylesUpdate();
 	};
-
+	
 	const applyLoud = async (propName: string, value: string): Promise<void> => {
 		await tab.setControlValue(`scl_${propName}_${index}`, value, false);
 		tab.update(); // Enforces full structural UI redraws for layout-shifting keys like 'type'
@@ -168,25 +169,25 @@ export function getRuleDetailItems(
 		setting.addButton((btn) => { 
 			btn.setIcon("trash").setTooltip("Delete style").onClick(async () => { 
 				clearColorHistory();
-				selectors.splice(index, 1);
-
-				if (tab.activeEditIndex === index) {
-					tab.activeEditIndex = null;
+				
+				const masterIndex: number = selectors.indexOf(selector);
+				if (masterIndex !== -1) {
+					selectors.splice(masterIndex, 1);
 				}
+
+				tab.activeEditIndex = null;
 
 				tab.plugin.bumpRuleConfigVersion();
 				tab.plugin.compileActiveAttributes();
 				await tab.plugin.saveSettings();
 
-				updateVisibleLinks(tab.app, tab.plugin);
-				tab.plugin.refreshEditorThemes();
-
-				triggerStylesUpdate();
+				// ⚡ Nå kan vi kalle den direkte og trygt, helt uten proxy eller fallback-imports!
+				tab._generateSnippet();
 				tab.update();
 			}); 
 			btn.buttonEl.addClass("mod-warning"); 
 		});
 	}));
-
+	
 	return rows;
 }
