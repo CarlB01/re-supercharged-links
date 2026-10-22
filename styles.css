@@ -86,7 +86,7 @@
     /* Primary link node preview layout context - Cleaned up to support native links */
     .data-link-text {
       white-space: nowrap;
-      margin: 0 4px;      
+      margin: 0;      
     }
 
     button {
@@ -292,8 +292,11 @@
 .suggestion-item .data-link-text,
 .search-result-file-matches .data-link-text,
 .data-link-text {
-  display: inline;
+  display: inline-block;
   vertical-align: baseline;
+  border-radius: 3px; 
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 /* Universal structural selector targeting all injected affix modules */

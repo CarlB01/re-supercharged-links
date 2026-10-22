@@ -116,9 +116,23 @@
     },
     {
       "type": "tag",
-      "value": "new-tag",
-      "lightColor": "#1f2393",
-      "darkColor": "#8c90f2"
+      "value": "new2n",
+      "lightColor": "#fb4632",
+      "darkColor": "#8c90f2",
+      "iconBefore": "❤️",
+      "fontWeight": "lighter",
+      "iconAfter": "🦋"
+    },
+    {
+      "type": "tag",
+      "value": "tøffe",
+      "iconBefore": "🦋",
+      "iconAfter": "🚂",
+      "fontWeight": "bold",
+      "fontStyle": "italic",
+      "lightColor": "#7a1f93",
+      "darkColor": "#dc8cf2",
+      "lightBgColor": "#bdc5e5"
     }
   ],
   "scl_value_10": "haha",

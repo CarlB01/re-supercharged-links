@@ -196,12 +196,13 @@ export default class SCLSettingTab extends PluginSettingTab {
 			if (masterIndex === -1) continue;
 
 			// ⚡ FIX: Vi søker i HELE containeren etter den unike hovedraden for denne regelen.
-			// Dette gjør oss immune mot ekstra detaljrader som ligger skutt inn som søsken-elementer!
 			const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.scl-main-rule-row[data-index="${masterIndex}"]`) ?? null;
 			if (rowEl === null) continue;
 
-			// Finn forhåndsvisnings-lenken trygt inne i akkurat denne spesifikke hovedraden
-			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.data-link-text.scl-rule-${masterIndex}`) ?? null;
+			// ⚡ ARKITEKTUR-FIX: Siden setLinkNewProps() sletter 'scl-rule-X' klassen under clearExtraAttributes(),
+			// må vi enten sørge for at renderPreviewNote() legger på et unikt data-attributt (f.eks. data-preview-note="\${masterIndex}"),
+			// eller søke bredere på .internal-link i denne spesifikke raden for å unngå at referansen dør.
+			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.internal-link`) ?? null;
 			if (noteEl === null) continue;
 
 			const rawValue: string = cleanRuleValue(rule.value);
@@ -210,7 +211,9 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const mockProps: Record<string, string> = {};
 			
 			if (rule.type === "tag" && rawValue.length > 0) {
-				mockProps["tags"] = rawValue;
+				// ⚡ CORE-FIX: Kjerne-motoren din splitter opp tags basert på mellomrom og forventer hashtag format
+				// for at de dynamiske CSS-matchklassene (scl-match-tag-#...) skal bli generert riktig!
+				mockProps["tags"] = `#${rawValue}`;
 			} else if (rule.type === "attribute") {
 				const attrKey: string = cleanAttributeKey(rule.name);
 				if (attrKey.length > 0) {
@@ -220,7 +223,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 				mockProps["path"] = rawValue;
 			}
 
+			// ⚡ DATA-HREF FIX: Forhåndsvisningen trenger en data-href for å matche den reelle DOM-strukturen din
+			mockProps["data-href"] = "Note";
+
 			// 2. Kjøre stilingen 100 % synkront på denne isolerte noden
+			// Siden datapakken nå er perfekt strukturert, vil setLinkNewProps tildele nøyaktig samme farger,
+			// font-weights, og 'data-scl-icon-before' attributter som i dine ekte notater!
 			setLinkNewProps(noteEl, mockProps, this.plugin);
 
 			// 3. Oppdater beskrivende tekst-elementer dynamisk i denne raden
@@ -263,14 +271,10 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const target: HTMLElement | null = (e.target as HTMLElement) ?? null;
 			if (target === null) return;
 			
-			// Finn nærmeste hovedrad-element (ignorerer detaljradene)
 			const clickedRow: HTMLElement | null = target.closest(".scl-clickable-row") ?? null;
 			
-			// Avbryt hvis brukeren klikket på ikoner, knapper, input-felter eller fargevelgere
 			if (clickedRow === null || target.closest(".clickable-icon, button, input, select, .scl-bg-capsule, .scl-color-dot")) return;
 
-			// ⚡ SØKE- OG EKSPANDERINGS-SIKRING:
-			// I stedet for å telle rader i DOM-en, henter vi den ekte master-indeksen direkte fra attributtet!
 			const dataIndexAttr = clickedRow.getAttribute("data-index");
 			if (dataIndexAttr === null) return;
 			

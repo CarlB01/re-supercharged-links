@@ -1,5 +1,3 @@
-// processors/dom-reconciler
-
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
@@ -473,7 +471,10 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 }
 
 
-export function updateVisibleLinks(app: App, plugin: ResuperchargedLinks, scope?: RefreshScope): void {
+export function updateVisibleLinks(
+	app: App, 
+	plugin: ResuperchargedLinks, 
+	scope?: RefreshScope): void {
 	const attrCache: AttrCache = plugin.attrCycleCache;
 	let totalNodesStyled = 0;
 
