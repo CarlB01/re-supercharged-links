@@ -113,6 +113,12 @@
       "fontStyle": "italic",
       "iconBefore": "🤸🏼",
       "fontWeight": "lighter"
+    },
+    {
+      "type": "tag",
+      "value": "new-tag",
+      "lightColor": "#1f2393",
+      "darkColor": "#8c90f2"
     }
   ],
   "scl_value_10": "haha",

@@ -348,15 +348,11 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 		setIcon(grip, "grip-vertical");
 
-		// Hvis vi søker, skrur vi av knappen og avbryter før event-lyttere blir registrert
 		if (isFiltering) {
-			grip.setAttribute("disabled", "true");
-			grip.style.opacity = "0.3";
-			grip.style.cursor = "not-allowed";
-			return; 
+				grip.setAttribute("disabled", "true");
+				return; 
 		}
 
-		// --- Resten av din originale, velfungerende kode kjører kun når søkefeltet er tomt ---
 		let longPressTriggered = false;
 
 		const moveBy = (direction: number): void => {

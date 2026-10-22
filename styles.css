@@ -303,6 +303,11 @@
   flex-shrink: 0;
 }
 
+.scl-reorder-inline.is-disabled .scl-grip-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* Typography override hooks mapped directly to baseline structural classes */
 .data-link-text.scl-weight-bold, 
 .data-link-text.scl-weight-bold .cm-underline,

@@ -10,12 +10,12 @@ import { PluginPerformanceTracker } from './telemetry';
 import { CompiledRule, compileSelectors } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
-import { SCLSettings } from '../settings/settings';
 import { CSSLink } from '../types/css-link';
 import { AttributeCacheManager } from '../processors/cache-manager';
 import { compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
 import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
+import { SCLSettings } from '../settings/settings-constants';
 
 /**
  * Structural bridge representing Obsidian's internal Markdown editor view state layout.

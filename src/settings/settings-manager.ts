@@ -1,8 +1,8 @@
 import { Plugin } from "obsidian";
-import { SCLSettings, DEFAULT_SETTINGS } from "./settings";
 import { CSSLink } from "../types/css-link";
 import { cloneSettingsObject } from "../utils/shared-utils";
 import { sanitizeRuleset } from "../processors/rule-engine";
+import { DEFAULT_SETTINGS, SCLSettings } from "./settings-constants";
 
 /**
  * 🔑 CONDUIT PROPERTY DICTIONARY
@@ -43,9 +43,7 @@ const GLOBAL_ROOT_GARBAGE_KEYS: readonly string[] = [
 	"targetAttributes" // Unified blueprint tracking register
 ];
 
-/**
- * 🚀 RUNTIME INGESTION CLEANER (v1.1.0)
- */
+
 export async function loadAndSanitizeSettings(plugin: Plugin): Promise<{ settings: SCLSettings; dataRepaired: boolean }> {
 	const pluginInstance: Plugin | null = plugin ?? null;
 	if (pluginInstance === null) {

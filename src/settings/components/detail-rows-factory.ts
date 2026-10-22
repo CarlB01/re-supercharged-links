@@ -68,6 +68,16 @@ export function getRuleDetailItems(
 			d.setValue(selector.type || "tag");
 			d.onChange(async (v) => { 
 				if (v === "tag" || v === "attribute" || v === "path") { 
+					const isDefaultValue = !selector.value || selector.value === "new-tag" || selector.value === "new-attribute" || selector.value === "new-path";
+            
+					if (isDefaultValue) {
+						let defaultValue = "new-tag";
+						if (v === "attribute") defaultValue = "new-attribute";
+						if (v === "path") defaultValue = "new-path";
+						
+						selector.value = defaultValue;
+						await tab.setControlValue(`scl_value_${index}`, defaultValue, true);
+					}
 					await applyLoud("type", v);
 				} 
 			});
