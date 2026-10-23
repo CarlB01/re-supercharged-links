@@ -471,7 +471,8 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 export function updateVisibleLinks(
 	app: App, 
 	plugin: ResuperchargedLinks, 
-	scope?: RefreshScope): void {
+	scope?: RefreshScope
+): void {
 	const attrCache: AttrCache = plugin.attrCycleCache;
 	let totalNodesStyled = 0;
 
@@ -480,22 +481,26 @@ export function updateVisibleLinks(
 		const pathSet = new Set<string>();
 		const prefixSet = new Set<string>();
 
-		scope.paths.forEach((p: string) => {
+		// Avoid function scope allocations inside high-frequency sweeps by using linear for...of loops
+		for (const p of scope.paths) {
 			const normalized = normalizePathForQueue(p);
 			if (normalized.length > 0) {
 				pathSet.add(normalized);
 			}
-		});
+		}
 
-		scope.prefixes.forEach((p: string) => {
+		for (const p of scope.prefixes) {
 			const normalized = normalizePathForQueue(p);
 			if (normalized.length > 0) {
 				prefixSet.add(normalized);
 			}
-		});
+		}
 
 		normalizedScope = { paths: pathSet, prefixes: prefixSet };
 	}
+
+	// Resolve the active fallback file exactly once outside the hot iterator leaf boundaries
+	const cachedActiveFile: TFile | null = app.workspace.getActiveFile() ?? null;
 
 	// Iterate ALL leaves across the entire workspace (including background tabs)
 	app.workspace.iterateAllLeaves((leaf) => {
@@ -516,7 +521,8 @@ export function updateVisibleLinks(
 		const mdView: MarkdownView | null = getAsMarkdownView(leaf);
 		if (mdView === null) return;
 
-		const activeFileFallback: TFile | null = trueViewFile !== null ? trueViewFile : (app.workspace.getActiveFile() ?? null);
+		// Use the single-pass resolved cached file token to permanently eliminate redundant API lookups
+		const activeFileFallback: TFile | null = trueViewFile !== null ? trueViewFile : cachedActiveFile;
 		
 		if (activeFileFallback === null) return;
 		if (normalizedScope !== null && !isPathInScope(activeFileFallback.path, normalizedScope)) return;
@@ -537,4 +543,3 @@ export function updateVisibleLinks(
 		plugin.telemetry.setLastNodeCount(totalNodesStyled);
 	}
 }
-

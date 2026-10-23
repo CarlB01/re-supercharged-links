@@ -22,8 +22,8 @@ interface IterationState {
 	from: number;
 	to: number;
 	collectedDecos: { from: number; to: number; value: Decoration }[];
-	processedRanges: Set<string>;
-	decoratedRanges: Set<string>;
+	processedRanges: Set<string>; 
+	decoratedRanges: Set<string>; 
 	skipUntilPosition: number;
 }
 
@@ -35,13 +35,21 @@ export class CMViewPlugin {
 	private lastLineNumber: number = -1;
 	private lastLineHadLinks: boolean = false;
 
+	// Instantiated exactly once to permanently protect the heap memory from GC spikes
+	private readonly processedRangesPool: Set<string> = new Set<string>();
+	private readonly decoratedRangesPool: Set<string> = new Set<string>();
+
 	constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
 		this.app = app;
 		this.plugin = plugin;
 		this.decorations = this.buildDecorations(view);
 	}
 	
-	public destroy(): void {}
+	public destroy(): void {
+		// Clean up pool memory structures on view plugin destruction lifecycle
+		this.processedRangesPool.clear();
+		this.decoratedRangesPool.clear();
+	}
 
 	/**
 	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
@@ -179,9 +187,12 @@ export class CMViewPlugin {
 	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
 		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
 		
-		// Safely extract the active Markdown workspace context; abort early if view context is absent
 		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (mdView === null || mdView.file === null) return builder.finish();
+
+		// Wipe state maps natively in C++ layer before starting the linear iteration loop
+		this.processedRangesPool.clear();
+		this.decoratedRangesPool.clear();
 
 		const state: IterationState = {
 			builder,
@@ -189,12 +200,11 @@ export class CMViewPlugin {
 			from: 0,
 			to: 0,
 			collectedDecos: [],
-			processedRanges: new Set<string>(),
-			decoratedRanges: new Set<string>(),
+			processedRanges: this.processedRangesPool,
+			decoratedRanges: this.decoratedRangesPool,
 			skipUntilPosition: 0
 		};
 
-		// Cache length property locally to optimize assembly loop boundaries
 		const visibleRangesCount: number = view.visibleRanges.length;
 		for (let i = 0; i < visibleRangesCount; i++) {
 			const range: { from: number; to: number } | null = view.visibleRanges[i] ?? null;
@@ -203,14 +213,11 @@ export class CMViewPlugin {
 			const from: number = range.from;
 			const to: number = range.to;
 
-			// Bypass calculations entirely if a target update scope is supplied and falls outside this range block
 			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
 
 			state.from = from;
 			state.to = to;
 
-			// Chronologically stream tokens directly from the pre-computed active Lezer syntax tree.
-			// Because Lezer parses linearly, tokens are processed natively in ascending position order.
 			syntaxTree(view.state).iterate({
 				from,
 				to,
@@ -220,8 +227,6 @@ export class CMViewPlugin {
 			});
 		}
 
-		// RangeSetBuilder requires strict, monotonically increasing index entries.
-		// Since syntaxTree.iterate yields items chronologically, we evaluate sequence stability first.
 		const collectedCount: number = state.collectedDecos.length;
 		let requiresSorting = false;
 		
@@ -235,7 +240,6 @@ export class CMViewPlugin {
 			}
 		}
 
-		// Perform fallback sorting routine only if an atypical nested token collision breaks linear order
 		if (requiresSorting) {
 			state.collectedDecos.sort((a, b) => {
 				if (a.from !== b.from) return a.from - b.from;
@@ -243,7 +247,6 @@ export class CMViewPlugin {
 			});
 		}
 
-		// Stream the structural decoration payloads sequentially straight into the final native builder
 		for (let i = 0; i < collectedCount; i++) {
 			const item: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i] ?? null;
 			if (item !== null) {
@@ -276,7 +279,7 @@ export class CMViewPlugin {
 		if (isMarkdownFormatting && nodeNameLower !== "linktext" && nodeNameLower !== "link" && !nodeNameLower.includes("string_url")) return;
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
-		if (state.processedRanges.has(nodeRangeKey)) return;
+		if (nodeRangeKey in state.processedRanges) return;
 
 		const isMarkdownAnchor: boolean = nodeNameLower === "link" || nodeNameLower === "linktext";
 		const isMarkdownUrl: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
@@ -390,8 +393,10 @@ export class CMViewPlugin {
 							const urlDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, true, false);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, urlDeco);
 						}
-						
-						state.processedRanges.add(`${sibling.from}-${sibling.to}`);
+						// Single-pass binary string concatenation avoids template literal heap pressure
+						const siblingKey = sibling.from + "-" + sibling.to;
+						state.processedRanges.add(nodeRangeKey);
+						state.processedRanges.add(siblingKey);
 					}
 					return true;
 				}
@@ -399,7 +404,6 @@ export class CMViewPlugin {
 			state.skipUntilPosition = linkEndPosition;
 			return true;
 		}
-
 		state.processedRanges.add(nodeRangeKey);
 		return true;
 	}
@@ -463,7 +467,7 @@ export class CMViewPlugin {
 		const file: TFile | null = resolveLinkFile(this.app, cleanPath, state.activeFileBasename, false);
 		
 		if (file === null) {
-			state.processedRanges.add(nodeRangeKey);
+			state.processedRanges.add(nodeRangeKey)
 			return true;
 		}
 
@@ -494,8 +498,9 @@ export class CMViewPlugin {
 
 						this.decorateRangeOnce(state, sibling.from, sibling.to, localizedDeco);
 					}
-					
-					state.processedRanges.add(`${sibling.from}-${sibling.to}`);
+					// Avoids backtick allocations entirely inside the hot sibling iterator
+					const siblingKey = sibling.from + "-" + sibling.to;
+					state.processedRanges.add(siblingKey);
 				}
 				return true;
 			}
@@ -533,7 +538,7 @@ export class CMViewPlugin {
 		deco: Decoration
 	): void {
 		const key: string = `${from}-${to}`;
-		if (state.decoratedRanges.has(key)) return;
+		if (key in state.decoratedRanges) return;
 
 		state.collectedDecos.push({ from, to, value: deco });
 		state.decoratedRanges.add(key);

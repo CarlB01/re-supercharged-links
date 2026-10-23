@@ -28,7 +28,6 @@ function getDataviewApi(app: App): DataviewAPI | null {
 
 /**
  * Gathers and compiles all targeted user metadata attributes synchronously from a document instance.
- * ⚡ ZERO-BLEED CORE: Generates clean, isolated property blocks unique to the structural file layout.
  */
 export function fetchTargetAttributesSync(
 	app: App,
@@ -48,6 +47,7 @@ export function fetchTargetAttributesSync(
 	const activeAttributes: Set<string> = pluginInstance.activeAttributesSet;
 	const dynamicTagsList: string[] = [];
 
+	// 🚀 TILBAKEFØRT: O(1) direkte sjekk av frontmatter beskytter mot tunge AST-skanninger nedstrøms
 	if (cache.frontmatter !== null && cache.frontmatter !== undefined && activeAttributes.size > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		
@@ -61,7 +61,9 @@ export function fetchTargetAttributesSync(
 				for (let j = 0; j < fmTagsLen; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
 					if (t !== null && t.length > 0) {
-						dynamicTagsList.push(t);
+						if (dynamicTagsList.indexOf(t) === -1) {
+							dynamicTagsList.push(t);
+						}
 					}
 				}
 			} else {
@@ -80,14 +82,16 @@ export function fetchTargetAttributesSync(
 			for (let k = 0; k < cacheTagsLen; k++) {
 				const cleanCacheTag: string | null = cacheTags[k] ?? null;
 				if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
-					dynamicTagsList.push(cleanCacheTag);
+					if (dynamicTagsList.indexOf(cleanCacheTag) === -1) {
+						dynamicTagsList.push(cleanCacheTag);
+					}
 				}
 			}
 		}
 	}
 
 	if (dynamicTagsList.length > 0) {
-		newProps.tags = Array.from(new Set(dynamicTagsList)).join(" ");
+		newProps.tags = dynamicTagsList.join(" ");
 	}
 
 	if (addDataHref) {

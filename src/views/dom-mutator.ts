@@ -4,7 +4,6 @@ import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTa
 
 /**
  * Completely purges all supercharged style properties and data-link attributes.
- * ⚡ LEAK REMOVER: Iterates backward over element attributes to clear out stale values before fresh writes.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
 	const attrs: NamedNodeMap = link.attributes;
@@ -29,11 +28,11 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 
-	const classesToRemove: string[] = [];
+	// Safely iterate backward over the live class list tokens to eliminate array allocations and double loops
 	const currentClasses: DOMTokenList = link.classList;
-	const currentClassesCount: number = currentClasses.length;
+	let k: number = currentClasses.length;
 
-	for (let k = 0; k < currentClassesCount; k++) {
+	while (k--) {
 		const cls: string | null = currentClasses.item(k);
 		if (cls !== null) {
 			if (
@@ -42,26 +41,20 @@ export function clearExtraAttributes(link: HTMLElement): void {
 				cls === "scl-hide-before" || 
 				cls === "scl-hide-after"
 			) {
-				classesToRemove.push(cls);
+				link.classList.remove(cls);
 			}
 		}
 	}
 
-	const classesToRemoveCount: number = classesToRemove.length;
-	for (let m = 0; m < classesToRemoveCount; m++) {
-		const targetClass: string | null = classesToRemove[m] ?? null;
-		if (targetClass !== null) {
-			link.classList.remove(targetClass);
-		}
+	if (link.style.length > 0) {
+		link.setCssStyles({
+			color: "",
+			backgroundColor: "",
+			fontWeight: "",
+			fontStyle: "",
+			textDecoration: ""
+		});
 	}
-
-	link.setCssStyles({
-		color: "",
-		backgroundColor: "",
-		fontWeight: "",
-		fontStyle: "",
-		textDecoration: ""
-	});
 }
 
 /**
@@ -71,49 +64,33 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
 	const textContent: string | null = el.textContent;
 
-	// ⚡ TYPESAFE GUARD: Fallback to empty string to permanently eliminate 'string | undefined' type errors
+	// Fallback to empty strings to permanently eliminate processing crashes
 	const c1: string = el.getAttribute("data-tag") || "";
 	const c2: string = el.getAttribute("data-tags") || "";
 	const c3: string = hrefAttr || "";
 	const c4: string = textContent || "";
 
-	const outSet = new Set<string>();
+	const parts: string[] = [];
+	if (c1) parts.push(c1);
+	if (c2) parts.push(c2);
+	if (c3) parts.push(c3);
+	if (c4) parts.push(c4);
 
-	// ZERO-ARRAY COMPRESSION: Process strings sequentially to prevent garbage collection sweeps
-	if (c1.length > 0) {
-		const p = parseSpaceSeparatedTokens(c1);
-		for (let i = 0; i < p.length; i++) { 
-			const token = p[i];
-			if (token) outSet.add(token); 
-		}
-	}
-	if (c2.length > 0) {
-		const p = parseSpaceSeparatedTokens(c2);
-		for (let i = 0; i < p.length; i++) { 
-			const token = p[i];
-			if (token) outSet.add(token); 
-		}
-	}
-	if (c3.length > 0) {
-		const p = parseSpaceSeparatedTokens(c3);
-		for (let i = 0; i < p.length; i++) { 
-			const token = p[i];
-			if (token) outSet.add(token); 
-		}
-	}
-	if (c4.length > 0) {
-		const p = parseSpaceSeparatedTokens(c4);
-		for (let i = 0; i < p.length; i++) { 
-			const token = p[i];
-			if (token) outSet.add(token); 
-		}
-	}
+	if (parts.length === 0) return [];
+	const rawTokens: string[] = parseSpaceSeparatedTokens(parts.join(" "));
+	const tokensLen = rawTokens.length;
+	if (tokensLen <= 1) return rawTokens;
 
-	const out: string[] = [];
-	outSet.forEach((val) => out.push(val));
-	return out;
+	// Deduplicate values inline to completely eliminate intermediate Set object allocations
+	const uniqueTokens: string[] = [];
+	for (let i = 0; i < tokensLen; i++) {
+		const token = rawTokens[i];
+		if (token && uniqueTokens.indexOf(token) === -1) {
+			uniqueTokens.push(token);
+		}
+	}
+	return uniqueTokens;
 }
-
 
 /**
  * Extends Supercharged styling frameworks safely to active tag chip nodes inside view containers.
@@ -132,13 +109,8 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 			const tokensLen = tokens.length;
 			if (tokensLen === 0) continue;
 			
-			let tagString = "";
-			for (let j = 0; j < tokensLen; j++) {
-				const t = tokens[j];
-				if (t) {
-					tagString += (tagString.length > 0 ? " #" : "#") + t;
-				}
-			}
+			// Extremely fast single-pass string assembly via compiled join pipelines
+			const tagString: string = tokensLen > 0 ? "#" + tokens.join(" #") : "";
 
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
 				htmlEl.setAttribute("data-link-tags", tagString);

@@ -236,8 +236,8 @@ export function parseControlValueKey(key: string): { prop: string; uid: string }
 /**
  * Universally scans a raw text string line for internal Obsidian wikilink patterns.
  */
-export function extractWikiLinkFromLine(lineText: string, targetCleanText: string | null = null): string | null {
-	if (lineText.length === 0) return null;
+export function extractWikiLinkFromLine(lineText: string, targetCleanText: string): string | null {
+	if (lineText.length === 0 || targetCleanText.length === 0) return null;
 
 	const wikiLinkRegex = /\[\[([^\]]+)\]\]/g;
 	let match: RegExpExecArray | null = null;
@@ -250,10 +250,6 @@ export function extractWikiLinkFromLine(lineText: string, targetCleanText: strin
 
 		const resolvedPath: string = extractCleanLinkPath(fullContent);
 		if (resolvedPath.length === 0) continue;
-
-		if (cleanSearchTarget === null) {
-			return resolvedPath;
-		}
 
 		let displayContent: string = rawInsideContent;
 		const pipeIdx = rawInsideContent.indexOf("|");

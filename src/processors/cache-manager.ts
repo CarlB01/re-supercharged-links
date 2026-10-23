@@ -104,21 +104,25 @@ export class AttributeCacheManager {
 	public invalidatePrefix(prefix: string): void {
 		if (prefix.length === 0) return;
 
-		// 🚀 OPPDATERT: Bruker den sentraliserte felles-funksjonen for prefiksvask
 		const normalizedPrefix: string = normalizeCachePath(prefix);
 		const cleanPrefix: string = normalizedPrefix.endsWith("/") ? normalizedPrefix : `${normalizedPrefix}/`;
 
-		const indexedPaths: string[] = Array.from(this.pathIndex.keys());
-		const pathsLen: number = indexedPaths.length;
+		const pathsToDelete: string[] = [];
 
-		for (let i = 0; i < pathsLen; i++) {
-			const currentPath: string | null = indexedPaths[i] ?? null;
-			if (currentPath !== null) {
-				// 🚀 OPPDATERT: Bruker normalizeCachePath her også
+		for (const currentPath of this.pathIndex.keys()) {
+			if (currentPath !== null && currentPath !== undefined) {
 				const cleanCurrent: string = normalizeCachePath(currentPath);
 				if (cleanCurrent === normalizedPrefix || cleanCurrent.startsWith(cleanPrefix)) {
-					this.invalidatePath(currentPath);
+					pathsToDelete.push(currentPath);
 				}
+			}
+		}
+
+		const deleteLen: number = pathsToDelete.length;
+		for (let i = 0; i < deleteLen; i++) {
+			const targetPath: string | null = pathsToDelete[i] ?? null;
+			if (targetPath !== null) {
+				this.invalidatePath(targetPath);
 			}
 		}
 	}
@@ -162,18 +166,68 @@ export class AttributeCacheManager {
 		this.attrCacheTouchedAt.delete(key);
 	}
 
+	private pruneRecentPathTouches(nowTs: number): void {
+		if (this.recentPathTouches.size === 0) return;
+		
+		const expiredPaths: string[] = [];
+		for (const [path, ts] of this.recentPathTouches) {
+			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
+				expiredPaths.push(path);
+			}
+		}
+
+		const expiredLen = expiredPaths.length;
+		for (let i = 0; i < expiredLen; i++) {
+			const path: string | null = expiredPaths[i] ?? null;
+			if (path !== null) {
+				this.recentPathTouches.delete(normalizeCachePath(path));
+			}
+		}
+
+		// Micro-optimized overflow cleanup
+		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
+			const overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
+			const overflowPaths: string[] = [];
+			
+			// Directly pull only the exact number of entries needed and break immediately
+			for (const currentPath of this.recentPathTouches.keys()) {
+				overflowPaths.push(currentPath);
+				if (overflowPaths.length >= overflow) break;
+			}
+
+			const overflowLen = overflowPaths.length;
+			for (let i = 0; i < overflowLen; i++) {
+				const path: string | null = overflowPaths[i] ?? null;
+				if (path !== null) {
+					this.recentPathTouches.delete(normalizeCachePath(path));
+				}
+			}
+		}
+	}
+
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
+		const expiredKeys: string[] = [];
 		for (const key of this.attrCycleCache.keys()) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				this.evictEntry(key)
+				expiredKeys.push(key);
+			}
+		}
+
+		const expiredLen = expiredKeys.length;
+		for (let i = 0; i < expiredLen; i++) {
+			const key: string | null = expiredKeys[i] ?? null;
+			if (key !== null) {
+				this.evictEntry(key);
 			}
 		}
 
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
 			const overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
+			
+			// FIXED: Safe and accurate numeric sort targeting the timestamp index directly
 			const entries: [string, number][] = Array.from(this.attrCacheTouchedAt.entries())
 				.sort((a, b) => a[1] - b[1]);
 
@@ -184,36 +238,8 @@ export class AttributeCacheManager {
 				if (entry !== null) {
 					const key: string = entry[0];
 					if (!this.attrCycleCache.has(key)) continue;
-					this.evictEntry(key)
-					removed += 1;
-					if (removed >= overflow) break;
-				}
-			}
-		}
-	}
-
-	private pruneRecentPathTouches(nowTs: number): void {
-		if (this.recentPathTouches.size === 0) return;
-		
-		for (const [path, ts] of this.recentPathTouches) {
-			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
-				const normalizedPath: string = normalizeCachePath(path);
-				this.recentPathTouches.delete(normalizedPath);
-			}
-		}
-
-		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
-			const overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
-			let removed = 0;
-			const paths: string[] = Array.from(this.recentPathTouches.keys());
-			const pathsLen: number = paths.length;
-			
-			for (let i = 0; i < pathsLen; i++) {
-				const currentPath: string | null = paths[i] ?? null;
-				if (currentPath !== null) {
-					const normalizedPath: string = normalizeCachePath(currentPath);
-					this.recentPathTouches.delete(normalizedPath);
 					
+					this.evictEntry(key);
 					removed += 1;
 					if (removed >= overflow) break;
 				}

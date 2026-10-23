@@ -48,6 +48,7 @@ interface ResolveRuleResolutionInput {
 	readonly fallbackText?: string;
 	readonly skipIconBefore?: boolean;
 	readonly skipIconAfter?: boolean;
+	readonly skipStyles?: boolean;
 }
 
 export function sanitizeRule(rule: CSSLink): CSSLink {
@@ -172,10 +173,10 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	let iconBefore = "";
 	let iconAfter = "";
 
-	for (let i = 0; i < compiledRules.length; i++) {
+	const rulesLen = compiledRules.length;
+	for (let i = 0; i < rulesLen; i++) {
 		const rule: CompiledRule | null = compiledRules[i] ?? null;
-		if (rule === null) continue;
-		if (!rule.match(resolvedAttrs)) continue;
+		if (rule === null || !rule.match(resolvedAttrs)) continue;
 
 		hasMatch = true;
 		classList.push(`scl-rule-${rule.index}`);
@@ -184,7 +185,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		if (textSelection.length > 0) color = textSelection;
 
 		const bgSelection: string = isDark ? rule.darkBgColor : rule.lightBgColor;
-		if (bgSelection.length > 0) backgroundColor = bgSelection;
+		if (bgSelection.length > 0 && bgSelection !== "transparent") backgroundColor = bgSelection;
 
 		if (rule.fontWeight === "lighter" || rule.fontWeight === "bold") {
 			fontWeight = rule.fontWeight;
@@ -216,7 +217,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		attributes["data-scl-icon-after"] = iconAfter;
 	}
 
-
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
@@ -225,7 +225,8 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			attributes["data-link-tags"] = stringifyTagsArray(tagsArray);
 		}
 
-		for (let j = 0; j < tagsArray.length; j++) {
+		const tagsLen = tagsArray.length;
+		for (let j = 0; j < tagsLen; j++) {
 			const cleanTag: string | null = tagsArray[j] ?? null;
 			if (cleanTag !== null && cleanTag.length > 0) {
 				classList.push(`scl-match-tag-${cleanTag}`);
@@ -234,14 +235,8 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	}
 
 	const targetText: string = (input.visibleText ?? "");
-
-	if (iconBefore.length > 0 && targetText.startsWith(iconBefore)) {
-		classList.push("scl-hide-before");
-	}
-
-	if (iconAfter.length > 0 && targetText.endsWith(iconAfter)) {
-		classList.push("scl-hide-after");
-	}
+	if (iconBefore.length > 0 && targetText.startsWith(iconBefore)) classList.push("scl-hide-before");
+	if (iconAfter.length > 0 && targetText.endsWith(iconAfter)) classList.push("scl-hide-after");
 
 	return {
 		hasMatch,
@@ -257,3 +252,4 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		}
 	};
 }
+

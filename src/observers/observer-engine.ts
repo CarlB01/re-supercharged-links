@@ -221,13 +221,13 @@ function watchContainerDynamic(
 						if (el.matches(selector)) {
 							deltaElements.push(el);
 						} else {
-							const matches: HTMLElement[] = typeof el.findAll === "function" 
+							const matches: NodeListOf<Element> | HTMLElement[] = typeof el.findAll === "function" 
 								? (el.findAll(selector) ?? []) 
-								: Array.from(el.querySelectorAll(selector));
+								: el.querySelectorAll(selector);
 								
 							const matchesCount: number = matches.length;
 							for (let k = 0; k < matchesCount; k++) {
-								const matchedChild: HTMLElement | null = matches[k] ?? null;
+								const matchedChild: HTMLElement | null = (matches[k] as HTMLElement) ?? null;
 								if (matchedChild !== null && matchedChild.nodeType === 1) {
 									deltaElements.push(matchedChild);
 								}
@@ -240,8 +240,6 @@ function watchContainerDynamic(
 		
 		if (deltaElements.length === 0) return;
 
-		// 🚀 FIKSET: Samler opp mutasjonene synkront med skjermoppdateringen (0.00ms-magien)
-		// I stedet for å kaste nodene blindt inn i tråden med en gang, lar vi scheduleContainerUpdate styre tempoet!
 		scheduleContainerUpdate(container, (): void => {
 			updateContainer(container, plugin, selector, false, deltaElements);
 		});
