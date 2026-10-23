@@ -291,64 +291,61 @@ function resolvePropertyTarget(frontmatter: Record<string, unknown>, key: string
 	return null;
 }
 
-
 /**
  * Sweeps the document metadata property panel pane and balances elements securely.
  */
 export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app: App, plugin: ResuperchargedLinks): number {
-	const frontmatter: Record<string, unknown> | null = app.metadataCache.getCache(file.path)?.frontmatter ?? null;
+	const cache = app.metadataCache.getCache(file.path);
+	const frontmatter: Record<string, unknown> | null = cache !== null && cache !== undefined ? (cache.frontmatter ?? null) : null;
 	if (frontmatter === null) return 0;
 
 	let count = 0;
 
-	const pills: NodeListOf<Element> = propertiesEl.querySelectorAll("div.multi-select-pill-content");
-	const pillsCount = pills.length;
+	// Combined selector eliminates double loop overhead over the property panel layout
+	const propertyNodes: NodeListOf<Element> = propertiesEl.querySelectorAll(
+		"div.multi-select-pill-content, div.metadata-link-inner"
+	);
+	const nodesCount = propertyNodes.length;
+	if (nodesCount === 0) return 0;
 
-	for (let i = 0; i < pillsCount; i++) {
-		const node: Element | null = pills[i] ?? null;
-		if (node === null || !node.instanceOf(Element) || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
+	let lastRowContainer: Element | null = null;
+	let cachedInputValue = "";
+	let hasCachedInput = false;
 
-		const text: string = (node.textContent ?? "").trim();
+	for (let i = 0; i < nodesCount; i++) {
+		const node: Element | null = propertyNodes[i] ?? null;
+		if (node === null || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
+
+		const htmlNode = node as HTMLElement;
+		const text: string = (htmlNode.textContent ?? "").trim();
 		if (text.length === 0) continue;
 
-		const rowContainer: Element | null = node.closest(".metadata-property");
-		const inputCandidate: Element | null = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
-		
-		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value.length > 0) {
-			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
+		const rowContainer: Element | null = htmlNode.closest(".metadata-property");
+		if (rowContainer === null) continue;
+
+		// Cache input lookups if tokens reside sequentially within the same layout row block
+		if (lastRowContainer !== rowContainer) {
+			lastRowContainer = rowContainer;
+			const inputCandidate: Element | null = rowContainer.querySelector(".metadata-property-key input");
 			
-			if (resolvedTarget !== null) {
-				const currentDataHref: string = node.getAttribute("data-href") || "";
-				if (currentDataHref !== resolvedTarget) {
-					node.setAttribute("data-href", resolvedTarget);
-				}
-				updateDivExtraAttributes(plugin.app, plugin, node, "", resolvedTarget);
-				count += 1;
+			if (inputCandidate instanceof HTMLInputElement && inputCandidate.value.length > 0) {
+				cachedInputValue = inputCandidate.value;
+				hasCachedInput = true;
+			} else {
+				cachedInputValue = "";
+				hasCachedInput = false;
 			}
 		}
-	}
 
-	const singleLinks: NodeListOf<Element> = propertiesEl.querySelectorAll("div.metadata-link-inner");
-	const singleLinksCount = singleLinks.length;
-	for (let i = 0; i < singleLinksCount; i++) {
-		const node: Element | null = singleLinks[i] ?? null;
-		if (node === null || !node.instanceOf(Element) || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
-
-		const text: string = (node.textContent ?? "").trim();
-		if (text.length === 0) continue;
-
-		const rowContainer: Element | null = node.closest(".metadata-property");
-		const inputCandidate: Element | null = rowContainer ? rowContainer.querySelector(".metadata-property-key input") : null;
-
-		if (inputCandidate instanceof HTMLInputElement && inputCandidate.value.length > 0) {
-			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, inputCandidate.value, text);
+		if (hasCachedInput) {
+			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, cachedInputValue, text);
 			
 			if (resolvedTarget !== null) {
-				const currentDataHref: string = node.getAttribute("data-href") || "";
+				const currentDataHref: string = htmlNode.getAttribute("data-href") ?? "";
 				if (currentDataHref !== resolvedTarget) {
-					node.setAttribute("data-href", resolvedTarget);
+					htmlNode.setAttribute("data-href", resolvedTarget);
 				}
-				updateDivExtraAttributes(plugin.app, plugin, node, "", resolvedTarget);
+				updateDivExtraAttributes(plugin.app, plugin, htmlNode, "", resolvedTarget);
 				count += 1;
 			}
 		}
