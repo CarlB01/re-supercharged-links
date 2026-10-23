@@ -24,6 +24,7 @@ interface IterationState {
 	collectedDecos: { from: number; to: number; value: Decoration }[];
 	processedRanges: Set<string>;
 	decoratedRanges: Set<string>;
+	skipUntilPosition: number;
 }
 
 export class CMViewPlugin {
@@ -190,6 +191,7 @@ export class CMViewPlugin {
 			collectedDecos: [],
 			processedRanges: new Set<string>(),
 			decoratedRanges: new Set<string>(),
+			skipUntilPosition: 0
 		};
 
 		// Cache length property locally to optimize assembly loop boundaries
@@ -266,6 +268,8 @@ export class CMViewPlugin {
 	): void {
 		if (updateFrom !== -1 && (node.to < updateFrom || node.from > updateTo)) return;
 
+		if (node.from < state.skipUntilPosition) return;
+
 		const nodeNameLower: string = node.name.toLowerCase();
 		const isMarkdownFormatting = nodeNameLower.includes("formatting-link") || nodeNameLower.includes("formatting-link-string");
 
@@ -277,14 +281,11 @@ export class CMViewPlugin {
 		const isMarkdownAnchor: boolean = nodeNameLower === "link" || nodeNameLower === "linktext";
 		const isMarkdownUrl: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
 
-		// 🚀 ROUTE TO ISOLATED MARKDOWN PIPELINE
 		if (isMarkdownAnchor || isMarkdownUrl) {
 			const handled = this.processMarkdownLinkPipeline(view, node, state, nodeNameLower, nodeRangeKey);
 			if (handled) return;
 		}
 
-		// 🚀 ROUTE TO ISOLATED WIKILINK PIPELINE
-		// Captures standard, aliased, and open/expanded WikiLink states via AST topology
 		const isWikiAnchor = nodeNameLower.includes("hmd-internal-link") || nodeNameLower.includes("link-has-alias") || nodeNameLower.includes("cm-link-has-alias");
 		if (isWikiAnchor || isOwnerNode(node.name)) {
 			const handled = this.processWikiLinkPipeline(view, node, state, nodeNameLower, nodeRangeKey);
@@ -395,6 +396,7 @@ export class CMViewPlugin {
 					return true;
 				}
 			});
+			state.skipUntilPosition = linkEndPosition;
 			return true;
 		}
 
@@ -498,7 +500,7 @@ export class CMViewPlugin {
 				return true;
 			}
 		});
-
+		state.skipUntilPosition = wikiEndPosition;
 		return true;
 	}
 

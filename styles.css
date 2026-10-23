@@ -1,3 +1,8 @@
+:root {
+  --scl-padding: 0.20em; 
+  --scl-curve: .015em;
+}
+
 /* =========================================================================
    1) MAIN RULE ROWS 
    ========================================================================= */
@@ -31,7 +36,7 @@
       display: flex;
       flex-direction: row;
       align-items: center;
-      margin-right: 12px;
+      margin-right: 0.75em;
     }
 
     /* Elegant color layout capsule with structural padding spacing */
@@ -39,18 +44,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 20px;
-      margin-right: 6px; 
-      border-radius: 4px;
-      border: 1px solid var(--background-modifier-border);
+      width: 2em;
+      height: 1.25em;
+      margin-right: 0.375em; 
+      border-radius: 0.25em;
+      border: 0.0625em solid var(--background-modifier-border);
       box-sizing: border-box;
       flex-shrink: 0;
       background-color: var(--scl-capsule-bg, transparent);
 
       &.is-transparent {
         background-color: var(--background-primary);
-        border: 1px dashed var(--text-muted);
+        border: 0.0625em dashed var(--text-muted);
         opacity: 0.8;
       }
 
@@ -68,17 +73,17 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 14px;
-      height: 14px;
-      min-width: 14px;
-      min-height: 14px;
+      width: 0.875em;
+      height: 0.875em;
+      min-width: 0.875em;
+      min-height: 0.875em;
       box-sizing: border-box;
       flex-shrink: 0;
 
       svg {
         width: 100%;
         height: 100%;
-        stroke-width: 2.5px;
+        stroke-width: 0.16em;
         color: var(--scl-capsule-color, var(--text-normal));
       }
     }
@@ -92,25 +97,25 @@
     button {
       -webkit-appearance: none;
       appearance: none;
-      width: 28px;
-      min-width: 28px;
-      max-width: 28px;
-      height: 28px;
-      border-radius: 4px;
+      width: 1.75em;
+      height: 1.75em;
+      min-width: 1.75em;
+      max-width: 1.75em;
+      border-radius: 0.25em;
       display: flex;
       align-items: center;
       justify-content: center;
       box-sizing: border-box;
 
       svg {
-        width: 16px;
-        height: 16px;
+        width: 1em;
+        height: 1em;
         flex-shrink: 0;
       }
     }
 
     .scl-order-btn {
-      padding: 4px;
+      padding: 1em;
     }
   }
 }
@@ -138,7 +143,7 @@
 
     .setting-item-description {
       line-height: 1.2;
-      margin-top: 2px;
+      margin-top: 0.125em;
     }
 
     .setting-item-control {
@@ -149,7 +154,7 @@
       margin-left: auto;
       justify-content: flex-end;
       align-items: center;
-      gap: 8px;
+      gap: 2em;
       flex-wrap: nowrap;
       white-space: nowrap;
       margin-top: 0;
@@ -163,7 +168,7 @@
       }
 
       input[type="text"] {
-        width: 140px;
+        width: 8.75em;
         text-align: right;
       }
     }
@@ -226,7 +231,7 @@
       flex-direction: row;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 0.5em;
     }
 
     .extra-setting-button,
@@ -243,7 +248,7 @@
       -webkit-appearance: none;
       appearance: none;
       padding: 0;
-      border: 1px solid var(--background-modifier-border);
+      border: 0.0625em solid var(--background-modifier-border);
       box-sizing: border-box;
       cursor: pointer;
       background: transparent;
@@ -259,19 +264,19 @@
     }
 
     &.scl-text-picker-row .setting-item-control input[type="color"] {
-      width: 20px;
-      height: 20px;
-      min-width: 20px;
-      max-width: 20px;
+      width: 1.25em;
+      height: 1.25em;
+      min-width: 1.25em;
+      max-width: 1.25em;
       border-radius: 50%;
     }
 
     &.scl-bg-picker-row .setting-item-control input[type="color"] {
-      width: 32px;
-      height: 22px;
-      min-width: 32px;
-      max-width: 32px;
-      border-radius: 4px;
+      width: 2em;
+      height: 1.375em;
+      min-width: 2em;
+      max-width: 2em;
+      border-radius: 0.25em;
     }
   }
 }
@@ -294,9 +299,39 @@
 .data-link-text {
   display: inline-block;
   vertical-align: baseline;
-  border-radius: 3px; 
-  padding-left: 4px;
-  padding-right: 4px;
+  border-radius: var(--scl-curve); 
+  padding-left: var(--scl-padding);
+  padding-right: var(--scl-padding);;
+}
+
+/* 1. Reset interior paddings and radius for ALL open structural segments in CodeMirror */
+.cm-editor .cm-formatting-link .data-link-text,
+.cm-editor .cm-formatting-link-string .data-link-text,
+.cm-editor .cm-link-alias-pipe .data-link-text,
+.cm-editor .cm-link-has-alias .data-link-text,
+.cm-editor .cm-link-alias .data-link-text,
+.cm-editor .cm-string.cm-url .data-link-text {
+  padding-left: 0;
+  padding-right: 0;
+  border-radius: 0;
+}
+
+.cm-active .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url .data-link-text {
+  padding-right: var(--scl-padding);
+  border-top-right-radius: var(--scl-curve);
+  border-bottom-right-radius: var(--scl-curve);
+}
+
+.cm-active .cm-link-has-alias .data-link-text {
+  padding-left: var(--scl-padding);
+  border-top-left-radius: var(--scl-curve);
+  border-bottom-left-radius: var(--scl-curve);
+}
+
+.cm-active .cm-link-alias .data-link-text {
+  padding-right: var(--scl-padding);
+  border-top-right-radius: var(--scl-curve);
+  border-bottom-right-radius: var(--scl-curve);
 }
 
 /* Universal structural selector targeting all injected affix modules */
