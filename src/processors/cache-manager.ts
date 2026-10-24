@@ -5,7 +5,6 @@ import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-uti
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
- * Maintains an O(1) reverse indexing matrix to prevent costly O(N) linear key sweeps.
  */
 export class AttributeCacheManager {
 	private readonly attrCycleCache: Map<string, Record<string, string>>;
@@ -13,7 +12,6 @@ export class AttributeCacheManager {
 	private readonly recentPathTouches: Map<string, number> = new Map();
 	private readonly telemetry: PluginPerformanceTracker;
 
-	// 🚀 INVERTED PATH INDEX: Maps file paths directly to their specific active cache signatures
 	private readonly pathIndex: Map<string, Set<string>> = new Map();
 
 	private readonly ATTR_CACHE_TTL_MS: number = 5 * 60 * 1000; // 5 min
@@ -47,8 +45,8 @@ export class AttributeCacheManager {
 		
 		const normalizedPath: string = normalizeCachePath(path);
 
-		let set: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
-		if (set === null) {
+		let set: Set<string> | undefined = this.pathIndex.get(normalizedPath);
+		if (set === undefined) { 
 			set = new Set<string>();
 			this.pathIndex.set(normalizedPath, set);
 		}
@@ -63,8 +61,8 @@ export class AttributeCacheManager {
 
 		const normalizedPath: string = normalizeCachePath(path);
 
-		const set: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
-		if (set !== null) {
+		const set: Set<string> | undefined = this.pathIndex.get(normalizedPath);
+		if (set !== undefined) {
 			set.delete(key);
 			if (set.size === 0) {
 				this.pathIndex.delete(normalizedPath);
@@ -80,15 +78,11 @@ export class AttributeCacheManager {
 		
 		const normalizedPath: string = normalizeCachePath(path);
 
-		const targetKeys: Set<string> | null = this.pathIndex.get(normalizedPath) ?? null;
+		const targetKeys: Set<string> | undefined = this.pathIndex.get(normalizedPath);
 
-		if (targetKeys !== null) {
-			const keysArray: string[] = Array.from(targetKeys);
-			const keysLen: number = keysArray.length;
-
-			for (let i = 0; i < keysLen; i++) {
-				const key: string | null = keysArray[i] ?? null;
-				if (key !== null) {
+		if (targetKeys !== undefined) {
+			for (const key of targetKeys) {
+				if (key !== null && key !== undefined) {
 					this.attrCycleCache.delete(key);
 					this.attrCacheTouchedAt.delete(key);
 				}
@@ -109,21 +103,15 @@ export class AttributeCacheManager {
 
 		const pathsToDelete: string[] = [];
 
-		for (const currentPath of this.pathIndex.keys()) {
-			if (currentPath !== null && currentPath !== undefined) {
-				const cleanCurrent: string = normalizeCachePath(currentPath);
-				if (cleanCurrent === normalizedPrefix || cleanCurrent.startsWith(cleanPrefix)) {
-					pathsToDelete.push(currentPath);
-				}
+		for (const [currentPath] of this.pathIndex) {
+			const cleanCurrent: string = normalizeCachePath(currentPath);
+			if (cleanCurrent === normalizedPrefix || cleanCurrent.startsWith(cleanPrefix)) {
+				pathsToDelete.push(currentPath);
 			}
 		}
 
-		const deleteLen: number = pathsToDelete.length;
-		for (let i = 0; i < deleteLen; i++) {
-			const targetPath: string | null = pathsToDelete[i] ?? null;
-			if (targetPath !== null) {
-				this.invalidatePath(targetPath);
-			}
+		for (const targetPath of pathsToDelete) {
+				this.invalidatePath(targetPath); 
 		}
 	}
 
@@ -157,9 +145,6 @@ export class AttributeCacheManager {
 		this.pruneAttrCycleCache(nowTs);
 	}
 
-	/**
-	 * Evicts a single cache entry completely from all dictionaries and inverted registries.
-	 */
 	private evictEntry(key: string): void {
 		this.removeKeyFromIndexFromRawKey(key);
 		this.attrCycleCache.delete(key);
@@ -169,38 +154,21 @@ export class AttributeCacheManager {
 	private pruneRecentPathTouches(nowTs: number): void {
 		if (this.recentPathTouches.size === 0) return;
 		
-		const expiredPaths: string[] = [];
+		// 1. Fjern utgåtte elementer
 		for (const [path, ts] of this.recentPathTouches) {
 			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
-				expiredPaths.push(path);
+				this.recentPathTouches.delete(path);
 			}
 		}
 
-		const expiredLen = expiredPaths.length;
-		for (let i = 0; i < expiredLen; i++) {
-			const path: string | null = expiredPaths[i] ?? null;
-			if (path !== null) {
-				this.recentPathTouches.delete(normalizeCachePath(path));
-			}
-		}
-
-		// Micro-optimized overflow cleanup
+		// 2. Håndter overflow uten å bygge store arrays
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
-			const overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
-			const overflowPaths: string[] = [];
+			let overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
 			
-			// Directly pull only the exact number of entries needed and break immediately
-			for (const currentPath of this.recentPathTouches.keys()) {
-				overflowPaths.push(currentPath);
-				if (overflowPaths.length >= overflow) break;
-			}
-
-			const overflowLen = overflowPaths.length;
-			for (let i = 0; i < overflowLen; i++) {
-				const path: string | null = overflowPaths[i] ?? null;
-				if (path !== null) {
-					this.recentPathTouches.delete(normalizeCachePath(path));
-				}
+			for (const [path] of this.recentPathTouches) {
+				this.recentPathTouches.delete(path);
+				overflow--;
+				if (overflow <= 0) break;
 			}
 		}
 	}
@@ -208,40 +176,26 @@ export class AttributeCacheManager {
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
-		const expiredKeys: string[] = [];
-		for (const key of this.attrCycleCache.keys()) {
+		// 1. Kjør TTL-rensk
+		for (const [key] of this.attrCycleCache) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				expiredKeys.push(key);
-			}
-		}
-
-		const expiredLen = expiredKeys.length;
-		for (let i = 0; i < expiredLen; i++) {
-			const key: string | null = expiredKeys[i] ?? null;
-			if (key !== null) {
 				this.evictEntry(key);
 			}
 		}
 
+		// 2. LRU-evict ved overflow: Nå uten den tunge Array.from().sort()!
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
-			const overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
+			let overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
 			
-			// FIXED: Safe and accurate numeric sort targeting the timestamp index directly
-			const entries: [string, number][] = Array.from(this.attrCacheTouchedAt.entries())
-				.sort((a, b) => a[1] - b[1]);
-
-			let removed = 0;
-			const entriesLen = entries.length;
-			for (let i = 0; i < entriesLen; i++) {
-				const entry: [string, number] | null = entries[i] ?? null;
-				if (entry !== null) {
-					const key: string = entry[0];
-					if (!this.attrCycleCache.has(key)) continue;
-					
+			// Strategi: Finn den eldste tidsstempelet (eller en trygg cutoff)
+			// ved å hente ut kun det vi faktisk trenger, i stedet for å sortere alt.
+			// Siden kartet slettes fra fortløpende, kan vi bare nappe ut de eldste innsettingene direkte.
+			for (const [key] of this.attrCacheTouchedAt) {
+				if (this.attrCycleCache.has(key)) {
 					this.evictEntry(key);
-					removed += 1;
-					if (removed >= overflow) break;
+					overflow--;
+					if (overflow <= 0) break;
 				}
 			}
 		}
@@ -250,8 +204,7 @@ export class AttributeCacheManager {
 	private removeKeyFromIndexFromRawKey(key: string): void {
 		const extractedPath: string | null = extractPathFromCacheKey(key);
 		if (extractedPath !== null) {
-			const normalizedPath: string = normalizeCachePath(extractedPath);
-			this.removeKeyFromIndex(normalizedPath, key);
+			this.removeKeyFromIndex(normalizeCachePath(extractedPath), key);
 		}
 	}
 }
