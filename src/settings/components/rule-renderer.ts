@@ -65,7 +65,7 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink, index
 export function renderCleanPreviewNote(containerEl: HTMLElement, rule: CSSLink, masterIndex: number, plugin: ResuperchargedLinks): void {
     containerEl.empty();
 
-    const noteEl = containerEl.createEl("div", {
+    const noteEl = containerEl.createDiv({
         cls: "internal-link",
         text: "Note"
     });

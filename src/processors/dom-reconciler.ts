@@ -374,7 +374,7 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 		const node: Element | null = propertyNodes[i] ?? null;
 		if (node === null || !node.instanceOf(HTMLElement) || node.nodeType !== 1 || !node.isConnected) continue;
 
-		const htmlNode = node as HTMLElement;
+		const htmlNode = node;
 		const text: string = (htmlNode.textContent ?? "").trim();
 		if (text.length === 0) continue;
 
