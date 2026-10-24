@@ -14,8 +14,6 @@ A fast, modern fork of **Supercharged Links** for Obsidian, rebuilt from the gro
 
 Style internal links dynamically based on tags, frontmatter attributes, inline fields, and note paths — across reading mode, live preview, and supported UI views without sacrificing your frame rate.
 
-No magic — just a lot of engineering around keeping link styling responsive and stable.
-
 ---
 
 ## The Breakthrough (v1.1.0 Architecture)
