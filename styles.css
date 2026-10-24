@@ -346,33 +346,13 @@
   cursor: not-allowed;
 }
 
-/* Typography override hooks mapped directly to baseline structural classes */
-.data-link-text.scl-weight-bold, 
-.data-link-text.scl-weight-bold .cm-underline,
-.cm-underline.scl-weight-bold { 
-  font-weight: bold; 
-}
+/* Hold disse intakt for skrifttype og pynt */
+.data-link-text.scl-weight-bold { font-weight: bold; }
+.data-link-text.scl-weight-lighter { font-weight: lighter; }
+.data-link-text.scl-style-italic { font-style: italic; }
+.data-link-text.scl-decor-underline { text-decoration: underline; }
+.data-link-text.scl-decor-linethrough { text-decoration: line-through; }
 
-.data-link-text.scl-weight-lighter, 
-.data-link-text.scl-weight-lighter .cm-underline,
-.cm-underline.scl-weight-lighter { 
-  font-weight: lighter; 
-}
-
-.data-link-text.scl-style-italic,
-.cm-underline.scl-style-italic { 
-  font-style: italic; 
-}
-
-.data-link-text.scl-style-underline,
-.cm-underline.scl-style-underline { 
-  text-decoration: underline; 
-}
-
-.data-link-text.scl-style-line-through,
-.cm-underline.scl-style-line-through { 
-  text-decoration: line-through; 
-}
 
 /* Live Preview pseudo-icons (replaces CM widget spans) */
 .data-link-text[data-scl-icon-before]::before {

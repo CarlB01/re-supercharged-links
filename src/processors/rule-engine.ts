@@ -169,7 +169,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	let color = "";
 	let backgroundColor = "";
 	let fontWeight: "normal" | "lighter" | "bold" = "normal";
-	let decorationBits = 0;
+	let decorationBits = 0; // 🚀 Akkumulator for dekorasjoner
 	let iconBefore = "";
 	let iconAfter = "";
 
@@ -191,6 +191,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			fontWeight = rule.fontWeight;
 		}
 
+		// 🚀 AKKUMULERING: Bruker bitwise OR (|) så stiler fra FLERE regler stables oppå hverandre!
 		if (rule.fontStyle === "italic") decorationBits |= DECOR_ITALIC;
 		if (rule.fontStyle === "underline") decorationBits |= DECOR_UNDERLINE;
 		if (rule.fontStyle === "line-through") decorationBits |= DECOR_LINE_THROUGH;
@@ -204,18 +205,14 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if ((decorationBits & DECOR_UNDERLINE) !== 0) decorations.push("underline");
 	if ((decorationBits & DECOR_LINE_THROUGH) !== 0) decorations.push("line-through");
 
-	const attributes: Record<string, string> = {};
-	if (color.length > 0) attributes["data-link-color"] = color;
-	if (backgroundColor.length > 0 && backgroundColor !== "transparent") attributes["data-link-bg"] = backgroundColor;
-	if (fontWeight !== "normal") attributes["data-link-weight"] = fontWeight;
-	if (decorations.length > 0) attributes["data-link-style-decoration"] = decorations.join(" ");
-
-	if (!input.skipIconBefore && iconBefore.length > 0) {
-		attributes["data-scl-icon-before"] = iconBefore;
-	}
-	if (!input.skipIconAfter && iconAfter.length > 0) {
-		attributes["data-scl-icon-after"] = iconAfter;
-	}
+	const attributes: Record<string, string> = Object.create(null);
+	attributes["data-link-color"] = color;
+	attributes["data-link-bg"] = (backgroundColor !== "transparent") ? backgroundColor : "";
+	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";
+	attributes["data-link-style-decoration"] = decorations.length > 0 ? decorations.join(" ") : "";
+	attributes["data-scl-icon-before"] = (!input.skipIconBefore && iconBefore.length > 0) ? iconBefore : "";
+	attributes["data-scl-icon-after"] = (!input.skipIconAfter && iconAfter.length > 0) ? iconAfter : "";
+	attributes["data-link-tags"] = "";
 
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
@@ -227,8 +224,8 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 
 		const tagsLen = tagsArray.length;
 		for (let j = 0; j < tagsLen; j++) {
-			const cleanTag: string | null = tagsArray[j] ?? null;
-			if (cleanTag !== null && cleanTag.length > 0) {
+			const cleanTag = tagsArray[j];
+			if (cleanTag !== undefined && cleanTag !== null && cleanTag.length > 0) {
 				classList.push(`scl-match-tag-${cleanTag}`);
 			}
 		}
@@ -244,12 +241,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		attributes,
 		iconBefore,
 		iconAfter,
-		style: {
-			color,
-			backgroundColor,
-			fontWeight,
-			decorations
-		}
+		style: { color, backgroundColor, fontWeight, decorations }
 	};
 }
-

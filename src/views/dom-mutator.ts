@@ -1,5 +1,6 @@
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
+import { mapRawAttrsToDataAttrs } from "../utils/link-attribute-mapper";
 import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTags } from "../utils/shared-utils";
 
 /**
@@ -123,16 +124,17 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 }
 
 /**
- * V8 OPTIMIZED: Globally mutates a link element safely without layout thrashing.
- * Bypasses intermediate style objects and micro-allocations on hot path.
+ * 🚀 V8 OPTIMIZED & UNIVERSALLY COMPLIANT: Globally mutates a link element safely.
+ * Uses inline values for strict target overrides (active tabs/3rd party apps) via approved APIs,
+ * while utilizing functional layout modifier classes for structural typography.
  */
-export function applyStylesAndAttributesToLink(link: HTMLElement, dataAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
+export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
 	const visibleText: string = (link.textContent ?? "").trim();
 
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.compiledRules, 
-		resolvedAttrs: dataAttrs,
+		resolvedAttrs: rawAttrs,
 		isDark,
 		includeTagMatchClasses: true,
 		visibleText: visibleText
@@ -149,30 +151,37 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, dataAttrs: Rec
 
 	clearExtraAttributes(link);
 
+	// Vask bort gamle modifier-klasser så de ikke akkumuleres feil ved oppdatering
+	link.removeClass(
+		"scl-weight-bold", "scl-weight-lighter", "scl-style-italic", 
+		"scl-decor-underline", "scl-decor-linethrough"
+	);
+
 	if (resolution.hasMatch) {
-		const style = link.style;
+		// 🚀 THE FIX: Vi bygger et strukturert inline-stilobjekt via Obsidians GODKJENTE API.
+		// Dette tvinger fargen gjennom på aktive faner og 3. parts apper uten linter-feil!
+		const targetStyles: Partial<CSSStyleDeclaration> = {};
 
-		if (targetColor.length > 0) style.color = targetColor;
-		
+		if (targetColor.length > 0) {
+			targetStyles.color = targetColor;
+		}
 		if (targetBg.length > 0 && targetBg !== "transparent") {
-			style.backgroundColor = targetBg;
+			targetStyles.backgroundColor = targetBg;
 		}
 
-		if (resolution.style.fontWeight !== "normal") {
-			style.fontWeight = resolution.style.fontWeight;
-		}
+		// Send stilsamlingen til elementet (Dette overskriver/nullstiller eventuelle gamle inline-farger)
+		link.setCssStyles(targetStyles);
+
+		// Typografi (vekt, kursiv, dekorasjoner) løses fremdeles elegant via klasser i styles.css
+		if (resolution.style.fontWeight === "bold") link.addClass("scl-weight-bold");
+		if (resolution.style.fontWeight === "lighter") link.addClass("scl-weight-lighter");
 
 		const decorations = resolution.style.decorations;
-		style.fontStyle = decorations.includes("italic") ? "italic" : "";
+		if (decorations.includes("italic")) link.addClass("scl-style-italic");
+		if (decorations.includes("underline")) link.addClass("scl-decor-underline");
+		if (decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
 
-		// Lynrask streng-sammensetting uten array-allokering (.push / .join)
-		let textDeco = "";
-		if (decorations.includes("underline")) textDeco = "underline";
-		if (decorations.includes("line-through")) {
-			textDeco = textDeco.length > 0 ? "underline line-through" : "line-through";
-		}
-		style.textDecoration = textDeco;
-
+		// Legg til regel- og tag-klasser (for ikoner og selektorer)
 		const classesLen: number = resolution.classes.length;
 		for (let i = 0; i < classesLen; i++) {
 			const cls = resolution.classes[i];
@@ -181,16 +190,15 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, dataAttrs: Rec
 			}
 		}
 
+		// Inject ikoner og andre presentasjonsattributter
 		const resAttrs = resolution.attributes;
 		const attrKeys = Object.keys(resAttrs);
 		const attrKeysLen = attrKeys.length;
 
 		for (let i = 0; i < attrKeysLen; i++) {
 			const attrKey = attrKeys[i];
-			
-			if (attrKey !== undefined && attrKey !== null) {
-				const attrValue = resAttrs[attrKey]; // Nå klager ikke TS på indeksen lenger!
-				
+			if (attrKey !== undefined) {
+				const attrValue = resAttrs[attrKey];
 				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
 					link.setAttribute(attrKey, attrValue);
 				}
@@ -200,32 +208,41 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, dataAttrs: Rec
 		if (targetColor.length > 0) {
 			link.setAttribute("data-link-color", targetColor);
 		}
+	} else {
+		// Nullstill inline-stiler helt hvis regelen ikke lenger matcher
+		link.setCssStyles({
+			color: "",
+			backgroundColor: ""
+		});
 	}
 
-	const propKeys = Object.keys(dataAttrs); 
+	const propKeys = Object.keys(rawAttrs); 
 	const propKeysLen = propKeys.length;
 
 	for (let i = 0; i < propKeysLen; i++) {
-			const key = propKeys[i];
-			
-			// ✨ TS-FIKS: Sikre indeks-typen før vi slår opp i objektet
-			if (key !== undefined && key !== null) {
-					const propValue = dataAttrs[key]; // TS vet nå at 'key' er en gyldig string-indeks!
-					if (propValue === undefined || propValue === null) continue;
-					
-					const domKey: string = cleanAttributeKey(key);
-					const attributeName = `data-link-${domKey}`;
-					let newValue: string | null = processValue(key, propValue);
-
-					if (domKey === "tags" && newValue !== null) {
-							const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-							newValue = stringifyTags(cleanTokens);
-					}
-
-					if (newValue !== null) {
-							link.setAttribute(attributeName, newValue);
-					}
+		const key = propKeys[i];
+		
+		if (key !== undefined) {
+			if (key === "href" || key === "data-href" || key === "id") {
+				continue;
 			}
+
+			const propValue = rawAttrs[key];
+			if (propValue === undefined || propValue === null) continue;
+			
+			const domKey: string = cleanAttributeKey(key);
+			const attributeName = `data-link-${domKey}`;
+			let newValue: string | null = processValue(key, propValue);
+
+			if (domKey === "tags" && newValue !== null) {
+				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
+				newValue = stringifyTags(cleanTokens);
+			}
+
+			if (newValue !== null && newValue.length > 0) {
+				link.setAttribute(attributeName, newValue);
+			}
+		}
 	}
 
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");

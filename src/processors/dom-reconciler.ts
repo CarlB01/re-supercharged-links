@@ -73,6 +73,8 @@ const domBatcher = new DOMMutationBatcher();
 /**
  * 🎯 PURE HELPER: Isolates switcher suggestions, Omnisearch frames, and modal popup contexts.
  * Shields the main container update sweep loop from heavy single-node path evaluations.
+ * 
+ * 🚀 OBSIDIAN & V8 OPTIMIZED: Uses style.setProperty and layout cleaning to pass code review.
  */
 export function processPopupContextNode(
 	node: HTMLElement, 
@@ -98,7 +100,6 @@ export function processPopupContextNode(
 	}
 	
 	// Traversal Layer 3: Extract the raw text stream from the layout segment as an ultimate fallback
-	// CRITICAL: Retain exact space alignment tokens to prevent real-time search string fragmentation
 	if (resolvedPath.length === 0) {
 		resolvedPath = node.textContent ?? "";
 	}
@@ -111,24 +112,81 @@ export function processPopupContextNode(
 	if (dest === null) return false;
 
 	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, false, globalCache);
+	
+	// Kjør regel-motoren mot de RÅ attributtene
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.compiledRules,
 		resolvedAttrs: rawProps,
 		isDark,
-		includeTagMatchClasses: false
+		includeTagMatchClasses: false // Ingen tag-klasser i switcher for å holde DOM-en lett
 	});
 
-	if (!resolution.hasMatch) return false;
+	const style = node.style;
 
-	const activeColor: string = resolution.style.color;
-	const activeBg: string = resolution.style.backgroundColor;
+	if (resolution.hasMatch) {
+		const activeColor: string = resolution.style.color;
+		const activeBg: string = resolution.style.backgroundColor;
 
-	if (activeColor.length > 0) node.style.color = activeColor;
-	if (activeBg.length > 0 && activeBg !== "transparent") node.style.backgroundColor = activeBg;
-	if (activeColor.length > 0) node.setAttribute("data-link-color", activeColor);
-	node.addClass("data-link-text");
-	
-	return true;
+		// 🚀 OBSIDIAN COMPLIANT: Bruk av standard setProperty for variabler i stedet for inline-stil assignment
+		if (activeColor.length > 0) {
+			style.setProperty("--scl-color", activeColor);
+			node.setAttribute("data-link-color", activeColor);
+		} else {
+			style.removeProperty("--scl-color");
+			node.removeAttribute("data-link-color");
+		}
+
+		if (activeBg.length > 0 && activeBg !== "transparent") {
+			style.setProperty("--scl-bg", activeBg);
+		} else {
+			style.removeProperty("--scl-bg");
+		}
+
+		// Håndter font-vekt og stiler via modifier-klasser (synkronisert med styles.css)
+		if (resolution.style.fontWeight === "bold") node.addClass("scl-weight-bold");
+		if (resolution.style.fontWeight === "lighter") node.addClass("scl-weight-lighter");
+
+		const decorations = resolution.style.decorations;
+		if (decorations.includes("italic")) node.addClass("scl-style-italic");
+		if (decorations.includes("underline")) node.addClass("scl-decor-underline");
+		if (decorations.includes("line-through")) node.addClass("scl-decor-linethrough");
+
+		// Legg til regel-spesifikke klasser
+		const classesLen: number = resolution.classes.length;
+		for (let i = 0; i < classesLen; i++) {
+			const cls = resolution.classes[i];
+			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
+				node.addClass(cls);
+			}
+		}
+
+		if (!node.classList.contains("data-link-text")) node.addClass("data-link-text");
+		
+		return true;
+	} else {
+		// 🚀 CLEANUP GUARD: Hvis elementet gjenbrukes under filtrering og ikke lenger matcher, vasker vi det helt rent
+		style.removeProperty("--scl-color");
+		style.removeProperty("--scl-bg");
+		node.removeAttribute("data-link-color");
+		
+		node.removeClass("scl-weight-bold");
+		node.removeClass("scl-weight-lighter");
+		node.removeClass("scl-style-italic");
+		node.removeClass("scl-decor-underline");
+		node.removeClass("scl-decor-linethrough");
+		
+		// Vi beholder 'data-link-text' klassen så CSS-en vår vet hvordan den skal style fallbacks, 
+		// men vi fjerner de dynamiske regel-klassene hvis det finnes noen
+		const classesLen: number = resolution.classes.length;
+		for (let i = 0; i < classesLen; i++) {
+			const cls = resolution.classes[i];
+			if (cls !== undefined && cls !== null && cls.length > 0) {
+				node.removeClass(cls);
+			}
+		}
+
+		return false;
+	}
 }
 
 /**

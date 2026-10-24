@@ -7,6 +7,7 @@ import { resolveRuleResolution } from "../processors/rule-engine";
 import { extractCleanLinkPath } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
+import { mapRawAttrsToDataAttrs } from "../utils/link-attribute-mapper";
 
 export const themeCompartment: Compartment = new Compartment();
 
@@ -107,14 +108,6 @@ export class CMViewPlugin {
     }
 	}
 
-	/**
-	 * Orchestrates the decoration assembly chain for a specific link node.
-	 * Separates raw metadata retrieval from rule engine resolution before compiling the final mark.
-	 * 
-	 * @param file - The target Obsidian TFile mapped to this link destination.
-	 * @param visibleLabel - The actual raw or cleaned text string rendering inside the editor.
-	 * @returns A computed CodeMirror Mark Decoration containing styling hooks and attributes.
-	 */
 	public processLinkDecoration(
 		file: TFile, 
 		visibleLabel: string, 
@@ -131,7 +124,7 @@ export class CMViewPlugin {
 		);
 
 		// 2. Attribute Preparation Layer: Map raw metadata values directly into frontend data-link arrays
-		const attributes = this.mapRawAttrsToDataAttrs(rawAttrs);
+		const attributes = mapRawAttrsToDataAttrs(rawAttrs);
 
 		// Determine light/dark mode context state
 		const isDark: boolean = document.body.classList.contains("theme-dark");
@@ -156,22 +149,36 @@ export class CMViewPlugin {
 		const classes: string[] = [];
 		const classCount: number = resolution.classes.length;
 		for (let i = 0; i < classCount; i++) {
-			const c: string = resolution.classes[i] ?? "";
-			if (c.length > 0) classes.push(c);
-		}
-
-		// 5. Rule Attribute Merging: Append resolved presentation layer attributes (like icons) to our element dataset
-		for (const [attrKey, attrValue] of Object.entries(resolution.attributes)) {
-			const cleanVal = attrValue ?? "";
-			if (cleanVal.length > 0) {
-				attributes[attrKey] = cleanVal;
+			const c = resolution.classes[i];
+			if (c !== undefined && c !== null && c.length > 0) {
+				classes.push(c);
 			}
 		}
 
-		// Return the complete layout instruction block straight back to the CodeMirror engine
+		// V8 OPTIMIZED
+		const resAttrs = resolution.attributes;
+		const attrKeys = Object.keys(resAttrs);
+		const attrKeysLen = attrKeys.length;
+
+		for (let i = 0; i < attrKeysLen; i++) {
+			const attrKey = attrKeys[i];
+			if (attrKey !== undefined) {
+				const attrValue = resAttrs[attrKey];
+				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
+					attributes[attrKey] = attrValue;
+				}
+			}
+		}
+
+		if (classes.length > 0) {
+			return Decoration.mark({
+				attributes,
+				class: classes.join(" ")
+			});
+		}
+
 		return Decoration.mark({
-			attributes,
-			class: classes.join(" ")
+			attributes
 		});
 	}
 
@@ -507,32 +514,6 @@ export class CMViewPlugin {
 		});
 		state.skipUntilPosition = wikiEndPosition;
 		return true;
-	}
-
-	/**
-	 * 🚀 V8 OPTIMIZED: Transforms raw file metadata records into normalized data attributes.
-	 * Eliminates for...in layout degradation by operating on pre-allocated key sets.
-	 */
-	private mapRawAttrsToDataAttrs(rawAttrs: Record<string, string>): Record<string, string> {
-		// Object.create(null) har ingen prototype, noe som gjør egenskaps-oppslag superraskt
-		const domAttributes: Record<string, string> = Object.create(null);
-		
-		const keys = Object.keys(rawAttrs);
-		const keysLen = keys.length;
-		
-		for (let i = 0; i < keysLen; i++) {
-			const key = keys[i];
-			
-			// ✨ TS-FIKS: Garanter overfor kompilatoren at key ikke er undefined før oppslag
-			if (key !== undefined) {
-				const val = rawAttrs[key]; // Nå er TypeScript helt fornøyd!
-				
-				if (val !== undefined && val !== null && val.length > 0) {
-					domAttributes[`data-link-${key}`] = val;
-				}
-			}
-		}
-		return domAttributes;
 	}
 
 	private decorateRangeOnce(
