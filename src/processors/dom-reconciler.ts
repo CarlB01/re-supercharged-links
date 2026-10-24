@@ -1,6 +1,6 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { setLinkNewProps, tagChipStyles } from "../views/dom-mutator";
+import { applyStylesAndAttributesToLink, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import ResuperchargedLinks from "../core/main";
@@ -52,7 +52,7 @@ class DOMMutationBatcher {
 			const element: HTMLElement | null = task.elementRef.deref() ?? null;
 
 			if (element !== null && element.nodeType === 1 && element.isConnected) {
-				setLinkNewProps(element, task.props, task.plugin);
+				applyStylesAndAttributesToLink(element, task.props, task.plugin);
 			}
 		}
 

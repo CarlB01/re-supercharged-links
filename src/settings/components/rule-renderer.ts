@@ -1,7 +1,7 @@
 import ResuperchargedLinks from "../../core/main";
 import { CSSLink } from "../../types/css-link";
 import { cleanRuleValue, cleanAttributeKey } from "../../utils/shared-utils";
-import { setLinkNewProps } from "../../views/dom-mutator";
+import { applyStylesAndAttributesToLink } from "../../views/dom-mutator";
 
 /**
  * Renders the preview link node as an authentic framework link.
@@ -85,6 +85,6 @@ export function renderCleanPreviewNote(containerEl: HTMLElement, rule: CSSLink, 
         mockProps["path"] = rawValue;
     }
 
-    setLinkNewProps(noteEl, mockProps, plugin);
+    applyStylesAndAttributesToLink(noteEl, mockProps, plugin);
 }
 

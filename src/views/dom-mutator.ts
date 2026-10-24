@@ -1,6 +1,6 @@
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTagsArray } from "../utils/shared-utils";
+import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTags } from "../utils/shared-utils";
 
 /**
  * Completely purges all supercharged style properties and data-link attributes.
@@ -123,15 +123,16 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 }
 
 /**
- * Globally mutates a link element safely by evaluating active compile configurations.
+ * V8 OPTIMIZED: Globally mutates a link element safely without layout thrashing.
+ * Bypasses intermediate style objects and micro-allocations on hot path.
  */
-export function setLinkNewProps(link: HTMLElement, newProps: Record<string, string>, plugin: ResuperchargedLinks): void {
+export function applyStylesAndAttributesToLink(link: HTMLElement, dataAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
 	const visibleText: string = (link.textContent ?? "").trim();
 
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.compiledRules, 
-		resolvedAttrs: newProps,
+		resolvedAttrs: dataAttrs,
 		isDark,
 		includeTagMatchClasses: true,
 		visibleText: visibleText
@@ -149,41 +150,48 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 	clearExtraAttributes(link);
 
 	if (resolution.hasMatch) {
-		const targetStyles: Partial<CSSStyleDeclaration> = {};
+		const style = link.style;
 
-		if (targetColor.length > 0) targetStyles.color = targetColor;
-		if (targetBg.length > 0 && targetBg !== "transparent") targetStyles.backgroundColor = targetBg;
-		if (resolution.style.fontWeight !== "normal") targetStyles.fontWeight = resolution.style.fontWeight;
+		if (targetColor.length > 0) style.color = targetColor;
+		
+		if (targetBg.length > 0 && targetBg !== "transparent") {
+			style.backgroundColor = targetBg;
+		}
+
+		if (resolution.style.fontWeight !== "normal") {
+			style.fontWeight = resolution.style.fontWeight;
+		}
 
 		const decorations = resolution.style.decorations;
-		targetStyles.fontStyle = decorations.includes("italic") ? "italic" : "";
+		style.fontStyle = decorations.includes("italic") ? "italic" : "";
 
-		const textDecos: string[] = [];
-		if (decorations.includes("underline")) textDecos.push("underline");
-		if (decorations.includes("line-through")) textDecos.push("line-through");
-		targetStyles.textDecoration = textDecos.length > 0 ? textDecos.join(" ") : "";
-
-		link.setCssStyles(targetStyles);
+		// Lynrask streng-sammensetting uten array-allokering (.push / .join)
+		let textDeco = "";
+		if (decorations.includes("underline")) textDeco = "underline";
+		if (decorations.includes("line-through")) {
+			textDeco = textDeco.length > 0 ? "underline line-through" : "line-through";
+		}
+		style.textDecoration = textDeco;
 
 		const classesLen: number = resolution.classes.length;
 		for (let i = 0; i < classesLen; i++) {
-			const cls: string | null = resolution.classes[i] ?? null;
-			if (cls !== null && cls.length > 0 && cls !== "data-link-text") {
+			const cls = resolution.classes[i];
+			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
 				link.addClass(cls);
 			}
 		}
 
-		/**
-		 * Architectural Strategy Shift: We bypass imperative span generation. Instead, we pipe
-		 * rule-resolved attributes directly to data attributes, letting CSS layout models (::before / ::after)
-		 * handle structural visual representation deterministically.
-		 */
 		const resAttrs = resolution.attributes;
-		for (const attrKey in resAttrs) {
-			if (Object.prototype.hasOwnProperty.call(resAttrs, attrKey)) {
-				const attrValue: string = resAttrs[attrKey] || "";
+		const attrKeys = Object.keys(resAttrs);
+		const attrKeysLen = attrKeys.length;
+
+		for (let i = 0; i < attrKeysLen; i++) {
+			const attrKey = attrKeys[i];
+			
+			if (attrKey !== undefined && attrKey !== null) {
+				const attrValue = resAttrs[attrKey]; // Nå klager ikke TS på indeksen lenger!
 				
-				if (attrValue.length > 0) {
+				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
 					link.setAttribute(attrKey, attrValue);
 				}
 			}
@@ -194,24 +202,30 @@ export function setLinkNewProps(link: HTMLElement, newProps: Record<string, stri
 		}
 	}
 
-	for (const key in newProps) {
-		if (Object.prototype.hasOwnProperty.call(newProps, key)) {
-			const propValue: string = newProps[key] || "";
+	const propKeys = Object.keys(dataAttrs); 
+	const propKeysLen = propKeys.length;
+
+	for (let i = 0; i < propKeysLen; i++) {
+			const key = propKeys[i];
 			
-			const domKey: string = cleanAttributeKey(key);
-			const attributeName = `data-link-${domKey}`;
-			let newValue: string | null = processValue(key, propValue);
+			// ✨ TS-FIKS: Sikre indeks-typen før vi slår opp i objektet
+			if (key !== undefined && key !== null) {
+					const propValue = dataAttrs[key]; // TS vet nå at 'key' er en gyldig string-indeks!
+					if (propValue === undefined || propValue === null) continue;
+					
+					const domKey: string = cleanAttributeKey(key);
+					const attributeName = `data-link-${domKey}`;
+					let newValue: string | null = processValue(key, propValue);
 
-			if (domKey === "tags" && newValue !== null) {
-				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-				newValue = stringifyTagsArray(cleanTokens);
+					if (domKey === "tags" && newValue !== null) {
+							const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
+							newValue = stringifyTags(cleanTokens);
+					}
+
+					if (newValue !== null) {
+							link.setAttribute(attributeName, newValue);
+					}
 			}
-
-
-			if (newValue !== null) {
-				link.setAttribute(attributeName, newValue);
-			}
-		}
 	}
 
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");

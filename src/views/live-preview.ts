@@ -131,7 +131,7 @@ export class CMViewPlugin {
 		);
 
 		// 2. Attribute Preparation Layer: Map raw metadata values directly into frontend data-link arrays
-		const attributes = this.buildLinkAttributes(rawAttrs);
+		const attributes = this.mapRawAttrsToDataAttrs(rawAttrs);
 
 		// Determine light/dark mode context state
 		const isDark: boolean = document.body.classList.contains("theme-dark");
@@ -510,24 +510,28 @@ export class CMViewPlugin {
 	}
 
 	/**
-	 * Helper Method: Transforms raw file metadata records into normalized, 
-	 * standardized HTML-compliant 'data-link-*' attribute string dictionaries.
-	 * 
-	 * @param rawAttrs - The raw key-value string pairs extracted from frontmatter/metadata caches.
-	 * @returns A record containing prepared DOM attribute keys paired with their cleaned values.
+	 * 🚀 V8 OPTIMIZED: Transforms raw file metadata records into normalized data attributes.
+	 * Eliminates for...in layout degradation by operating on pre-allocated key sets.
 	 */
-	private buildLinkAttributes(rawAttrs: Record<string, string>): Record<string, string> {
-		const domAttributes: Record<string, string> = {};
+	private mapRawAttrsToDataAttrs(rawAttrs: Record<string, string>): Record<string, string> {
+		// Object.create(null) har ingen prototype, noe som gjør egenskaps-oppslag superraskt
+		const domAttributes: Record<string, string> = Object.create(null);
 		
-		for (const key in rawAttrs) {
-			if (Object.prototype.hasOwnProperty.call(rawAttrs, key)) {
-				const val: string = rawAttrs[key] ?? "";
-				if (val.length > 0) {
+		const keys = Object.keys(rawAttrs);
+		const keysLen = keys.length;
+		
+		for (let i = 0; i < keysLen; i++) {
+			const key = keys[i];
+			
+			// ✨ TS-FIKS: Garanter overfor kompilatoren at key ikke er undefined før oppslag
+			if (key !== undefined) {
+				const val = rawAttrs[key]; // Nå er TypeScript helt fornøyd!
+				
+				if (val !== undefined && val !== null && val.length > 0) {
 					domAttributes[`data-link-${key}`] = val;
 				}
 			}
 		}
-		
 		return domAttributes;
 	}
 

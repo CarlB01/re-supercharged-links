@@ -9,7 +9,7 @@ import { sanitizeRule } from "../processors/rule-engine";
 import { updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "../core/main";
 import { EDITABLE_PROPERTIES } from "./settings-constants";
-import { setLinkNewProps } from "../views/dom-mutator";
+import { applyStylesAndAttributesToLink } from "../views/dom-mutator";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 
@@ -195,13 +195,9 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const masterIndex = selectors.indexOf(rule);
 			if (masterIndex === -1) continue;
 
-			// ⚡ FIX: Vi søker i HELE containeren etter den unike hovedraden for denne regelen.
 			const rowEl: HTMLElement | null = this.containerEl.querySelector<HTMLElement>(`.scl-main-rule-row[data-index="${masterIndex}"]`) ?? null;
 			if (rowEl === null) continue;
 
-			// ⚡ ARKITEKTUR-FIX: Siden setLinkNewProps() sletter 'scl-rule-X' klassen under clearExtraAttributes(),
-			// må vi enten sørge for at renderPreviewNote() legger på et unikt data-attributt (f.eks. data-preview-note="\${masterIndex}"),
-			// eller søke bredere på .internal-link i denne spesifikke raden for å unngå at referansen dør.
 			const noteEl: HTMLElement | null = rowEl.querySelector<HTMLElement>(`.internal-link`) ?? null;
 			if (noteEl === null) continue;
 
@@ -226,10 +222,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 			// ⚡ DATA-HREF FIX: Forhåndsvisningen trenger en data-href for å matche den reelle DOM-strukturen din
 			mockProps["data-href"] = "Note";
 
-			// 2. Kjøre stilingen 100 % synkront på denne isolerte noden
-			// Siden datapakken nå er perfekt strukturert, vil setLinkNewProps tildele nøyaktig samme farger,
-			// font-weights, og 'data-scl-icon-before' attributter som i dine ekte notater!
-			setLinkNewProps(noteEl, mockProps, this.plugin);
+			applyStylesAndAttributesToLink(noteEl, mockProps, this.plugin);
 
 			// 3. Oppdater beskrivende tekst-elementer dynamisk i denne raden
 			if (rule.type === "tag") {

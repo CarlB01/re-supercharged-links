@@ -122,14 +122,32 @@ export function normalizePathForQueue(input: string | null | undefined): string 
 	return trimmed.toLowerCase();
 }
 
-/**
- * Standardizes vault file paths across registries, indexers, and invalidation pipelines.
- * Enforces unified case folding to permanently eliminate ghost cache synchronization drifts.
- */
 export function normalizeCachePath(path: string | null | undefined): string {
-	const text: string = path ?? "";
-	if (text.length === 0) return "";
-	return text.toLowerCase().trim();
+	if (!path) return "";
+	
+	const len = path.length;
+	if (len === 0) return "";
+
+	let start = 0;
+	let end = len - 1;
+
+	while (start < len && path.charCodeAt(start) <= 32) start++;
+	while (end >= start && path.charCodeAt(end) <= 32) end--;
+
+	if (start > end) return "";
+
+	const trimmed = (start === 0 && end === len - 1) ? path : path.substring(start, end + 1);
+
+	let hasUppercase = false;
+	const trimmedLen = trimmed.length;
+	for (let i = 0; i < trimmedLen; i++) {
+		const code = trimmed.charCodeAt(i);
+		if (code >= 65 && code <= 90) { // A-Z
+			hasUppercase = true;
+			break;
+		}
+	}
+	return hasUppercase ? trimmed.toLowerCase() : trimmed;
 }
 
 /**
@@ -149,17 +167,31 @@ export function hasTagToken(rawTags: string | null | undefined, targetCleanTag: 
 export function parseSpaceSeparatedTokens(rawInput: string | null | undefined): string[] {
 	if (!rawInput) return [];
 	
-	const tokens = rawInput.toLowerCase().replace(/#/g, "").trim().split(/\s+/);
+	const len = rawInput.length;
+	if (len === 0) return [];
+
 	const result: string[] = [];
-	const tokensLen = tokens.length;
-	
-	for (let i = 0; i < tokensLen; i++) {
-		const token = tokens[i];
-		if (token && token.length > 0) {
-			result.push(token);
+	let currentToken = "";
+
+	for (let i = 0; i < len; i++) {
+		const code = rawInput.charCodeAt(i);
+
+		// Space: 32, Tab: 9, LF: 10, CR: 13)
+		if (code === 32 || code === 9 || code === 10 || code === 13) {
+			if (currentToken.length > 0) {
+				result.push(currentToken.toLowerCase());
+				currentToken = ""; 
+			}
+		} 
+		// skip '#' (ASCII 35)
+		else if (code !== 35) {
+			currentToken += rawInput[i];
 		}
 	}
-	
+
+	if (currentToken.length > 0) {
+		result.push(currentToken.toLowerCase());
+	}
 	return result;
 }
 
@@ -292,15 +324,19 @@ export function buildCacheKey(ruleVersion: number, path: string, addDataHref: bo
 	return `v${ruleVersion}::${cleanPath}::${hrefFlag}`;
 }
 
-/**
- * Extracts the file path layout segment securely from a versioned raw cache key token.
- */
 export function extractPathFromCacheKey(key: string): string | null {
-	const segments: string[] = key.split("::");
-	if (segments.length >= 3) {
-		return segments[1] ?? null;
+	const firstIdx = key.indexOf("::");
+	if (firstIdx === -1) return null;
+
+	const startPos = firstIdx + 2;
+
+	const secondIdx = key.indexOf("::", startPos);
+	if (secondIdx === -1) return null;
+
+	if (secondIdx + 2 >= key.length) {
+		return null; 
 	}
-	return null;
+	return key.substring(startPos, secondIdx);
 }
 
 /**
@@ -324,17 +360,29 @@ export function createInlineIconSpan(targetDocument: Document, icon: string, isB
 /**
  * Fast linear scan that builds a unified space-separated hashtag string from raw tokens.
  */
-export function stringifyTagsArray(tags: string[]): string {
+export function stringifyTags(tags: string[]): string {
 	const len = tags.length;
 	if (len === 0) return "";
 
-	// Mutate the array tokens directly in place to avoid creating new string pieces in a loop
+	let result = "";
+	let isFirst = true;
+	
 	for (let i = 0; i < len; i++) {
 		const t = tags[i];
-		if (t && t.length > 0 && !t.startsWith("#")) {
-			tags[i] = `#${t}`;
+		
+		if (!t || t.length === 0) continue;
+
+		if (!isFirst) {
+			result += " ";
+		} else {
+			isFirst = false;
+		}
+
+		if (t.charCodeAt(0) === 35) { // ASCII/Unicode '#'
+			result += t;
+		} else {
+			result += `#${t}`;
 		}
 	}
-
-	return tags.join(" ");
+	return result;
 }
