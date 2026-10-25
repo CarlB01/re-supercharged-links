@@ -205,7 +205,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if ((decorationBits & DECOR_UNDERLINE) !== 0) decorations.push("underline");
 	if ((decorationBits & DECOR_LINE_THROUGH) !== 0) decorations.push("line-through");
 
-	const attributes: Record<string, string> = Object.create(null);
+	const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 	attributes["data-link-color"] = color;
 	attributes["data-link-bg"] = (backgroundColor !== "transparent") ? backgroundColor : "";
 	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";

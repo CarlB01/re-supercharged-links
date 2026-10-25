@@ -1,5 +1,3 @@
-// observers/observer-engine
-
 import { App, WorkspaceLeaf } from "obsidian";
 import { clearExtraAttributes } from "../views/dom-mutator";
 import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
@@ -47,7 +45,6 @@ export function initViewObservers(plugin: ResuperchargedLinks): void {
 	
 	registerViewType("mybrain-view", pluginInstance, ".focusable-note-link", true);
 
-	// 🚀 HIGH PERFORMANCE INJECTION: Bases and Database tables registered as active dynamic streams
 	registerViewType("bases", pluginInstance, "span.internal-link, .internal-link[data-href], [data-href].internal-link", true);
 	registerViewType("markdown", pluginInstance, ".base-view span.internal-link, .bases-view span.internal-link, .base-view .internal-link[data-href], .bases-view .internal-link[data-href]");
 	
@@ -145,7 +142,7 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		if (shouldTriggerSweep) {
 			const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner, .suggestion-title, .suggestion-note";
 			
-			// Execute a lightning fast frame-bound update over the active active document layer
+			// Execute a frame-bound update over the active active document layer
 			const activeDoc = doc.body;
 			updateContainer(activeDoc, plugin, propertySelector);
 		}

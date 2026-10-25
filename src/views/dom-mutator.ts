@@ -1,6 +1,5 @@
 import ResuperchargedLinks from "../core/main";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { mapRawAttrsToDataAttrs } from "../utils/link-attribute-mapper";
 import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTags } from "../utils/shared-utils";
 
 /**

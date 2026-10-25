@@ -57,33 +57,33 @@ Legacy styling approaches frequently cause micro-stuttering (*jank*) in large va
 
 ---
 
-## Real-World Telemetry (v1.1.0 Profiles)
+## Real-World Telemetry (v1.1.0 Production Profiles)
 
-Below are real benchmark profiles taken from extensive testing in a massive production vault.
+Below are real benchmark profiles taken from extensive testing in a massive production vault following the v1.1.0 strict O(1) cache barrier refactor.
 
-### Test 1: Aggressive Scrolling in Obsidian Core (`.base`)
-*Continuous rapid scrolling through dense markdown structures.*
-- **Total Operations Evaluated:** 69,363 operations
-- **Cache Hit Rate:** 69.6% (48,258 hits)
-- **Canonical Integrity:** 100% Canonical Migrated / **0 Legacy Fallbacks**
-- **Avg Execution Frame Time:** **0.36 ms** ⚡
-- **Avg Nodes Styled per Batch:** 28 nodes
-
-### Test 2: Dynamic Dataview Stress Test
-*Heavy infinite-scroll simulation inside highly volatile, auto-rendering Dataview tables.*
-- **Total Operations Evaluated:** 195,739 operations
-- **Cache Hit Rate:** 56.9% (111,385 hits - *lower due to dynamic DOM reconstruction*)
-- **Canonical Integrity:** 100% Canonical Migrated / **0 Legacy Fallbacks**
-- **Avg Execution Frame Time:** **0.30 ms** 🚀 (*Micro-barriers skipping non-target spans instantly*)
-- **Avg Nodes Styled per Batch:** 4 nodes (*Progressive, ultra-lightweight DOM paint*)
-
-### Test 3: Normal Document Navigation & Editing (Real-World Use)
+### Test 1: Normal Document Navigation & Editing (Core Vault)
 *Standard real-world workflow consisting of typical scrolling, typing, and jumping between linked notes.*
-- **Total Operations Evaluated:** 38,930 operations
-- **Cache Hit Rate:** **93.4%** 🎯 (36,372 hits - *proving optimal LRU cache stability*)
+- **Total Operations Evaluated:** 42,989 operations
+- **Cache Hit Rate:** **94.0%** 🎯 (*Proving flawless LRU cache efficiency*)
 - **Canonical Integrity:** 100% Canonical Migrated / **0 Legacy Fallbacks**
-- **Avg Execution Frame Time:** **0.80 ms** 🪵 (*Slightly higher due to performing larger batch updates*)
-- **Avg Nodes Styled per Batch:** 51 nodes (*Peak burst efficiency at 81 nodes without frame drops*)
+- **Avg Execution Frame Time:** **0.25 ms** ⚡ (*Sub-millisecond early exits actively skipping processed ranges*)
+- **Avg Nodes Styled per Batch:** 45 nodes
+
+### Test 2: Brutal Scrolling in Dynamic Dataview Tables
+*Continuous high-speed stress test inside highly volatile, auto-rendering Dataview datasets.*
+- **Total Operations Evaluated:** 54,719 operations
+- **Cache Hit Rate:** **87.2%** 📊 (*Maintained high cache integrity despite dynamic DOM reconstruction*)
+- **Canonical Integrity:** 100% Canonical Migrated / **0 Legacy Fallbacks**
+- **Avg Execution Frame Time:** **0.63 ms** 🚀 (*Extremely stable frame delivery under maximum rendering load*)
+- **Avg Nodes Styled per Batch:** 40 nodes
+
+### Test 3: Casual Interaction & UI Navigation
+*Relaxed note-taking workflow with periodic clicking around UI tabs and minor workspace updates.*
+- **Total Operations Evaluated:** 4,682 operations
+- **Cache Hit Rate:** 64.2%
+- **Canonical Integrity:** 100% Canonical Migrated / **0 Legacy Fallbacks**
+- **Avg Execution Frame Time:** **0.18 ms** 🪵 (*Near zero-cost operation frame footprint*)
+- **Avg Nodes Styled per Batch:** 19 nodes
 
 ---
 

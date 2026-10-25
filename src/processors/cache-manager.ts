@@ -1,5 +1,3 @@
-// processors/cache-manager
-
 import { PluginPerformanceTracker } from "../core/telemetry";
 import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-utils";
 
@@ -154,14 +152,14 @@ export class AttributeCacheManager {
 	private pruneRecentPathTouches(nowTs: number): void {
 		if (this.recentPathTouches.size === 0) return;
 		
-		// 1. Fjern utgåtte elementer
+		// 1. Remove outdated elements
 		for (const [path, ts] of this.recentPathTouches) {
 			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
 				this.recentPathTouches.delete(path);
 			}
 		}
 
-		// 2. Håndter overflow uten å bygge store arrays
+		// 2. Handle overflow
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
 			let overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
 			
@@ -176,7 +174,7 @@ export class AttributeCacheManager {
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
-		// 1. Kjør TTL-rensk
+		// 1. TTL-clean
 		for (const [key] of this.attrCycleCache) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
@@ -184,13 +182,10 @@ export class AttributeCacheManager {
 			}
 		}
 
-		// 2. LRU-evict ved overflow: Nå uten den tunge Array.from().sort()!
+		// 2. LRU-evict if overflow
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
 			let overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
 			
-			// Strategi: Finn den eldste tidsstempelet (eller en trygg cutoff)
-			// ved å hente ut kun det vi faktisk trenger, i stedet for å sortere alt.
-			// Siden kartet slettes fra fortløpende, kan vi bare nappe ut de eldste innsettingene direkte.
 			for (const [key] of this.attrCacheTouchedAt) {
 				if (this.attrCycleCache.has(key)) {
 					this.evictEntry(key);

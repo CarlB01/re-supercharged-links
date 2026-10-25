@@ -286,7 +286,7 @@ export class CMViewPlugin {
 		if (isMarkdownFormatting && nodeNameLower !== "linktext" && nodeNameLower !== "link" && !nodeNameLower.includes("string_url")) return;
 
 		const nodeRangeKey: string = `${node.from}-${node.to}`;
-		if (nodeRangeKey in state.processedRanges) return;
+		if (state.processedRanges.has(nodeRangeKey)) return;
 
 		const isMarkdownAnchor: boolean = nodeNameLower === "link" || nodeNameLower === "linktext";
 		const isMarkdownUrl: boolean = nodeNameLower === "url" && !nodeNameLower.includes("formatting");
@@ -523,7 +523,7 @@ export class CMViewPlugin {
 		deco: Decoration
 	): void {
 		const key: string = `${from}-${to}`;
-		if (key in state.decoratedRanges) return;
+		if (state.decoratedRanges.has(key)) return;
 
 		state.collectedDecos.push({ from, to, value: deco });
 		state.decoratedRanges.add(key);
