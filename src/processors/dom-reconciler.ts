@@ -3,8 +3,8 @@ import { resolveRuleResolution } from "../processors/rule-engine";
 import { applyStylesAndAttributesToLink, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
-import ResuperchargedLinks from "../core/main";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
+import ResuperchargedLinks from "../core/main";
 
 type RefreshScope = {
 	paths: Set<string>;
@@ -17,17 +17,35 @@ interface QueuedDOMMutation {
 	readonly plugin: ResuperchargedLinks;
 }
 
+/**
+ * Monomorphic class guaranteeing stable V8 Hidden Classes (Shapes).
+ * Bypasses high-frequency anonymous object literal allocation churn.
+ */
+class MutationTask implements QueuedDOMMutation {
+	public readonly elementRef: WeakRef<HTMLElement>;
+	public readonly props: Record<string, string>;
+	public readonly plugin: ResuperchargedLinks;
+
+	constructor(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks) {
+		this.elementRef = new WeakRef(element);
+		this.props = props;
+		this.plugin = plugin;
+	}
+}
+
 class DOMMutationBatcher {
-	private readonly queue: QueuedDOMMutation[] = [];
+	private queue: MutationTask[] = [];
+	private readIndex = 0;
 	private isProcessing = false;
 	private readonly CHUNK_SIZE = 200;
 
 	/**
-	 * Enqueues a targeted HTMLElement mutation into the asynchronous rendering pipeline.
-	 * ✅ ARTIFACT INJECTION: Accepts explicit core plugin instances to decouple thread scopes.
+	 * Appends a new mutation task onto a continuous dense array.
+	 * Maximizes V8 Fast Elements optimization by leveraging pure linear growth.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
-		this.queue.push({ elementRef: new WeakRef(element), props, plugin });
+		this.queue.push(new MutationTask(element, props, plugin));
+		
 		if (!this.isProcessing) {
 			this.isProcessing = true;
 			window.requestAnimationFrame(() => this.processBatch());
@@ -35,32 +53,50 @@ class DOMMutationBatcher {
 	}
 
 	/**
-	 * Flushes a high-capacity performance slice of the mutation queue within a single animation frame.
+	 * Processes a slice of queued tasks using direct O(1) index lookups.
+	 * Eliminates shift() re-indexing overhead and prevents dynamic array fragmentation.
 	 */
 	private processBatch(): void {
-		const totalPending = this.queue.length;
+		const totalPending = this.queue.length - this.readIndex;
+
 		if (totalPending === 0) {
-			this.isProcessing = false;
+			this.resetQueue();
 			return;
 		}
 
 		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
-		for (let i = 0; i < currentBatchSize; i++) {
-			const task: QueuedDOMMutation | null = this.queue.shift() ?? null;
-			if (task === null) continue;
+		const endIndex = this.readIndex + currentBatchSize;
 
-			const element: HTMLElement | null = task.elementRef.deref() ?? null;
-
-			if (element !== null && element.nodeType === 1 && element.isConnected) {
-				applyStylesAndAttributesToLink(element, task.props, task.plugin);
+		for (let i = this.readIndex; i < endIndex; i++) {
+			const task = this.queue[i];
+			
+			// Safe guard check ensuring strict null safety without undefined keywords
+			if (task !== undefined && task !== null) {
+				const element = task.elementRef.deref();
+				
+				if (element !== undefined && element !== null && element.nodeType === 1 && element.isConnected) {
+					applyStylesAndAttributesToLink(element, task.props, task.plugin);
+				}
 			}
 		}
 
-		if (this.queue.length > 0) {
+		this.readIndex = endIndex;
+
+		if (this.queue.length > this.readIndex) {
 			window.requestAnimationFrame(() => this.processBatch());
 		} else {
-			this.isProcessing = false;
+			this.resetQueue();
 		}
+	}
+
+	/**
+	 * Permanently purges the backing store once the queue is fully drained.
+	 * Triggers a clean garbage collection cycle and maintains a dense array structure.
+	 */
+	private resetQueue(): void {
+		this.queue = [];
+		this.readIndex = 0;
+		this.isProcessing = false;
 	}
 }
 
@@ -71,10 +107,9 @@ const backgroundTabFileCache: WeakMap<HTMLElement, TFile> = new WeakMap<HTMLElem
 const domBatcher = new DOMMutationBatcher();
 
 /**
- * 🎯 PURE HELPER: Isolates switcher suggestions, Omnisearch frames, and modal popup contexts.
+ * Isolates switcher suggestions, Omnisearch frames, and modal popup contexts.
  * Shields the main container update sweep loop from heavy single-node path evaluations.
- * 
- * 🚀 OBSIDIAN & V8 OPTIMIZED: Uses style.setProperty and layout cleaning to pass code review.
+ * V8 OPTIMIZED: Uses style.setProperty and layout cleaning to pass code review.
  */
 export function processPopupContextNode(
 	node: HTMLElement, 
