@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import { Compartment, Extension, RangeSetBuilder } from "@codemirror/state";
+import { Compartment, Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
@@ -43,7 +43,7 @@ export class CMViewPlugin {
 	constructor(view: EditorView, app: App, plugin: ResuperchargedLinks) {
 		this.app = app;
 		this.plugin = plugin;
-		this.decorations = this.buildDecorations(view);
+		this.decorations = this.buildDecorationsForRange(view);
 	}
 	
 	public destroy(): void {
@@ -58,10 +58,10 @@ export class CMViewPlugin {
 	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
 	 */
 	public update(update: ViewUpdate): void {
-    // 1. Document Content & Viewport Changes
-    // Always recalculate decorations immediately if the text is edited or the view scrolls.
-    if (update.docChanged || update.viewportChanged) {
-			this.decorations = this.buildDecorations(update.view);
+		// 1. Document Content & Viewport Changes
+		// Always recalculate decorations immediately if the text is edited or the view scrolls.
+		if (update.docChanged || update.viewportChanged) {
+			this.decorations = this.buildDecorationsForRange(update.view);
 			try {
 				const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
 				this.lastLineNumber = currentLine.number;
@@ -70,42 +70,167 @@ export class CMViewPlugin {
 				// Safe fallback containment
 			}
 			return;
-    }
+		}
 
-    // 2. Pure Selection/Cursor Movements
-    // Optimize performance during cursor movement to prevent redundant syntax tree traversal.
-    if (update.selectionSet) {
-        try {
-					const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
-					const currentLineNumber = currentLine.number;
+		// 2. Pure Selection/Cursor Movements
+		// Optimize performance during cursor movement to prevent redundant syntax tree traversal.
+		if (update.selectionSet) {
+			try {
+				const state = update.view.state;
+				const currentLine = state.doc.lineAt(state.selection.main.head);
+				const currentLineNumber = currentLine.number;
 
-					// PERFORMANCE BARRIER 1: Horizontal cursor movement on the exact same line
-					if (currentLineNumber === this.lastLineNumber) {
-						// If the active line contains zero link syntax, completely abort evaluation (0% CPU impact)
-						if (!this.lastLineHadLinks) return;
-						
-						// If link syntax is present, re-evaluate to capture real-time state changes (open/collapsed)
-						this.decorations = this.buildDecorations(update.view);
-						return;
-					}
+				// PERFORMANCE BARRIER 1: Horizontal cursor movement on the exact same line
+				if (currentLineNumber === this.lastLineNumber) {
+					// If the active line contains zero link syntax, completely abort evaluation (0% CPU impact)
+					if (!this.lastLineHadLinks) return;
+					
+					// V8 MIKRO-OPTIMALISERING: I stedet for full buildDecorations, patcher vi KUN denne linjen
+					this.patchLineDecorations(update.view, currentLine);
+					return;
+				}
 
-					// PERFORMANCE BARRIER 2: Vertical navigation jumping to a completely new line
+				// PERFORMANCE BARRIER 2: Vertical navigation jumping to a completely new line
+				const currentLineHasLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
+
+				// Bypass execution entirely if neither the departed line nor the arrived line contains link nodes
+				if (!this.lastLineHadLinks && !currentLineHasLinks) {
 					this.lastLineNumber = currentLineNumber;
-					const currentLineHasLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
-
-					// Bypass execution entirely if neither the departed line nor the arrived line contains link nodes
-					if (!this.lastLineHadLinks && !currentLineHasLinks) {
-						this.lastLineHadLinks = currentLineHasLinks;
-						return;
-					}
-
 					this.lastLineHadLinks = currentLineHasLinks;
-				this.decorations = this.buildDecorations(update.view);
+					return;
+				}
+
+				// V8 MIKRO-OPTIMALISERING: Markøren har flyttet seg vertikalt. 
+				// Vi må patche BÅDE den linjen vi dro fra (for å lukke den) og den nye linjen vi kom til (for å åpne den).
+				try {
+					// Hent forrige linje-objekt basert på nummeret vi lagret
+					const previousLine = state.doc.line(this.lastLineNumber);
+					
+					// Patch begge linjene i samme syklus
+					this.patchMultipleLines(update.view, [previousLine, currentLine]);
+				} catch {
+					// Hvis forrige linje-nummer er out-of-bounds (f.eks. etter sletting), fall tilbake til singel-patch
+					this.patchLineDecorations(update.view, currentLine);
+				}
+
+				this.lastLineNumber = currentLineNumber;
+				this.lastLineHadLinks = currentLineHasLinks;
 			} catch {
-				// Fail-safe fallback execution block
-				this.decorations = this.buildDecorations(update.view);
+				// Fail-safe fallback execution block - kjør full skanning hvis alt feiler
+				this.decorations = this.buildDecorationsForRange(update.view);
 			}
-    }
+		}
+	}
+
+	/**
+	 * Internal core iterator that harvests raw decoration ranges for a specific boundary.
+	 * Keeps object shapes strictly stable for V8 optimization.
+	 */
+	private buildRawDecos(view: EditorView, updateFrom: number = -1, updateTo: number = -1): { from: number; to: number; value: Decoration }[] {
+		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (mdView === null || mdView.file === null) return [];
+
+		this.processedRangesPool.clear();
+		this.decoratedRangesPool.clear();
+
+		const state: IterationState = {
+			builder: new RangeSetBuilder<Decoration>(), // Dummy for å tilfredsstille grensesnittet ditt
+			activeFileBasename: mdView.file.basename,
+			from: 0,
+			to: 0,
+			collectedDecos: [],
+			processedRanges: this.processedRangesPool,
+			decoratedRanges: this.decoratedRangesPool,
+			skipUntilPosition: 0
+		};
+
+		const visibleRangesCount: number = view.visibleRanges.length;
+		for (let i = 0; i < visibleRangesCount; i++) {
+			const range = view.visibleRanges[i] ?? null;
+			if (range === null) continue;
+
+			let from = range.from;
+			let to = range.to;
+
+			if (updateFrom !== -1) {
+				if (to < updateFrom || from > updateTo) continue;
+				from = Math.max(from, updateFrom);
+				to = Math.min(to, updateTo);
+			}
+
+			state.from = from;
+			state.to = to;
+
+			syntaxTree(view.state).iterate({
+				from,
+				to,
+				enter: (node: CodeMirrorNodeRef): void => {
+					this.processNodeToken(view, node, state, updateFrom, updateTo);
+				}
+			});
+		}
+
+		// Din eksisterende lynraske V8-sortering av arrayet
+		const collectedCount: number = state.collectedDecos.length;
+		let requiresSorting = false;
+		
+		for (let i = 1; i < collectedCount; i++) {
+			const current = state.collectedDecos[i] ?? null;
+			const previous = state.collectedDecos[i - 1] ?? null;
+			if (current !== null && previous !== null && current.from < previous.from) {
+				requiresSorting = true;
+				break;
+			}
+		}
+
+		if (requiresSorting) {
+			state.collectedDecos.sort((a, b) => {
+				if (a.from !== b.from) return a.from - b.from;
+				return a.to - b.to;
+			});
+		}
+
+		return state.collectedDecos;
+	}
+
+	/**
+	 * Patches decorations for a single line in O(log N) time by isolating the syntax tree traversal.
+	 */
+	private patchLineDecorations(view: EditorView, line: Line): void {
+		const rawDecos = this.buildRawDecos(view, line.from, line.to);
+		
+		// V8 FAST PATH: Hvis det ikke er noen lenker på linjen, bare rens intervallet
+		// CodeMirror krever et array, aldri undefined. Vi passer på stabil form.
+		const patchArray = rawDecos.map(d => ({ from: d.from, to: d.to, value: d.value }));
+
+		this.decorations = this.decorations.update({
+			filterFrom: line.from,
+			filterTo: line.to,
+			filter: () => false, 
+			add: patchArray // 🌟 Type-sikker og akseptert av CodeMirror Overload!
+		});
+	}
+
+	/**
+	 * Patches multiple lines sequentially in ascending structural order.
+	 */
+	private patchMultipleLines(view: EditorView, lines: Line[]): void {
+		const sortedLines = [...lines].sort((a, b) => a.from - b.from);
+		let currentDecorations = this.decorations;
+
+		for (const line of sortedLines) {
+			const rawDecos = this.buildRawDecos(view, line.from, line.to);
+			const patchArray = rawDecos.map(d => ({ from: d.from, to: d.to, value: d.value }));
+
+			currentDecorations = currentDecorations.update({
+				filterFrom: line.from,
+				filterTo: line.to,
+				filter: () => false,
+				add: patchArray
+			});
+		}
+
+		this.decorations = currentDecorations;
 	}
 
 	public processLinkDecoration(
@@ -182,85 +307,17 @@ export class CMViewPlugin {
 		});
 	}
 
-	/**
-	 * Synchronously constructs a reactive CodeMirror DecorationSet for the active viewport segments.
-	 * Optimized to minimize heap allocations (GC pressure) and avoid redundant sorting overhead.
-	 * 
-	 * @param view - The active editor view context dispatched by CodeMirror.
-	 * @param updateFrom - Optional structural lower boundary offset for partial layout updates.
-	 * @param updateTo - Optional structural upper boundary offset for partial layout updates.
-	 * @returns A highly optimized CodeMirror RangeSet containing calculated link marks.
-	 */
-	public buildDecorations(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
-		const builder: RangeSetBuilder<Decoration> = new RangeSetBuilder<Decoration>();
-		
-		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (mdView === null || mdView.file === null) return builder.finish();
+	public buildDecorationsForRange(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
+		const builder = new RangeSetBuilder<Decoration>();
+		const rawDecos = this.buildRawDecos(view, updateFrom, updateTo);
+		const count = rawDecos.length;
 
-		// Wipe state maps natively in C++ layer before starting the linear iteration loop
-		this.processedRangesPool.clear();
-		this.decoratedRangesPool.clear();
-
-		const state: IterationState = {
-			builder,
-			activeFileBasename: mdView.file.basename,
-			from: 0,
-			to: 0,
-			collectedDecos: [],
-			processedRanges: this.processedRangesPool,
-			decoratedRanges: this.decoratedRangesPool,
-			skipUntilPosition: 0
-		};
-
-		const visibleRangesCount: number = view.visibleRanges.length;
-		for (let i = 0; i < visibleRangesCount; i++) {
-			const range: { from: number; to: number } | null = view.visibleRanges[i] ?? null;
-			if (range === null) continue;
-
-			const from: number = range.from;
-			const to: number = range.to;
-
-			if (updateFrom !== -1 && (to < updateFrom || from > updateTo)) continue;
-
-			state.from = from;
-			state.to = to;
-
-			syntaxTree(view.state).iterate({
-				from,
-				to,
-				enter: (node: CodeMirrorNodeRef): void => {
-					this.processNodeToken(view, node, state, updateFrom, updateTo);
-				}
-			});
-		}
-
-		const collectedCount: number = state.collectedDecos.length;
-		let requiresSorting = false;
-		
-		for (let i = 1; i < collectedCount; i++) {
-			const current: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i] ?? null;
-			const previous: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i - 1] ?? null;
-			
-			if (current !== null && previous !== null && current.from < previous.from) {
-				requiresSorting = true;
-				break;
-			}
-		}
-
-		if (requiresSorting) {
-			state.collectedDecos.sort((a, b) => {
-				if (a.from !== b.from) return a.from - b.from;
-				return a.to - b.to;
-			});
-		}
-
-		for (let i = 0; i < collectedCount; i++) {
-			const item: { from: number; to: number; value: Decoration } | null = state.collectedDecos[i] ?? null;
-			if (item !== null) {
+		for (let i = 0; i < count; i++) {
+			const item = rawDecos[i];
+			if (item !== undefined) {
 				builder.add(item.from, item.to, item.value);
 			}
 		}
-
 		return builder.finish();
 	}
 
