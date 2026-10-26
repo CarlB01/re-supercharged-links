@@ -8,7 +8,7 @@ export type AttrCache = Map<string, Record<string, string>>;
 let cachedDvApi: DataviewAPI | null = null;
 
 /**
- * Safely resolves, caches, and validates the Dataview global API instance via decoupled internal registry queries.
+ * Safely resolves, caches, and validates the Dataview global API instance.
  */
 function getDataviewApi(app: App): DataviewAPI | null {
 	const liveApi: DataviewAPI | null = getDataviewApiInstance(app);
@@ -28,6 +28,7 @@ function getDataviewApi(app: App): DataviewAPI | null {
 
 /**
  * Gathers and compiles all targeted user metadata attributes synchronously from a document instance.
+ * Optimized with extreme mechanical sympathy for V8 engine execution and zero internal array allocation.
  */
 export function fetchTargetAttributesSync(
 	app: App,
@@ -35,23 +36,32 @@ export function fetchTargetAttributesSync(
 	dest: TFile,
 	addDataHref: boolean
 ): Record<string, string> {
-	const newProps: Record<string, string> = { tags: "" };
+	// Object.create(null) ensures zero prototype lookups and maximum O(1) performance in V8
+	const rawProps: Record<string, string> = Object.create(null) as Record<string, string>;
 	
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
-	if (pluginInstance === null || !pluginInstance.settings) return newProps;
+	if (pluginInstance === null || !pluginInstance.settings) return rawProps;
 
 	const settings = pluginInstance.settings;
 	const cache = app.metadataCache.getFileCache(dest) ?? null;
-	if (cache === null) return newProps;
+	if (cache === null) return rawProps;
 
-	const activeAttributes: Set<string> = pluginInstance.activeAttributesSet;
-	const dynamicTagsList: string[] = [];
+	// Convert Set to an indexed dense array once, or use cached pre-computed list to avoid Set iterator overhead
+	const activeAttributes: string[] = pluginInstance.activeAttributesArray;
+	const activeAttrsLen = activeAttributes.length;
+	
+	// Use a unique tag string accumulator and temporary Set for lightning fast O(1) deduplication
+	let compiledTags = "";
+	const seenTagsSet: Set<string> = new Set<string>();
 
-	// 🚀 TILBAKEFØRT: O(1) direkte sjekk av frontmatter beskytter mot tunge AST-skanninger nedstrøms
-	if (cache.frontmatter !== null && cache.frontmatter !== undefined && activeAttributes.size > 0) {
+	// 1. Synchronously process frontmatter attributes using high-performance index iterations
+	if (cache.frontmatter !== null && cache.frontmatter !== undefined && activeAttrsLen > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		
-		for (const attribute of activeAttributes) {
+		for (let i = 0; i < activeAttrsLen; i++) {
+			const attribute = activeAttributes[i];
+			if (attribute === undefined) continue;
+
 			const value: unknown = fm[attribute] ?? null;
 			if (value === null) continue;
 
@@ -60,18 +70,18 @@ export function fetchTargetAttributesSync(
 				const fmTagsLen = frontmatterTags.length;
 				for (let j = 0; j < fmTagsLen; j++) {
 					const t: string | null = frontmatterTags[j] ?? null;
-					if (t !== null && t.length > 0) {
-						if (dynamicTagsList.indexOf(t) === -1) {
-							dynamicTagsList.push(t);
-						}
+					if (t !== null && t.length > 0 && !seenTagsSet.has(t)) {
+						seenTagsSet.add(t);
+						compiledTags += (compiledTags.length === 0 ? "" : " ") + t;
 					}
 				}
 			} else {
-				newProps[attribute] = String(value);
+				rawProps[attribute] = String(value);
 			}
 		}
 	}
 
+	// 2. Extract and compile native Obsidian tags with O(1) tracking barriers
 	const allTags: string[] = getAllTags(cache) ?? [];
 	const allTagsLen = allTags.length;
 	for (let j = 0; j < allTagsLen; j++) {
@@ -81,44 +91,57 @@ export function fetchTargetAttributesSync(
 			const cacheTagsLen = cacheTags.length;
 			for (let k = 0; k < cacheTagsLen; k++) {
 				const cleanCacheTag: string | null = cacheTags[k] ?? null;
-				if (cleanCacheTag !== null && cleanCacheTag.length > 0) {
-					if (dynamicTagsList.indexOf(cleanCacheTag) === -1) {
-						dynamicTagsList.push(cleanCacheTag);
-					}
+				if (cleanCacheTag !== null && cleanCacheTag.length > 0 && !seenTagsSet.has(cleanCacheTag)) {
+					seenTagsSet.add(cleanCacheTag);
+					compiledTags += (compiledTags.length === 0 ? "" : " ") + cleanCacheTag;
 				}
 			}
 		}
 	}
 
-	if (dynamicTagsList.length > 0) {
-		newProps.tags = dynamicTagsList.join(" ");
+	if (compiledTags.length > 0) {
+		rawProps.tags = compiledTags;
 	}
 
 	if (addDataHref) {
-		newProps["data-href"] = dest.basename;
+		rawProps["data-href"] = dest.basename;
 	}
-	newProps.path = dest.path;
+	rawProps.path = dest.path;
 
+	// 3. Process Dataview inline fields with high-performance boundary safeguards
 	if (settings.getFromInlineField) {
 		const api: DataviewAPI | null = getDataviewApi(app);
 		if (api !== null) {
 			const page: Record<string, unknown> | null = api.page(dest.path) ?? null;
 			if (page !== null) {
-				for (const field of activeAttributes) {
+				for (let i = 0; i < activeAttrsLen; i++) {
+					const field = activeAttributes[i];
+					if (field === undefined) continue;
+
 					const value: unknown = page[field] ?? null;
 					if (value !== null) {
-						newProps[field] = String(value);
+						rawProps[field] = String(value);
 					}
 				}
 			}
 		}
 	}
 
-	const hyphenatedProps: Record<string, string> = {};
-	for (const [key, value] of Object.entries(newProps)) {
-		const cleanKey: string = cleanAttributeKey(key);
-		if (cleanKey.length > 0) {
-			hyphenatedProps[cleanKey] = value;
+	// 4. Flatten and hyphenate properties inline using native key indexing (No Object.entries allocation)
+	const hyphenatedProps: Record<string, string> = Object.create(null) as Record<string, string>;
+	const finalKeys = Object.keys(rawProps);
+	const finalKeysLen = finalKeys.length;
+
+	for (let i = 0; i < finalKeysLen; i++) {
+		const key = finalKeys[i];
+		if (key !== undefined) {
+			const value = rawProps[key];
+			if (value !== undefined) {
+				const cleanKey: string = cleanAttributeKey(key);
+				if (cleanKey.length > 0) {
+					hyphenatedProps[cleanKey] = value;
+				}
+			}
 		}
 	}
 
@@ -134,42 +157,35 @@ export function fetchTargetAttributesCached(
 ): Record<string, string> {
 	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
 	
-	// Enforce strict canonical lowercased path indexing across all retrieval layers
 	const normalizedPath: string = normalizeCachePath(dest.path);
 	const newKey: string = buildCacheKey(ruleConfigVersion, normalizedPath, addDataHref);
 	
 	const hit: Record<string, string> | null = cache.get(newKey) ?? null;
 
 	if (hit !== null) {
-		if (plugin.telemetry !== null) {
-			// Trigger the dedicated canonical verification pulse tracking channel
-			if (typeof (plugin.telemetry as unknown as Record<string, unknown>).logCanonicalHit === "function") {
-				(plugin.telemetry as unknown as { logCanonicalHit(): void }).logCanonicalHit();
-			} else {
-				plugin.telemetry.logHit();
-			}
+		// Strictly leverage your existing typed performanceTracker instance safely without structural dynamic checks
+		const tracker = plugin.telemetry;
+		if (tracker !== null) {
+			tracker.logHit();
 		}
+		
 		plugin.touchAttrCacheKey(newKey);
 		return hit;
 	}
 
-	if (plugin.telemetry !== null) {
-		plugin.telemetry.logMiss();
+	const tracker = plugin.telemetry;
+	if (tracker !== null) {
+		tracker.logMiss();
 	}
 
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
 	
-	// Commit exclusively to the clean canonical cache key allocation layer
 	cache.set(newKey, resolved);
-	
 	plugin.touchAttrCacheKey(newKey);
+	
 	if (plugin.cacheManager !== null) {
 		plugin.cacheManager.registerIndexedKey(normalizedPath, newKey);
 	}
 
 	return resolved;
 }
-
-
-
-

@@ -36,7 +36,8 @@ export default class ResuperchargedLinks extends Plugin {
 	public modalObservers!: MutationObserver[];
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
-	
+	public activeAttributesArray: string[] = [];
+
 	public telemetry!: PluginPerformanceTracker;
 	public cacheManager!: AttributeCacheManager;
 	public compiledRules: CompiledRule[] = [];
@@ -240,6 +241,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 		this.activeAttributesSet.clear();
+		this.activeAttributesArray = [];
 		this.compiledRules = [];
 		
 		if (this.attrCycleCache) {
@@ -252,6 +254,7 @@ export default class ResuperchargedLinks extends Plugin {
 
 	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
+		this.activeAttributesArray = [];
 		
 		if (this.settings === null || this.settings.selectors === null) return;
 
@@ -270,6 +273,7 @@ export default class ResuperchargedLinks extends Plugin {
 				}
 			}
 		}
+		this.activeAttributesArray = Array.from(this.activeAttributesSet);
 	}
 
 	public processPathMutation(path: string): void {

@@ -33,12 +33,11 @@ class MutationTask implements QueuedDOMMutation {
 	}
 }
 
-
 export class DOMMutationBatcher {
 	private readonly BUFFER_SIZE = 65536;
 
-	// Parallel flat arrays to avoid object instantiation (MutationTask) and memory churn
-	private readonly elementRefs: (WeakRef<HTMLElement> | null)[] = new Array<WeakRef<HTMLElement> | null>(this.BUFFER_SIZE).fill(null);
+	// Flat, pre-allocated raw arrays to eliminate ALL allocation churn (including WeakRefs)
+	private readonly elements: (HTMLElement | null)[] = new Array<HTMLElement | null>(this.BUFFER_SIZE).fill(null);
 	private readonly propsStorage: (Record<string, string> | null)[] = new Array<Record<string, string> | null>(this.BUFFER_SIZE).fill(null);
 	
 	private writeIndex = 0;
@@ -50,21 +49,21 @@ export class DOMMutationBatcher {
 	private readonly FRAME_BUDGET_MS = 1.5; 
 
 	/**
-	 * Enqueues mutation parameters into parallel pre-allocated slots.
-	 * Completely bypasses 'new' object instantiation for zero allocation churn during layout sweeps.
+	 * Enqueues mutation parameters using pure reference assignments.
+	 * Achieves absolute zero-allocation throughput during massive document updates.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
-		// Set the contextual plugin instance once if not already assigned
 		if (this.activePlugin === null) {
 			this.activePlugin = plugin;
 		}
 
 		if (this.writeIndex < this.BUFFER_SIZE) {
-			this.elementRefs[this.writeIndex] = new WeakRef(element);
+			// Direct element assignment bypasses WeakRef instantiation entirely
+			this.elements[this.writeIndex] = element;
 			this.propsStorage[this.writeIndex] = props;
 			this.writeIndex += 1;
 		} else {
-			// Fail-safe fallback: If overflow occurs under extreme operations, mutate immediately
+			// Fail-safe synchronous execution barrier protecting against buffer overflows
 			applyStylesAndAttributesToLink(element, props, plugin);
 			return;
 		}
@@ -76,8 +75,8 @@ export class DOMMutationBatcher {
 	}
 
 	/**
-	 * Drains parallel arrays sequentially using precise time-slicing.
-	 * Maximizes V8 register caching by executing tight linear loops over flat structures.
+	 * Drains the flat backing store with zero-overhead direct lookups.
+	 * Strips away deref() lifecycles for maximum raw execution velocity.
 	 */
 	private processBatch(): void {
 		if (this.readIndex >= this.writeIndex || this.activePlugin === null) {
@@ -94,16 +93,16 @@ export class DOMMutationBatcher {
 				break;
 			}
 
-			const ref = this.elementRefs[this.readIndex];
+			const element = this.elements[this.readIndex];
 			const props = this.propsStorage[this.readIndex];
 			
-			// Null out the backing store slots instantly to guarantee immediate GC availability
-			this.elementRefs[this.readIndex] = null;
+			// Null out the slots instantly to guarantee immediate garbage collection paths
+			this.elements[this.readIndex] = null;
 			this.propsStorage[this.readIndex] = null;
 
-			if (ref !== null && ref !== undefined && props !== null && props !== undefined) {
-				const element = ref.deref();
-				if (element !== undefined && element !== null && element.nodeType === 1 && element.isConnected) {
+			if (element !== null && element !== undefined && props !== null && props !== undefined) {
+				// Verify connection layout health instantly using raw flags
+				if (element.nodeType === 1 && element.isConnected) {
 					applyStylesAndAttributesToLink(element, props, plugin);
 				}
 			}
@@ -119,12 +118,12 @@ export class DOMMutationBatcher {
 	}
 
 	/**
-	 * Resets tracking indices and wipes residual slots while preserving the structural heap allocations.
+	 * Cleans tracking pointers and purges all indexes while maintaining core memory slots.
 	 */
 	private resetQueue(): void {
 		const currentLength = this.writeIndex;
 		for (let i = 0; i < currentLength; i++) {
-			this.elementRefs[i] = null;
+			this.elements[i] = null;
 			this.propsStorage[i] = null;
 		}
 		
@@ -134,7 +133,6 @@ export class DOMMutationBatcher {
 		this.activePlugin = null;
 	}
 }
-
 
 // Stores resolved file references for background tabs 
 // to prevent heavy, repetitive metadata cache lookups during high-frequency frame sweeps.
