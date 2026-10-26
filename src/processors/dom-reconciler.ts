@@ -33,18 +33,41 @@ class MutationTask implements QueuedDOMMutation {
 	}
 }
 
-class DOMMutationBatcher {
-	private queue: MutationTask[] = [];
+
+export class DOMMutationBatcher {
+	private readonly BUFFER_SIZE = 65536;
+
+	// Parallel flat arrays to avoid object instantiation (MutationTask) and memory churn
+	private readonly elementRefs: (WeakRef<HTMLElement> | null)[] = new Array<WeakRef<HTMLElement> | null>(this.BUFFER_SIZE).fill(null);
+	private readonly propsStorage: (Record<string, string> | null)[] = new Array<Record<string, string> | null>(this.BUFFER_SIZE).fill(null);
+	
+	private writeIndex = 0;
 	private readIndex = 0;
 	private isProcessing = false;
-	private readonly CHUNK_SIZE = 200;
+	private activePlugin: ResuperchargedLinks | null = null;
+	
+	// Rigorous execution window in milliseconds ensuring strict frame budget compliance
+	private readonly FRAME_BUDGET_MS = 1.5; 
 
 	/**
-	 * Appends a new mutation task onto a continuous dense array.
-	 * Maximizes V8 Fast Elements optimization by leveraging pure linear growth.
+	 * Enqueues mutation parameters into parallel pre-allocated slots.
+	 * Completely bypasses 'new' object instantiation for zero allocation churn during layout sweeps.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
-		this.queue.push(new MutationTask(element, props, plugin));
+		// Set the contextual plugin instance once if not already assigned
+		if (this.activePlugin === null) {
+			this.activePlugin = plugin;
+		}
+
+		if (this.writeIndex < this.BUFFER_SIZE) {
+			this.elementRefs[this.writeIndex] = new WeakRef(element);
+			this.propsStorage[this.writeIndex] = props;
+			this.writeIndex += 1;
+		} else {
+			// Fail-safe fallback: If overflow occurs under extreme operations, mutate immediately
+			applyStylesAndAttributesToLink(element, props, plugin);
+			return;
+		}
 		
 		if (!this.isProcessing) {
 			this.isProcessing = true;
@@ -53,36 +76,42 @@ class DOMMutationBatcher {
 	}
 
 	/**
-	 * Processes a slice of queued tasks using direct O(1) index lookups.
-	 * Eliminates shift() re-indexing overhead and prevents dynamic array fragmentation.
+	 * Drains parallel arrays sequentially using precise time-slicing.
+	 * Maximizes V8 register caching by executing tight linear loops over flat structures.
 	 */
 	private processBatch(): void {
-		const totalPending = this.queue.length - this.readIndex;
-
-		if (totalPending === 0) {
+		if (this.readIndex >= this.writeIndex || this.activePlugin === null) {
 			this.resetQueue();
 			return;
 		}
 
-		const currentBatchSize = totalPending > this.CHUNK_SIZE ? this.CHUNK_SIZE : totalPending;
-		const endIndex = this.readIndex + currentBatchSize;
+		const startTime = performance.now();
+		const currentWriteIndex = this.writeIndex;
+		const plugin: ResuperchargedLinks = this.activePlugin;
 
-		for (let i = this.readIndex; i < endIndex; i++) {
-			const task = this.queue[i];
+		while (this.readIndex < currentWriteIndex) {
+			if ((performance.now() - startTime) >= this.FRAME_BUDGET_MS) {
+				break;
+			}
+
+			const ref = this.elementRefs[this.readIndex];
+			const props = this.propsStorage[this.readIndex];
 			
-			// Safe guard check ensuring strict null safety without undefined keywords
-			if (task !== undefined && task !== null) {
-				const element = task.elementRef.deref();
-				
+			// Null out the backing store slots instantly to guarantee immediate GC availability
+			this.elementRefs[this.readIndex] = null;
+			this.propsStorage[this.readIndex] = null;
+
+			if (ref !== null && ref !== undefined && props !== null && props !== undefined) {
+				const element = ref.deref();
 				if (element !== undefined && element !== null && element.nodeType === 1 && element.isConnected) {
-					applyStylesAndAttributesToLink(element, task.props, task.plugin);
+					applyStylesAndAttributesToLink(element, props, plugin);
 				}
 			}
+
+			this.readIndex += 1;
 		}
 
-		this.readIndex = endIndex;
-
-		if (this.queue.length > this.readIndex) {
+		if (this.readIndex < this.writeIndex) {
 			window.requestAnimationFrame(() => this.processBatch());
 		} else {
 			this.resetQueue();
@@ -90,15 +119,22 @@ class DOMMutationBatcher {
 	}
 
 	/**
-	 * Permanently purges the backing store once the queue is fully drained.
-	 * Triggers a clean garbage collection cycle and maintains a dense array structure.
+	 * Resets tracking indices and wipes residual slots while preserving the structural heap allocations.
 	 */
 	private resetQueue(): void {
-		this.queue = [];
+		const currentLength = this.writeIndex;
+		for (let i = 0; i < currentLength; i++) {
+			this.elementRefs[i] = null;
+			this.propsStorage[i] = null;
+		}
+		
+		this.writeIndex = 0;
 		this.readIndex = 0;
 		this.isProcessing = false;
+		this.activePlugin = null;
 	}
 }
+
 
 // Stores resolved file references for background tabs 
 // to prevent heavy, repetitive metadata cache lookups during high-frequency frame sweeps.
@@ -271,7 +307,7 @@ export function updateContainer(
 
 /**
  * Contextual attribute updater targeting interface boundaries and multi-select pill layouts.
- * Optimized via direct DOM-attribute mapping to bypass heavy string parsing sweeps.
+ * Synchronously evaluates the rule engine to execute O(1) barrier exits before queue allocation.
  */
 export function updateDivExtraAttributes(
 	app: App,
@@ -284,7 +320,6 @@ export function updateDivExtraAttributes(
 	const parent: HTMLElement | null = link.parentElement ?? null;
 	if (filterCollapsible && parent !== null && parent.classList.contains("mod-collapsible")) return;
 
-	// 🚀 DIRECT DOM PATH EXTRACTION: Bypasses string counting by prioritizing native cache tokens
 	let resolvedLinkName = linkName;
 	if (resolvedLinkName === null) {
 		resolvedLinkName = link.getAttribute("data-href") || link.getAttribute("href") || "";
@@ -306,7 +341,62 @@ export function updateDivExtraAttributes(
 	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
 	if (dest === null) return;
 
+	// 1. Fetch raw attributes from the high-performance cache (This logs cache hits/misses)
 	const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
+	
+	// 2. Synchronously run the rule engine against the cached attributes BEFORE queueing
+	const isDark: boolean = document.body.classList.contains("theme-dark");
+	const resolution = resolveRuleResolution({
+		compiledRules: plugin.compiledRules,
+		resolvedAttrs: localProps,
+		isDark,
+		includeTagMatchClasses: true 
+	});
+
+	// 3. THE O(1) BARRIER CHECK: Verify if the DOM element already satisfies the rule resolution
+	let isAlreadyUpToDate = true;
+
+	if (resolution.hasMatch) {
+		const targetColor: string = resolution.style.color;
+		const targetBg: string = resolution.style.backgroundColor;
+
+		// Check custom attributes and variables
+		if (link.getAttribute("data-link-color") !== targetColor) isAlreadyUpToDate = false;
+		if (link.style.getPropertyValue("--scl-color") !== targetColor) isAlreadyUpToDate = false;
+		if (targetBg.length > 0 && targetBg !== "transparent" && link.style.getPropertyValue("--scl-bg") !== targetBg) isAlreadyUpToDate = false;
+
+		// Check internal classes mapped by the rule engine
+		if (resolution.style.fontWeight === "bold" && !link.classList.contains("scl-weight-bold")) isAlreadyUpToDate = false;
+		if (resolution.style.fontWeight === "lighter" && !link.classList.contains("scl-weight-lighter")) isAlreadyUpToDate = false;
+		if (resolution.style.decorations.includes("italic") && !link.classList.contains("scl-style-italic")) isAlreadyUpToDate = false;
+		if (resolution.style.decorations.includes("underline") && !link.classList.contains("scl-decor-underline")) isAlreadyUpToDate = false;
+		if (resolution.style.decorations.includes("line-through") && !link.classList.contains("scl-decor-linethrough")) isAlreadyUpToDate = false;
+
+		// Check dynamic standard classes
+		const classesLen: number = resolution.classes.length;
+		for (let i = 0; i < classesLen; i++) {
+			const cls = resolution.classes[i];
+			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
+				if (!link.classList.contains(cls)) {
+					isAlreadyUpToDate = false;
+					break;
+				}
+			}
+		}
+	} else {
+		// If it shouldn't have matches, ensure it doesn't possess active modifier trackers
+		if (link.hasAttribute("data-link-color") || link.classList.contains("scl-weight-bold") || link.classList.contains("scl-style-italic")) {
+			isAlreadyUpToDate = false;
+		}
+	}
+
+	// If the DOM matches perfectly, log to telemetry and bypass batcher allocation entirely!
+	if (isAlreadyUpToDate) {
+		plugin.telemetry.logBarrierSkip(); // ✨ Syncs with your printReport() logic
+		return;
+	}
+
+	// 4. Heavy execution branch: Only enqueue when structural mutations are strictly required
 	domBatcher.enqueue(link, localProps, plugin);
 }
 
