@@ -127,9 +127,9 @@ While v1.1.0 is engineered for extreme efficiency, overall performance can be in
 
 ## Further Development & Support
 
-I originally undertook this project because I desperately needed a modern, highly optimized, and robust version of *Supercharged Links*—one capable of handling a vast array of simultaneous design rules and visual flavors without inducing UI lag. My broader semantic graph ecosystem, [myBrain](https://github.com/CarlB01/myBrain), completely depends on it.
+I originally undertook this project because I really needed a modern, highly optimized, and robust version of *Supercharged Links*—one capable of handling a vast array of simultaneous design rules and visual flavors without inducing UI lag. My broader semantic graph ecosystem, [myBrain](https://github.com/CarlB01/myBrain), completely depends on it.
 
-The learning curve for mastering Obsidian's complex internal rendering engine has been remarkably steep. However, navigating this journey alongside advanced AI collaborators has been an incredible experience, rewarding me with a much deeper understanding of Obsidian's inner workings than I ever anticipated. It has been a truly rewarding bonus.
+The learning curve for mastering Obsidian's complex internal rendering engine has been steep. However, navigating this journey alongside advanced AI collaborators has been an incredible experience, rewarding me with a much deeper understanding of Obsidian's inner workings than I ever anticipated. It has been a truly rewarding bonus.
 
 As an active project, I welcome your feedback! Please let me know if you encounter any bugs, discover unmapped edge cases, or have feature suggestions that could improve the framework. 
 
