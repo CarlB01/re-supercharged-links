@@ -3,6 +3,7 @@ import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-uti
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
+ * Fully optimized for unified canonical storage mapping.
  */
 export class AttributeCacheManager {
 	private readonly attrCycleCache: Map<string, Record<string, string>>;
@@ -113,7 +114,6 @@ export class AttributeCacheManager {
 		}
 	}
 
-
 	public markPathTouched(path: string): void {
 		if (path.length === 0) return;
 
@@ -152,14 +152,12 @@ export class AttributeCacheManager {
 	private pruneRecentPathTouches(nowTs: number): void {
 		if (this.recentPathTouches.size === 0) return;
 		
-		// 1. Remove outdated elements
 		for (const [path, ts] of this.recentPathTouches) {
 			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
 				this.recentPathTouches.delete(path);
 			}
 		}
 
-		// 2. Handle overflow
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
 			let overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
 			
@@ -174,7 +172,6 @@ export class AttributeCacheManager {
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
-		// 1. TTL-clean
 		for (const [key] of this.attrCycleCache) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
@@ -182,7 +179,6 @@ export class AttributeCacheManager {
 			}
 		}
 
-		// 2. LRU-evict if overflow
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
 			let overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
 			

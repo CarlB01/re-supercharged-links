@@ -7,85 +7,54 @@ export type SelectorTypes = 'attribute' | 'tag' | 'path';
  * Strictly avoids internal undefined leaks by anchoring initial states to concrete fallbacks.
  */
 export class CSSLink {
-    public uid: string;
-    public type: SelectorTypes;
-    public name: string;
-    public value: string;
-    public match: MatchTypes;
-    public matchCaseSensitive: boolean;
-    
-    // Core styling token definitions
-    public iconBefore: string;
-    public iconAfter: string;
-    public fontWeight: "normal" | "lighter" | "bold";
-    public fontStyle: "normal" | "italic" | "underline" | "line-through";
-    public lightColor: string;
-    public darkColor: string;
-    public lightBgColor: string;
-    public darkBgColor: string;
+  public uid: string;
+  public type: SelectorTypes;
+  public name: string;
+  public value: string;
+  public match: MatchTypes;
+  public matchCaseSensitive: boolean;
+  
+  // Core styling token definitions
+  public iconBefore: string;
+  public iconAfter: string;
+  public fontWeight: "normal" | "lighter" | "bold";
+  public fontStyle: "normal" | "italic" | "underline" | "line-through";
+  public lightColor: string;
+  public darkColor: string;
+  public lightBgColor: string;
+  public darkBgColor: string;
 
-    constructor() {
-        this.type = 'tag';
-        this.name = "";
-        this.value = "";
-        this.matchCaseSensitive = false;
-        this.match = "exact";
-        
-        // Fast, collision-resistant unique identifier generator block
-        this.uid = this.generateId();
-        
-        // Strict baseline default initializations to prevent Color Picker runtime crashes
-        this.iconBefore = "";
-        this.iconAfter = "";
-        this.fontWeight = "normal";
-        this.fontStyle = "normal";
-        
-        // Default text color nodes (Accessible contrast scales)
-        this.lightColor = "#aa0000"; 
-        this.darkColor = "#ff5555";  
-        
-        // Fixed: Ground default fallback colors to text descriptors instead of empty properties
-        this.lightBgColor = "transparent";
-        this.darkBgColor = "transparent";
-    }
+  constructor() {
+      this.type = 'tag';
+      this.name = "";
+      this.value = "";
+      this.matchCaseSensitive = false;
+      this.match = "exact";
+      
+      // Fast, collision-resistant unique identifier generator block
+      this.uid = this.generateId();
+      
+      // Strict baseline default initializations to prevent Color Picker runtime crashes
+      this.iconBefore = "";
+      this.iconAfter = "";
+      this.fontWeight = "normal";
+      this.fontStyle = "normal";
+      
+      // Default text color nodes (Accessible contrast scales)
+      this.lightColor = "#aa0000"; 
+      this.darkColor = "#ff5555";  
+      
+      // Fixed: Ground default fallback colors to text descriptors instead of empty properties
+      this.lightBgColor = "transparent";
+      this.darkBgColor = "transparent";
+  }
 
-    /**
-     * Helper to assemble a lightweight, secure component hash id.
-     * Enforces strict primitive string assembly with no structural variance.
-     */
-    private generateId(): string {
-        const s4 = (): string => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
-        return `${s4()}${s4()}-${s4()}`;
-    }
+  /**
+   * Helper to assemble a lightweight, secure component hash id.
+   * Enforces strict primitive string assembly with no structural variance.
+   */
+  private generateId(): string {
+    const s4 = (): string => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+    return `${s4()}${s4()}-${s4()}`;
+  }
 }
-
-/**
- * 🔑 CSS ATTRIBUTE OPERATORS: Production-ready CSS modifier tokens.
- * Shared globally across compilers to eliminate duplicate translation blocks.
- */
-export const matchSign: Record<MatchTypes, string> = {
-    'exact': "=",
-    'contains': "*=",
-    'startswith': "^=",
-    'endswith': "$=",
-    'whiteSpace': "~="
-};
-
-/**
- * Human-readable sentence fragments used to build UI descriptions inside SettingTab rows contextually.
- */
-export const matchPreview: Record<MatchTypes, string> = {
-    'exact': "with value",
-    'contains': "containing",
-    'whiteSpace': "containing",
-    'startswith': "starting with",
-    'endswith': "ending with"
-};
-
-export const matchPreviewPath: Record<MatchTypes, string> = {
-    'exact': "is",
-    'contains': "contains",
-    'whiteSpace': "contains",
-    'startswith': "starts with",
-    'endswith': "ends with"
-};

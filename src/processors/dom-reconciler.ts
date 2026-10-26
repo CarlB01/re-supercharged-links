@@ -525,12 +525,11 @@ function isPathInScope(path: string, scope?: RefreshScope): boolean {
 	return false;
 }
 
-
 export function updateVisibleLinks(
 	app: App, 
 	plugin: ResuperchargedLinks, 
 	scope?: RefreshScope
-): void {
+): number { // ✨ ENDRET: Returnerer nå number i stedet for void for perfekt datastrøm
 	const attrCache: AttrCache = plugin.attrCycleCache;
 	let totalNodesStyled = 0;
 
@@ -597,7 +596,7 @@ export function updateVisibleLinks(
 		}
 	});
 
-	if (plugin.telemetry && plugin.telemetry.getTrackingState()) {
-		plugin.telemetry.setLastNodeCount(totalNodesStyled);
-	}
+	// ✨ STRØMLINJEFORMET TELEMETRI: Siden trackeren vår nå er 100% ren, 
+	// returnerer vi bare tallet slik at main.ts kan registrere syklusen stabilt.
+	return totalNodesStyled;
 }

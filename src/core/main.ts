@@ -17,9 +17,6 @@ import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 import { SCLSettings } from '../settings/settings-constants';
 
-/**
- * Structural bridge representing Obsidian's internal Markdown editor view state layout.
- */
 interface ObsidianInternalMarkdownView extends View {
 	editor?: {
 		cm?: EditorView | null;
@@ -96,12 +93,13 @@ export default class ResuperchargedLinks extends Plugin {
 		const trackingActive: boolean = this.telemetry.getTrackingState();
 		const startMark: number = trackingActive ? Date.now() : 0;
 
-		updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
+		// ✨ Nydelig og typesikker datastrøm:
+		// Vi fanger opp antall noder direkte fra funksjonen som utførte arbeidet!
+		const nodesProcessed: number = updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 
 		if (trackingActive) {
 			const elapsed: number = Date.now() - startMark;
-			const nodesCount: number = this.telemetry.getLastNodeCount();
-			this.telemetry.recordUpdateCycle(elapsed, nodesCount);
+			this.telemetry.recordUpdateCycle(elapsed, nodesProcessed);
 		}
 	}
 
@@ -134,7 +132,6 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-
 	public refreshEditorThemes(): void {
 		const currentTheme = createRuntimeEditorTheme(this);
 		
@@ -145,15 +142,12 @@ export default class ResuperchargedLinks extends Plugin {
 			if (view.getViewType() === "markdown") {
 				const markdownView = view as ObsidianInternalMarkdownView;
 				const cm = markdownView.editor?.cm ?? null;
-				// Ensure CodeMirror is active and the theme compartment 
-				// is present in the current state tree to prevent asynchronous RangeErrors.
 				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== undefined) {
 					try {
 						cm.dispatch({
 							effects: themeCompartment.reconfigure(currentTheme)
 						});
 					} catch {
-						// Absorb state mismatches silently during leaf breakdown sequences
 						return;
 					}
 				}
@@ -179,8 +173,8 @@ export default class ResuperchargedLinks extends Plugin {
 		this.addSettingTab(this.settingTab);
 
 		this.addCommand({
-			id: "scl-botteknott-report",
-			name: "Print styling telemetry botteknott report",
+			id: "scl-telemetry-report",
+			name: "Print styling performance telemetry report",
 			callback: (): void => {
 				if (this.telemetry !== null) {
 					this.telemetry.printReport(Notice);
@@ -191,8 +185,8 @@ export default class ResuperchargedLinks extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scl-reset-botteknott-metrics",
-			name: "Reset styling telemetry botteknott metrics",
+			id: "scl-reset-metrics",
+			name: "Reset styling performance telemetry metrics",
 			callback: (): void => {
 				if (this.telemetry !== null) {
 					this.telemetry.resetMetrics();
@@ -227,23 +221,17 @@ export default class ResuperchargedLinks extends Plugin {
 				initModalObservers(this, currentDoc);
 			}
 
-			// Execute a comprehensive workspace sweep across ALL active window layers.
-			// This forces styling onto existing DOM elements (tabs, frontmatter, sidebars) 
-			// without destroying the CodeMirror historical state or causing race conditions.
 			this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
 				const container: HTMLElement | null = leaf.view?.containerEl ?? null;
 				if (container !== null && container.isConnected) {
-					// Sweep the entire container for internal links, tab headers, and metadata fields
 					updateVisibleLinks(this.app, this);
 					
-					// Trigger active 3rd-party addon views or sidebar elements registered under observer filters
 					const viewType = leaf.view?.getViewType() ?? "";
 					if (viewType.length > 0) {
 						registerViewType(viewType, this, ".tree-item-inner, .nav-file-title-content, .tab-header-inner-title", true);
 					}
 				}
 			});
-			// Push fully compiled theme config matrices down the editor extensions safely
 			this.refreshEditorThemes();
 		});
 	}
@@ -253,6 +241,10 @@ export default class ResuperchargedLinks extends Plugin {
 		this.pendingChangedPrefixes.clear();
 		this.activeAttributesSet.clear();
 		this.compiledRules = [];
+		
+		if (this.attrCycleCache) {
+			this.attrCycleCache.clear();
+		}
 
 		disconnectAllObservers(this);
 		removeStylingFromViews(this);
@@ -280,49 +272,36 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
-	/**
-	 * Synchronizes cache eviction, touch debouncing, and queue scheduling for a mutated route.
-	 */
 	public processPathMutation(path: string): void {
 		if (path.length === 0) return;
 
-		// Step 1: Clean the individual file path boundaries natively
 		this.invalidateAttrCacheByPath(path);
 		this.cacheManager.markPathTouched(path);
 		this.enqueuePath(path);
 
-		// Step 2: If the segment signals a folder node, cascade downward through directory prefixes
 		if (path.endsWith("/")) {
 			this.invalidateAttrCacheByPrefix(path);
 			this.enqueuePrefix(path);
 		}
 	}
 
-	/**
-	 * Centralizes the foundational four-step pipeline for file system modifications.
-	 * Synchronizes cache eviction, touch debouncing, and queue scheduling in one clean thread.
-	 */
 	public handlePathMutation(path: string, isPrefix = false): void {
 		if (path.length === 0) return;
 
-		// Step 1: Evict the file or directory branch from live memory caches instantly
 		if (isPrefix) {
 			this.cacheManager.invalidatePrefix(path);
 		} else {
 			this.cacheManager.invalidatePath(path);
 		}
 
-		// Step 2: Mark the path layout as recently touched to guard active listeners
 		this.cacheManager.markPathTouched(path);
 
-		// Step 3: Enqueue the structural path entity for the upcoming render viewport scan
 		if (isPrefix) {
 			this.enqueuePrefix(path);
 		} else {
 			this.enqueuePath(path);
 		}
 
-		// Step 4: Kick the asynchronous debounced refresh framework slice smoothly
 		this.triggerScheduleRefresh();
 	}
 

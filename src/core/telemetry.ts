@@ -1,29 +1,22 @@
 /**
- * Typesafe performance monitor tracking cache efficiency and lifecycle overhead.
+ * Typesafe performance monitor tracking cache efficiency, structural barriers, and lifecycle overhead.
+ * Stripped of legacy fallback overhead for pure canonical production rendering.
  */
 export class PluginPerformanceTracker {
 	private isEnabled: boolean = false;
 	private cacheHits: number = 0;
 	private cacheMisses: number = 0;
-	private lastNodeCount: number = 0;
 	
-	private canonicalHits = 0;
-	private legacyHits = 0;
+	private barrierSkips: number = 0;       
+	private totalNodesEvaluated: number = 0; 
+	private maxExecutionTimeMs: number = 0;  
 
 	private readonly updateTimingsMs: number[] = [];
 	private readonly processedElementsCount: number[] = [];
-	private readonly MAX_HISTORY_CAP: number = 20;
+	private readonly MAX_HISTORY_CAP: number = 25; 
 
 	constructor(initialState: boolean) {
 		this.isEnabled = initialState;
-	}
-
-	public setLastNodeCount(count: number): void {
-		this.lastNodeCount = count;
-	}
-
-	public getLastNodeCount(): number {
-		return this.lastNodeCount;
 	}
 
 	public setTrackingState(state: boolean): void {
@@ -34,28 +27,28 @@ export class PluginPerformanceTracker {
 		return this.isEnabled;
 	}
 
+	/**
+	 * Logs when strict O(1) Set barriers (.has()) successfully blocks redundant re-processing.
+	 */
+	public logBarrierSkip(): void {
+		if (!this.isEnabled) return;
+		this.barrierSkips += 1;
+		this.totalNodesEvaluated += 1;
+	}
+
+	/**
+	 * Logs a high-performance hit matching the modern standard canonical framework.
+	 */
 	public logHit(): void {
+		if (!this.isEnabled) return;
 		this.cacheHits += 1;
-	}
-
-	/**
-	 * Logs a high-performance hit matching the modern standard canonical lowercased key index framework.
-	 */
-	public logCanonicalHit(): void {
-		this.cacheHits += 1;
-		this.canonicalHits += 1;
-	}
-
-	/**
-	 * Logs a hit on the historical original casing index framework during dual-read migration periods.
-	 */
-	public logLegacyHit(): void {
-		this.cacheHits += 1;
-		this.legacyHits += 1;
+		this.totalNodesEvaluated += 1;
 	}
 
 	public logMiss(): void {
+		if (!this.isEnabled) return;
 		this.cacheMisses += 1;
+		this.totalNodesEvaluated += 1;
 	}
 
 	public recordUpdateCycle(durationMs: number, elementCount: number): void {
@@ -63,6 +56,10 @@ export class PluginPerformanceTracker {
 
 		this.updateTimingsMs.push(durationMs);
 		this.processedElementsCount.push(elementCount);
+
+		if (durationMs > this.maxExecutionTimeMs) {
+			this.maxExecutionTimeMs = durationMs;
+		}
 
 		if (this.updateTimingsMs.length > this.MAX_HISTORY_CAP) {
 			this.updateTimingsMs.shift();
@@ -73,22 +70,33 @@ export class PluginPerformanceTracker {
 	public resetMetrics(): void {
 		this.cacheHits = 0;
 		this.cacheMisses = 0;
-		this.canonicalHits = 0;
-		this.legacyHits = 0;
+		this.barrierSkips = 0;
+		this.totalNodesEvaluated = 0;
+		this.maxExecutionTimeMs = 0;
 		this.updateTimingsMs.length = 0;
 		this.processedElementsCount.length = 0;
 	}
 
 	/**
+	 * ✨ TIDLØS FIKS: Eksplisitt public getter som gjør telleren tilgjengelig for main.ts
+	 */
+	public getTotalNodesEvaluated(): number {
+		return this.totalNodesEvaluated;
+	}
+
+	/**
 	 * Generates a real-time structural performance diagnostic snapshot.
-	 * @param noticeClass - Injectable bridge reference to Obsidian's Notice component.
 	 */
 	public printReport(noticeClass: typeof import("obsidian").Notice): void {
 		if (!this.isEnabled) return;
 
-		const totalRequests: number = this.cacheHits + this.cacheMisses;
-		const hitRate: string = totalRequests > 0 
-			? ((this.cacheHits / totalRequests) * 100).toFixed(1) 
+		const totalCacheRequests: number = this.cacheHits + this.cacheMisses;
+		const cacheHitRate: string = totalCacheRequests > 0 
+			? ((this.cacheHits / totalCacheRequests) * 100).toFixed(1) 
+			: "0.0";
+
+		const barrierEfficiency: string = this.totalNodesEvaluated > 0
+			? ((this.barrierSkips / this.totalNodesEvaluated) * 100).toFixed(1)
 			: "0.0";
 
 		let totalDurationSum: number = 0;
@@ -119,11 +127,12 @@ export class PluginPerformanceTracker {
 			: 0;
 
 		const reportText: string = "📊 Re-Supercharged Links Perf Report:\n" +
-			`• Cache Hit Rate: ${hitRate}% (${this.cacheHits}/${totalRequests})\n` +
-			`• Canonical Migrated: ${this.canonicalHits} hits / Legacy Fallbacks: ${this.legacyHits} hits\n` +
-			`• Avg execution frame: ${avgTimeMs}ms\n` +
-			`• Avg links styled: ${avgElements} nodes (Last: ${lastRunCount})`;
+			`• Total Nodes Evaluated: ${this.totalNodesEvaluated}\n` +
+			`• O(1) Barrier Skip Rate: ${barrierEfficiency}% (${this.barrierSkips} exits)\n` +
+			`• Internal Cache Hit Rate: ${cacheHitRate}% (${this.cacheHits}/${totalCacheRequests})\n` +
+			`• Frame Time (Avg / Max): ${avgTimeMs}ms / ${this.maxExecutionTimeMs.toFixed(2)}ms\n` +
+			`• DOM Batches Flushed: ${timingsLen} (Avg: ${avgElements} nodes, Last: ${lastRunCount})`;
 
-		new noticeClass(reportText, 10000);
+		new noticeClass(reportText, 12000);
 	}
 }

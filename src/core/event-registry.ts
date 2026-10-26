@@ -23,7 +23,7 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 
 		if (trackingActive) {
 			const elapsed: number = Date.now() - startMark;
-			const nodesCount: number = plugin.telemetry.getLastNodeCount();
+			const nodesCount: number = plugin.telemetry.getTotalNodesEvaluated();
 			plugin.telemetry.recordUpdateCycle(elapsed, nodesCount);
 		}
 
