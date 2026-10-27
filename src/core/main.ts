@@ -162,8 +162,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.attrCycleCache = new Map();
 		
 		this.telemetry = new PluginPerformanceTracker(this.doTelemetry);
-		this.cacheManager = new AttributeCacheManager(this.attrCycleCache, this.telemetry);
-
+		this.cacheManager = new AttributeCacheManager(this.attrCycleCache);
 		await this.cleanupLegacySnippetFile();
 		this.detectPluginCollisions();
 		

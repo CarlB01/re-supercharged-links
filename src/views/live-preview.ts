@@ -244,7 +244,6 @@ export class CMViewPlugin {
 			this.app,
 			this.plugin,
 			file,
-			true,
 			this.plugin.attrCycleCache
 		);
 

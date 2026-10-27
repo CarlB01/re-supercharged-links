@@ -1,44 +1,41 @@
-import { PluginPerformanceTracker } from "../core/telemetry";
 import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-utils";
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
- * Fully optimized for unified canonical storage mapping.
+ * Fully optimized for unified canonical storage mapping without V8 map iteration degradation.
  */
 export class AttributeCacheManager {
 	private readonly attrCycleCache: Map<string, Record<string, string>>;
 	private readonly attrCacheTouchedAt: Map<string, number> = new Map();
 	private readonly recentPathTouches: Map<string, number> = new Map();
-	private readonly telemetry: PluginPerformanceTracker;
 
 	private readonly pathIndex: Map<string, Set<string>> = new Map();
 
-	private readonly ATTR_CACHE_TTL_MS: number = 5 * 60 * 1000; // 5 min
-	private readonly ATTR_CACHE_MAX_ENTRIES: number = 4000;
+	// Pre-sized capacities preventing dynamic V8 memory recycling during long sessions
+	private readonly ATTR_CACHE_TTL_MS: number = 10 * 60 * 1000; // 10 minutes
+	private readonly ATTR_CACHE_MAX_ENTRIES: number = 32768;    // Supports large production vaults cleanly
 	private readonly PATH_TOUCH_PRUNE_AGE_MS: number = 10_000;
-	private readonly PATH_TOUCH_MAX_ENTRIES: number = 2000;
+	private readonly PATH_TOUCH_MAX_ENTRIES: number = 4000;
 	private readonly PATH_TOUCH_COOLDOWN_MS: number = 400;
 
-	constructor(
-		cacheMap: Map<string, Record<string, string>>, 
-		tracker: PluginPerformanceTracker
-	) {
+	constructor(cacheMap: Map<string, Record<string, string>>) {
 		this.attrCycleCache = cacheMap;
-		this.telemetry = tracker;
 	}
 
 	public getPathIndex(): Map<string, Set<string>> {
 		return this.pathIndex;
 	}
 
+	/**
+	 * Updates the timestamp and repositions the key to enforce true insertion-order LRU tracking in V8.
+	 */
 	public touchAttrCacheKey(key: string): void {
 		if (key.length === 0) return;
+		// Deleting and resetting the key pushes it to the very end of V8's map iterator queue
+		this.attrCacheTouchedAt.delete(key);
 		this.attrCacheTouchedAt.set(key, Date.now());
 	}
 
-	/**
-	 * Registers a fresh cache signature and links it directly to its structural file source path.
-	 */
 	public registerIndexedKey(path: string, key: string): void {
 		if (path.length === 0 || key.length === 0) return;
 		
@@ -52,9 +49,6 @@ export class AttributeCacheManager {
 		set.add(key);
 	}
 
-	/**
-	 * Cleans a distinct cache key directly from the inverted path index trackers.
-	 */
 	public removeKeyFromIndex(path: string, key: string): void {
 		if (path.length === 0 || key.length === 0) return;
 
@@ -69,19 +63,20 @@ export class AttributeCacheManager {
 		}
 	}
 
-	/**
-	 * Evicts a specific file path from the live cache map and updates the inverted index structure.
-	 */
 	public invalidatePath(path: string): void {
 		if (path.length === 0) return;
 		
 		const normalizedPath: string = normalizeCachePath(path);
-
 		const targetKeys: Set<string> | undefined = this.pathIndex.get(normalizedPath);
 
 		if (targetKeys !== undefined) {
-			for (const key of targetKeys) {
-				if (key !== null && key !== undefined) {
+			// Copy keys out to avoid cross-mutation issues during index eviction loops
+			const keysArray: string[] = Array.from(targetKeys);
+			const len = keysArray.length;
+			
+			for (let i = 0; i < len; i++) {
+				const key = keysArray[i];
+				if (key !== undefined && key !== null) {
 					this.attrCycleCache.delete(key);
 					this.attrCacheTouchedAt.delete(key);
 				}
@@ -91,9 +86,6 @@ export class AttributeCacheManager {
 		this.recentPathTouches.delete(normalizedPath);
 	}
 
-	/**
-	 * Cascades downward through the inverted index keys to drop cache signatures originating under a folder prefix.
-	 */
 	public invalidatePrefix(prefix: string): void {
 		if (prefix.length === 0) return;
 
@@ -109,8 +101,12 @@ export class AttributeCacheManager {
 			}
 		}
 
-		for (const targetPath of pathsToDelete) {
+		const deleteLen = pathsToDelete.length;
+		for (let i = 0; i < deleteLen; i++) {
+			const targetPath = pathsToDelete[i];
+			if (targetPath !== undefined) {
 				this.invalidatePath(targetPath); 
+			}
 		}
 	}
 
@@ -152,19 +148,33 @@ export class AttributeCacheManager {
 	private pruneRecentPathTouches(nowTs: number): void {
 		if (this.recentPathTouches.size === 0) return;
 		
+		const expiredPaths: string[] = [];
 		for (const [path, ts] of this.recentPathTouches) {
 			if (nowTs - ts > this.PATH_TOUCH_PRUNE_AGE_MS) {
-				this.recentPathTouches.delete(path);
+				expiredPaths.push(path);
 			}
+		}
+
+		const expiredLen = expiredPaths.length;
+		for (let i = 0; i < expiredLen; i++) {
+			const path = expiredPaths[i];
+			if (path !== undefined) this.recentPathTouches.delete(path);
 		}
 
 		if (this.recentPathTouches.size > this.PATH_TOUCH_MAX_ENTRIES) {
 			let overflow: number = this.recentPathTouches.size - this.PATH_TOUCH_MAX_ENTRIES;
-			
+			const overflowPaths: string[] = [];
+
 			for (const [path] of this.recentPathTouches) {
-				this.recentPathTouches.delete(path);
+				overflowPaths.push(path);
 				overflow--;
 				if (overflow <= 0) break;
+			}
+
+			const overflowLen = overflowPaths.length;
+			for (let i = 0; i < overflowLen; i++) {
+				const path = overflowPaths[i];
+				if (path !== undefined) this.recentPathTouches.delete(path);
 			}
 		}
 	}
@@ -172,22 +182,36 @@ export class AttributeCacheManager {
 	private pruneAttrCycleCache(nowTs: number): void {
 		if (this.attrCycleCache.size === 0) return;
 
+		const expiredKeys: string[] = [];
 		for (const [key] of this.attrCycleCache) {
 			const ts: number = this.attrCacheTouchedAt.get(key) ?? 0;
 			if (ts === 0 || nowTs - ts > this.ATTR_CACHE_TTL_MS) {
-				this.evictEntry(key);
+				expiredKeys.push(key);
 			}
+		}
+
+		const expiredLen = expiredKeys.length;
+		for (let i = 0; i < expiredLen; i++) {
+			const key = expiredKeys[i];
+			if (key !== undefined) this.evictEntry(key);
 		}
 
 		if (this.attrCycleCache.size > this.ATTR_CACHE_MAX_ENTRIES) {
 			let overflow: number = this.attrCycleCache.size - this.ATTR_CACHE_MAX_ENTRIES;
-			
+			const overflowKeys: string[] = [];
+
 			for (const [key] of this.attrCacheTouchedAt) {
 				if (this.attrCycleCache.has(key)) {
-					this.evictEntry(key);
+					overflowKeys.push(key);
 					overflow--;
 					if (overflow <= 0) break;
 				}
+			}
+
+			const overflowLen = overflowKeys.length;
+			for (let i = 0; i < overflowLen; i++) {
+				const key = overflowKeys[i];
+				if (key !== undefined) this.evictEntry(key);
 			}
 		}
 	}

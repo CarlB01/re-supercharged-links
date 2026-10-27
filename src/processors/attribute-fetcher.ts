@@ -152,24 +152,22 @@ export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,
 	dest: TFile,
-	addDataHref: boolean,
-	cache: AttrCache
+	cache: AttrCache // 🚀 addDataHref er fjernet fra argumentene her!
 ): Record<string, string> {
 	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
-	
 	const normalizedPath: string = normalizeCachePath(dest.path);
-	const newKey: string = buildCacheKey(ruleConfigVersion, normalizedPath, addDataHref);
 	
-	const hit: Record<string, string> | null = cache.get(newKey) ?? null;
+	// 🚀 UNIFORM CACHE KEY: Pure file tracking independent of layout context
+	const cleanKey: string = `${ruleConfigVersion}-${normalizedPath}`;
+	
+	const hit: Record<string, string> | null = cache.get(cleanKey) ?? null;
 
 	if (hit !== null) {
-		// Strictly leverage your existing typed performanceTracker instance safely without structural dynamic checks
 		const tracker = plugin.telemetry;
 		if (tracker !== null) {
 			tracker.logHit();
 		}
-		
-		plugin.touchAttrCacheKey(newKey);
+		plugin.touchAttrCacheKey(cleanKey);
 		return hit;
 	}
 
@@ -178,13 +176,14 @@ export function fetchTargetAttributesCached(
 		tracker.logMiss();
 	}
 
-	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, addDataHref);
+	// Fetch pure metadata (always call sync without addDataHref payload inside)
+	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, false);
 	
-	cache.set(newKey, resolved);
-	plugin.touchAttrCacheKey(newKey);
+	cache.set(cleanKey, resolved);
+	plugin.touchAttrCacheKey(cleanKey);
 	
 	if (plugin.cacheManager !== null) {
-		plugin.cacheManager.registerIndexedKey(normalizedPath, newKey);
+		plugin.cacheManager.registerIndexedKey(normalizedPath, cleanKey);
 	}
 
 	return resolved;

@@ -180,7 +180,7 @@ export function processPopupContextNode(
 	const dest: TFile | null = plugin.app.metadataCache.getFirstLinkpathDest(getLinkpath(resolvedPath), "") ?? null;
 	if (dest === null) return false;
 
-	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, false, globalCache);
+	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, globalCache);
 	
 	// Kjør regel-motoren mot de RÅ attributtene
 	const resolution = resolveRuleResolution({
@@ -339,9 +339,22 @@ export function updateDivExtraAttributes(
 	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
 	if (dest === null) return;
 
-	// 1. Fetch raw attributes from the high-performance cache (This logs cache hits/misses)
-	const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, true, plugin.attrCycleCache);
-	
+	// 1. Fetch the pure, shared metadata cache hit
+	const cachedProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, plugin.attrCycleCache);
+
+	// 2. Clone using a high-performance clear prototype maps to append context-specific markers
+	const localProps: Record<string, string> = Object.create(null) as Record<string, string>;
+
+	// Fast linear property copy loop to maintain V8 monomorphic structures
+	const propKeys = Object.keys(cachedProps);
+	const propKeysLen = propKeys.length;
+	for (let i = 0; i < propKeysLen; i++) {
+		const key = propKeys[i];
+		if (key !== undefined) {
+			localProps[key] = cachedProps[key] ?? "";
+		}
+	}
+
 	// 2. Synchronously run the rule engine against the cached attributes BEFORE queueing
 	const isDark: boolean = document.body.classList.contains("theme-dark");
 	const resolution = resolveRuleResolution({
@@ -350,6 +363,8 @@ export function updateDivExtraAttributes(
 		isDark,
 		includeTagMatchClasses: true 
 	});
+
+	localProps["data-href"] = dest.basename;
 
 	// 3. THE O(1) BARRIER CHECK: Verify if the DOM element already satisfies the rule resolution
 	let isAlreadyUpToDate = true;
@@ -423,7 +438,7 @@ export function updateElLinks(app: App, plugin: ResuperchargedLinks, el: HTMLEle
 		const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(linkHref, destName) ?? null;
 		if (dest === null) continue;
 
-		const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, globalCache);
+		const localProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, globalCache);
 		// ✅ FIXED: Directly pass the context plugin reference into the mutation engine thread slice
 		domBatcher.enqueue(node, localProps, plugin);
 	}
@@ -579,49 +594,88 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	return 0;
 }
 
-
+/**
+ * Refreshes all internal links within a specific markdown preview container layout.
+ * Performs a single dense DOM query sweep and aggregates nodes into a memory map 
+ * to completely eliminate high-frequency querySelectorAll layout thrashing.
+ */
 function updateLeafInternalLinks(
 	app: App, 
 	plugin: ResuperchargedLinks, 
 	file: TFile, 
-	containerEl: HTMLElement, 
-	attrCache: AttrCache
+	containerEl: HTMLElement
 ): number {
 	const cachedFile = app.metadataCache.getFileCache(file) ?? null;
 	if (cachedFile === null || !cachedFile.links) return 0;
 	
 	const links = cachedFile.links;
 	const linksCount = links.length;
+	if (linksCount === 0) return 0;
+
+	// 1. A single broad DOM sweep targeting all internal links and pills within this container
+	const rawNodes: NodeListOf<Element> = containerEl.querySelectorAll("a.internal-link, .multi-select-pill-content");
+	const rawNodesLen = rawNodes.length;
+	if (rawNodesLen === 0) return 0;
+
+	// 2. Build an isolated in-memory map allocating resolved href strings directly to element arrays
+	const hrefToElementsMap: Map<string, HTMLElement[]> = new Map();
+
+	for (let i = 0; i < rawNodesLen; i++) {
+		const node: Element | null = rawNodes[i] ?? null;
+		
+		// OBSIDIAN COMPLIANT: Leverage the official cross-window safe prototype helper
+		if (node !== null && node.instanceOf(HTMLElement)) {
+			const htmlNode = node as HTMLElement;
+			const hrefAttr = htmlNode.getAttribute("href") ?? "";
+			const dataHrefAttr = htmlNode.getAttribute("data-href") ?? "";
+			
+			let resolvedHref = dataHrefAttr.length > 0 ? dataHrefAttr : hrefAttr;
+			if (resolvedHref.length === 0) {
+				resolvedHref = htmlNode.textContent ?? "";
+			}
+
+			if (resolvedHref.length > 0) {
+				let bucket = hrefToElementsMap.get(resolvedHref);
+				if (bucket === undefined) {
+					bucket = [];
+					hrefToElementsMap.set(resolvedHref, bucket);
+				}
+				bucket.push(htmlNode);
+			}
+		}
+	}
+
 	let localCount = 0;
 
+	// 3. Process the target file links sequence through pure O(1) in-memory bucket lookups
 	for (let i = 0; i < linksCount; i++) {
 		const link = links[i];
 		if (!link) continue;
 
-		const escapedHref: string = CSS.escape(link.link);
-		const selector = `a.internal-link[href="${escapedHref}"], .multi-select-pill-content[data-href="${escapedHref}"]`;
-		const internalLinks: NodeListOf<Element> = containerEl.querySelectorAll(selector);
-		const foundNodesCount = internalLinks.length;
+		const matchedElements = hrefToElementsMap.get(link.link) ?? null;
+		if (matchedElements === null) continue;
 
-		for (let j = 0; j < foundNodesCount; j++) {
-			const node: Element | null = internalLinks[j] ?? null;
+		const elementsLen = matchedElements.length;
+		for (let j = 0; j < elementsLen; j++) {
+			const element = matchedElements[j];
 			
-			if (node !== null && node.instanceOf(Element) && node.instanceOf(HTMLElement) && node.isConnected) {
-				const rawHref: string | null = node.getAttribute("data-href");
-				const rawText: string | null = node.textContent;
+			if (element !== undefined && element !== null && element.isConnected) {
+				const rawHref: string | null = element.getAttribute("data-href");
+				const rawText: string | null = element.textContent;
 				
 				const runtimeHref: string = rawHref !== null ? rawHref : (rawText !== null ? rawText : link.link);
 				const cleanRuntimeHref: string = extractCleanLinkPath(runtimeHref);
 				
 				const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(cleanRuntimeHref, file.basename) ?? null;
+				
 				if (dest !== null) {
-					const currentProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, false, attrCache);
-					domBatcher.enqueue(node, currentProps, plugin);
+					updateDivExtraAttributes(app, plugin, element, file.basename, cleanRuntimeHref, false);
 					localCount += 1;
 				}
 			}
 		}
 	}
+	
 	return localCount;
 }
 
@@ -715,7 +769,7 @@ export function updateVisibleLinks(
 		// Internal links inside the body should still only be swept via DOM if in preview mode,
 		// as CodeMirror 6 handles the active Live Preview editor body natively.
 		if (mdView.getMode() === "preview") {
-			totalNodesStyled += updateLeafInternalLinks(app, plugin, activeFileFallback, markdownLeaf.view.containerEl, attrCache);
+			totalNodesStyled += updateLeafInternalLinks(app, plugin, activeFileFallback, markdownLeaf.view.containerEl);
 		}
 	});
 
