@@ -107,7 +107,7 @@ Below are real benchmark profiles taken from extensive testing in a massive prod
 
 ## Performance Tuning Tips
 
-While v1.1.0 is engineered for extreme efficiency, overall performance can be influenced by your environment:
+While v1.1.2 is engineered for extreme efficiency, overall performance can be influenced by your environment:
 - If you run multiple complex UI-heavy plugins alongside massive Dataview arrays, keeping your rule conditions highly specific will yield the best results.
 - If you notice unexpected rendering delays, please open an issue containing your approximate vault size, active theme, and a performance profile capture if possible.
 

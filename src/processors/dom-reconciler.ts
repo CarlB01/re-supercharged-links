@@ -11,28 +11,6 @@ type RefreshScope = {
 	prefixes: Set<string>;
 };
 
-interface QueuedDOMMutation {
-	readonly elementRef: WeakRef<HTMLElement>;
-	readonly props: Record<string, string>;
-	readonly plugin: ResuperchargedLinks;
-}
-
-/**
- * Monomorphic class guaranteeing stable V8 Hidden Classes (Shapes).
- * Bypasses high-frequency anonymous object literal allocation churn.
- */
-class MutationTask implements QueuedDOMMutation {
-	public readonly elementRef: WeakRef<HTMLElement>;
-	public readonly props: Record<string, string>;
-	public readonly plugin: ResuperchargedLinks;
-
-	constructor(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks) {
-		this.elementRef = new WeakRef(element);
-		this.props = props;
-		this.plugin = plugin;
-	}
-}
-
 export class DOMMutationBatcher {
 	private readonly BUFFER_SIZE = 65536;
 
@@ -623,15 +601,14 @@ function updateLeafInternalLinks(
 	for (let i = 0; i < rawNodesLen; i++) {
 		const node: Element | null = rawNodes[i] ?? null;
 		
-		// OBSIDIAN COMPLIANT: Leverage the official cross-window safe prototype helper
+		// Leverage the official cross-window safe prototype helper
 		if (node !== null && node.instanceOf(HTMLElement)) {
-			const htmlNode = node as HTMLElement;
-			const hrefAttr = htmlNode.getAttribute("href") ?? "";
-			const dataHrefAttr = htmlNode.getAttribute("data-href") ?? "";
+			const hrefAttr = node.getAttribute("href") ?? "";
+			const dataHrefAttr = node.getAttribute("data-href") ?? "";
 			
 			let resolvedHref = dataHrefAttr.length > 0 ? dataHrefAttr : hrefAttr;
 			if (resolvedHref.length === 0) {
-				resolvedHref = htmlNode.textContent ?? "";
+				resolvedHref = node.textContent ?? "";
 			}
 
 			if (resolvedHref.length > 0) {
@@ -640,7 +617,7 @@ function updateLeafInternalLinks(
 					bucket = [];
 					hrefToElementsMap.set(resolvedHref, bucket);
 				}
-				bucket.push(htmlNode);
+				bucket.push(node);
 			}
 		}
 	}
@@ -706,10 +683,8 @@ export function updateVisibleLinks(
 	app: App, 
 	plugin: ResuperchargedLinks, 
 	scope?: RefreshScope
-): number { // ✨ ENDRET: Returnerer nå number i stedet for void for perfekt datastrøm
-	const attrCache: AttrCache = plugin.attrCycleCache;
+): number { 
 	let totalNodesStyled = 0;
-
 	let normalizedScope: RefreshScope | null = null;
 	if (scope !== undefined && scope !== null) {
 		const pathSet = new Set<string>();

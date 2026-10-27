@@ -1,5 +1,5 @@
 import { App, getAllTags, TFile } from "obsidian";
-import { buildCacheKey, cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
 import { DataviewAPI, getDataviewApiInstance } from "../utils/obsidian-adapters";
 
@@ -152,12 +152,12 @@ export function fetchTargetAttributesCached(
 	app: App,
 	plugin: ResuperchargedLinks,
 	dest: TFile,
-	cache: AttrCache // 🚀 addDataHref er fjernet fra argumentene her!
+	cache: AttrCache 
 ): Record<string, string> {
 	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
 	const normalizedPath: string = normalizeCachePath(dest.path);
 	
-	// 🚀 UNIFORM CACHE KEY: Pure file tracking independent of layout context
+	// Pure file tracking independent of layout context
 	const cleanKey: string = `${ruleConfigVersion}-${normalizedPath}`;
 	
 	const hit: Record<string, string> | null = cache.get(cleanKey) ?? null;
