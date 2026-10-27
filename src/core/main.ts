@@ -12,7 +12,7 @@ import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
 import { CSSLink } from '../types/css-link';
 import { AttributeCacheManager } from '../processors/cache-manager';
-import { compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
+import { cleanAttributeKey, compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
 import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 import { SCLSettings } from '../settings/settings-constants';
@@ -37,12 +37,14 @@ export default class ResuperchargedLinks extends Plugin {
 	public attrCycleCache!: Map<string, Record<string, string>>;
 	public activeAttributesSet: Set<string> = new Set();
 	public activeAttributesArray: string[] = [];
+	public activeHyphenatedKeysArray: string[] = [];
 
 	public telemetry!: PluginPerformanceTracker;
 	public cacheManager!: AttributeCacheManager;
 	public compiledRules: CompiledRule[] = [];
 	
 	private ruleConfigVersion = 0;
+	private lastAppliedThemeHash = ""; // 🚀 Tracks the applied theme signature to bypass redundant reconfigure frames
 	private readonly pendingChangedPaths: Set<string> = new Set();
 	private readonly pendingChangedPrefixes: Set<string> = new Set();
 
@@ -94,8 +96,6 @@ export default class ResuperchargedLinks extends Plugin {
 		const trackingActive: boolean = this.telemetry.getTrackingState();
 		const startMark: number = trackingActive ? Date.now() : 0;
 
-		// ✨ Nydelig og typesikker datastrøm:
-		// Vi fanger opp antall noder direkte fra funksjonen som utførte arbeidet!
 		const nodesProcessed: number = updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
 
 		if (trackingActive) {
@@ -133,7 +133,26 @@ export default class ResuperchargedLinks extends Plugin {
 		}
 	}
 
+	/**
+	 * Reconfigures CodeMirror 6 editor extensions safely across active workspace leaves.
+	 * Implements a strict O(1) state hash barrier to completely bypass layout sweeps 
+	 * when compiled styling rules and active core dark/light status remain static.
+	 */
 	public refreshEditorThemes(): void {
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		const version: number = this.getRuleConfigVersion();
+		
+		// Compile a precise structural state string tracking environment changes
+		const currentThemeHash = `${version}-${isDark ? "dark" : "light"}`;
+
+		// 🚀 THE O(1) BARRIER INTERCEPT: Haltet instantly if the configuration maps perfectly to memory
+		if (this.lastAppliedThemeHash === currentThemeHash) {
+			return;
+		}
+
+		// Store the fresh signature instantly to protect subsequent redundant calls
+		this.lastAppliedThemeHash = currentThemeHash;
+
 		const currentTheme = createRuntimeEditorTheme(this);
 		
 		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
@@ -143,7 +162,9 @@ export default class ResuperchargedLinks extends Plugin {
 			if (view.getViewType() === "markdown") {
 				const markdownView = view as ObsidianInternalMarkdownView;
 				const cm = markdownView.editor?.cm ?? null;
-				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== undefined) {
+				
+				// Verify instance health and ensuring the state compartment mapping exists natively
+				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== null) {
 					try {
 						cm.dispatch({
 							effects: themeCompartment.reconfigure(currentTheme)
@@ -242,6 +263,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.activeAttributesSet.clear();
 		this.activeAttributesArray = [];
 		this.compiledRules = [];
+		this.lastAppliedThemeHash = "";
 		
 		if (this.attrCycleCache) {
 			this.attrCycleCache.clear();
@@ -251,9 +273,15 @@ export default class ResuperchargedLinks extends Plugin {
 		removeStylingFromViews(this);
 	}
 
+	/**
+	 * Compiles both raw user fields and pre-hyphenates them for zero-allocation cache-sweeps.
+	 */
 	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
 		this.activeAttributesArray = [];
+		
+		// Nullstill og pre-populer den flate hyphenated-arrayen med faste systemfelt
+		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
 		
 		if (this.settings === null || this.settings.selectors === null) return;
 
@@ -268,6 +296,12 @@ export default class ResuperchargedLinks extends Plugin {
 
 					if (typeof attrName === "string" && attrName.length > 0) {
 						this.activeAttributesSet.add(attrName);
+						
+						// Vask nøkkelen med en gang og dytt inn i den tette søkearrayen
+						const cleaned: string = cleanAttributeKey(attrName);
+						if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
+							this.activeHyphenatedKeysArray.push(cleaned);
+						}
 					}
 				}
 			}
