@@ -36,7 +36,6 @@ export function fetchTargetAttributesSync(
 	dest: TFile,
 	addDataHref: boolean
 ): Record<string, string> {
-	// Object.create(null) ensures zero prototype lookups and maximum O(1) performance in V8
 	const rawProps: Record<string, string> = Object.create(null) as Record<string, string>;
 	
 	const pluginInstance: ResuperchargedLinks | null = plugin ?? null;
@@ -46,15 +45,18 @@ export function fetchTargetAttributesSync(
 	const cache = app.metadataCache.getFileCache(dest) ?? null;
 	if (cache === null) return rawProps;
 
-	// Convert Set to an indexed dense array once, or use cached pre-computed list to avoid Set iterator overhead
 	const activeAttributes: string[] = pluginInstance.activeAttributesArray;
 	const activeAttrsLen = activeAttributes.length;
 	
-	// Use a unique tag string accumulator and temporary Set for lightning fast O(1) deduplication
+	// 🔥 Pre-allokert indeks-tracker på stakken (ingen heap-allokering) for å unngå Object.keys()
+	// Størrelsen er maksimalt antall overvåkede attributter
+	const foundKeys: string[] = []; 
+	let foundKeysCount = 0;
+
 	let compiledTags = "";
 	const seenTagsSet: Set<string> = new Set<string>();
 
-	// 1. Synchronously process frontmatter attributes using high-performance index iterations
+	// 1. Frontmatter
 	if (cache.frontmatter !== null && cache.frontmatter !== undefined && activeAttrsLen > 0) {
 		const fm = cache.frontmatter as Record<string, unknown>;
 		
@@ -77,11 +79,13 @@ export function fetchTargetAttributesSync(
 				}
 			} else {
 				rawProps[attribute] = String(value);
+				// Registrer at denne nøkkelen faktisk eksisterer på objektet
+				foundKeys[foundKeysCount++] = attribute;
 			}
 		}
 	}
 
-	// 2. Extract and compile native Obsidian tags with O(1) tracking barriers
+	// 2. Native Obsidian Tags
 	const allTags: string[] = getAllTags(cache) ?? [];
 	const allTagsLen = allTags.length;
 	for (let j = 0; j < allTagsLen; j++) {
@@ -99,16 +103,12 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
-	if (compiledTags.length > 0) {
-		rawProps.tags = compiledTags;
-	}
-
-	if (addDataHref) {
-		rawProps["data-href"] = dest.basename;
-	}
+	// Faste strukturer som vi vet formen på
+	if (compiledTags.length > 0) rawProps.tags = compiledTags;
+	if (addDataHref) rawProps["data-href"] = dest.basename;
 	rawProps.path = dest.path;
 
-	// 3. Process Dataview inline fields with high-performance boundary safeguards
+	// 3. Dataview Inline
 	if (settings.getFromInlineField) {
 		const api: DataviewAPI | null = getDataviewApi(app);
 		if (api !== null) {
@@ -118,22 +118,26 @@ export function fetchTargetAttributesSync(
 					const field = activeAttributes[i];
 					if (field === undefined) continue;
 
+					// Unngå dobbeltlagring hvis feltet allerede ble plukket opp i frontmatter
+					if (rawProps[field] !== undefined) continue;
+
 					const value: unknown = page[field] ?? null;
 					if (value !== null) {
 						rawProps[field] = String(value);
+						foundKeys[foundKeysCount++] = field;
 					}
 				}
 			}
 		}
 	}
 
-	// 4. Flatten and hyphenate properties inline using native key indexing (No Object.entries allocation)
+	// 4. 🔥 HIGH-PERFORMANCE FLATTENING USING POPULATED INDEX ONLY
+	// Vi oppretter et rent objekt uten prototype for maksimal V8 O(1) lookup-hastighet
 	const hyphenatedProps: Record<string, string> = Object.create(null) as Record<string, string>;
-	const finalKeys = Object.keys(rawProps);
-	const finalKeysLen = finalKeys.length;
 
-	for (let i = 0; i < finalKeysLen; i++) {
-		const key = finalKeys[i];
+	// Først: Prosesser KUN de dynamiske nøklene vi vet vi faktisk har funnet
+	for (let i = 0; i < foundKeysCount; i++) {
+		const key = foundKeys[i];
 		if (key !== undefined) {
 			const value = rawProps[key];
 			if (value !== undefined) {
@@ -145,8 +149,14 @@ export function fetchTargetAttributesSync(
 		}
 	}
 
+	// Deretter: Dytt inn de faste feltene direkte (V8 elsker faste feltbaner)
+	if (rawProps.tags !== undefined) hyphenatedProps.tags = rawProps.tags;
+	if (rawProps["data-href"] !== undefined) hyphenatedProps["data-href"] = rawProps["data-href"];
+	hyphenatedProps.path = rawProps.path; // Alltid definert
+
 	return hyphenatedProps;
 }
+
 
 export function fetchTargetAttributesCached(
 	app: App,

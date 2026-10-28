@@ -150,15 +150,12 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 
 	clearExtraAttributes(link);
 
-	// Vask bort gamle modifier-klasser så de ikke akkumuleres feil ved oppdatering
 	link.removeClass(
 		"scl-weight-bold", "scl-weight-lighter", "scl-style-italic", 
 		"scl-decor-underline", "scl-decor-linethrough"
 	);
 
 	if (resolution.hasMatch) {
-		// 🚀 THE FIX: Vi bygger et strukturert inline-stilobjekt via Obsidians GODKJENTE API.
-		// Dette tvinger fargen gjennom på aktive faner og 3. parts apper uten linter-feil!
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
 
 		if (targetColor.length > 0) {
@@ -168,10 +165,8 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 			targetStyles.backgroundColor = targetBg;
 		}
 
-		// Send stilsamlingen til elementet (Dette overskriver/nullstiller eventuelle gamle inline-farger)
 		link.setCssStyles(targetStyles);
 
-		// Typografi (vekt, kursiv, dekorasjoner) løses fremdeles elegant via klasser i styles.css
 		if (resolution.style.fontWeight === "bold") link.addClass("scl-weight-bold");
 		if (resolution.style.fontWeight === "lighter") link.addClass("scl-weight-lighter");
 
@@ -180,7 +175,6 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 		if (decorations.includes("underline")) link.addClass("scl-decor-underline");
 		if (decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
 
-		// Legg til regel- og tag-klasser (for ikoner og selektorer)
 		const classesLen: number = resolution.classes.length;
 		for (let i = 0; i < classesLen; i++) {
 			const cls = resolution.classes[i];
@@ -189,13 +183,13 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 			}
 		}
 
-		// Inject ikoner og andre presentasjonsattributter
+		// 🔥 1. ALLOCATION ELIMINATED: Sjekk mot den statiske arrayen i stedet for Object.keys() på resAttrs
 		const resAttrs = resolution.attributes;
-		const attrKeys = Object.keys(resAttrs);
-		const attrKeysLen = attrKeys.length;
+		const staticKeys = plugin.activeHyphenatedKeysArray;
+		const staticKeysLen = staticKeys.length;
 
-		for (let i = 0; i < attrKeysLen; i++) {
-			const attrKey = attrKeys[i];
+		for (let i = 0; i < staticKeysLen; i++) {
+			const attrKey = staticKeys[i];
 			if (attrKey !== undefined) {
 				const attrValue = resAttrs[attrKey];
 				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
@@ -208,21 +202,21 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 			link.setAttribute("data-link-color", targetColor);
 		}
 	} else {
-		// Nullstill inline-stiler helt hvis regelen ikke lenger matcher
 		link.setCssStyles({
 			color: "",
 			backgroundColor: ""
 		});
 	}
 
-	const propKeys = Object.keys(rawAttrs); 
+	// 🔥 2. ALLOCATION ELIMINATED: Iterer over activeHyphenatedKeysArray direkte for å skrive metadata til DOM-attributter
+	const propKeys = plugin.activeHyphenatedKeysArray; 
 	const propKeysLen = propKeys.length;
 
 	for (let i = 0; i < propKeysLen; i++) {
 		const key = propKeys[i];
 		
 		if (key !== undefined) {
-			if (key === "href" || key === "data-href" || key === "id") {
+			if (key === "href" || key === "data-href" || key === "id" || key === "path") {
 				continue;
 			}
 
@@ -247,3 +241,4 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed");
 }
+
