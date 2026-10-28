@@ -2,7 +2,7 @@ export type MatchTypes = 'exact' | 'contains' | 'startswith' | 'endswith' | 'whi
 export type SelectorTypes = 'attribute' | 'tag' | 'path';
 
 /**
- * 🚀 UNIFIED ENGINE DATA MODEL
+ * 🚀 UNIFIED ENGINE DATA MODEL (FLYWEIGHT COMPLIANT)
  * Represents a single, structurally isolated user-defined styling rule blueprint.
  * Strictly avoids internal undefined leaks by anchoring initial states to concrete fallbacks.
  */
@@ -24,6 +24,11 @@ export class CSSLink {
   public lightBgColor: string;
   public darkBgColor: string;
 
+  // 🔥 FLYWEIGHT RUNTIME IDENTIFIERS:
+  // Pre-allocated structural slots to bypass dynamic string mappings in layout sweeps.
+  public _flyweightIdLight: number = 0;
+  public _flyweightIdDark: number = 0;
+
   constructor() {
       this.type = 'tag';
       this.name = "";
@@ -31,28 +36,20 @@ export class CSSLink {
       this.matchCaseSensitive = false;
       this.match = "exact";
       
-      // Fast, collision-resistant unique identifier generator block
       this.uid = this.generateId();
       
-      // Strict baseline default initializations to prevent Color Picker runtime crashes
       this.iconBefore = "";
       this.iconAfter = "";
       this.fontWeight = "normal";
       this.fontStyle = "normal";
       
-      // Default text color nodes (Accessible contrast scales)
       this.lightColor = "#aa0000"; 
       this.darkColor = "#ff5555";  
       
-      // Fixed: Ground default fallback colors to text descriptors instead of empty properties
       this.lightBgColor = "transparent";
       this.darkBgColor = "transparent";
   }
 
-  /**
-   * Helper to assemble a lightweight, secure component hash id.
-   * Enforces strict primitive string assembly with no structural variance.
-   */
   private generateId(): string {
     const s4 = (): string => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
     return `${s4()}${s4()}-${s4()}`;

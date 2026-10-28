@@ -15,6 +15,10 @@ export interface CompiledRule {
 	readonly cleanAttrKey: string;
 	readonly match: (attrs: Readonly<Record<string, string>>) => boolean;
 
+	// 🔥 FLYWEIGHT RUNTIME REFS: Knytter den kompilerte regelen til de uforanderlige atomene i registeret
+	readonly flyweightIdLight: number;
+	readonly flyweightIdDark: number;
+
 	readonly lightColor: string;
 	readonly darkColor: string;
 	readonly lightBgColor: string;
@@ -27,8 +31,10 @@ export interface CompiledRule {
 
 export interface RuleResolution {
 	readonly hasMatch: boolean;
-	readonly classes: readonly string[];
-	readonly attributes: Readonly<Record<string, string>>;
+	// 🔥 FLYWEIGHT MATCHER: En tett array av matchende atom-ID-er (lynrask lineær iterasjon i dom-mutator)
+	readonly matchedFlyweightIds: number[];
+	readonly classes: string[]; 
+	readonly attributes: Record<string, string>;
 	readonly iconBefore: string;
 	readonly iconAfter: string;
 	readonly style: {
@@ -114,6 +120,10 @@ export function compileSelectors(selectors: readonly CSSLink[]): CompiledRule[] 
 			cleanAttrKey,
 			match: matchFn,
 
+			// Sikre overføring av Flyweight-koblinger fra main.ts
+			flyweightIdLight: s._flyweightIdLight || 0,
+			flyweightIdDark: s._flyweightIdDark || 0,
+
 			lightColor: s.lightColor ?? "",
 			darkColor: s.darkColor ?? "",
 			lightBgColor: s.lightBgColor ?? "",
@@ -164,12 +174,16 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
 
 	const classList: string[] = ["data-link-text"];
+	
+	// Lokalt tracking-array på stakken for matchende ID-er (unngår tunge lookup-objekter)
+	const matchedFlyweightIds: number[] = [];
+	let flyweightCount = 0;
 
 	let hasMatch = false;
 	let color = "";
 	let backgroundColor = "";
 	let fontWeight: "normal" | "lighter" | "bold" = "normal";
-	let decorationBits = 0; // 🚀 Akkumulator for dekorasjoner
+	let decorationBits = 0; 
 	let iconBefore = "";
 	let iconAfter = "";
 
@@ -181,6 +195,12 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		hasMatch = true;
 		classList.push(`scl-rule-${rule.index}`);
 
+		// 🔥 BIND ATOM: Hent riktig Flyweight-ID basert på gjeldende light/dark-modus
+		const targetId = isDark ? rule.flyweightIdDark : rule.flyweightIdLight;
+		if (targetId > 0) {
+			matchedFlyweightIds[flyweightCount++] = targetId;
+		}
+
 		const textSelection: string = isDark ? rule.darkColor : rule.lightColor;
 		if (textSelection.length > 0) color = textSelection;
 
@@ -191,7 +211,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 			fontWeight = rule.fontWeight;
 		}
 
-		// 🚀 AKKUMULERING: Bruker bitwise OR (|) så stiler fra FLERE regler stables oppå hverandre!
 		if (rule.fontStyle === "italic") decorationBits |= DECOR_ITALIC;
 		if (rule.fontStyle === "underline") decorationBits |= DECOR_UNDERLINE;
 		if (rule.fontStyle === "line-through") decorationBits |= DECOR_LINE_THROUGH;
@@ -237,6 +256,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 
 	return {
 		hasMatch,
+		matchedFlyweightIds, // Dytter ID-listen ut til render-motoren
 		classes: classList,
 		attributes,
 		iconBefore,

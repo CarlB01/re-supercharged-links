@@ -39,7 +39,12 @@ export function clearExtraAttributes(link: HTMLElement): void {
 				cls.startsWith("scl-match-") || 
 				cls.startsWith("scl-rule-") || 
 				cls === "scl-hide-before" || 
-				cls === "scl-hide-after"
+				cls === "scl-hide-after" ||
+				cls === "scl-weight-bold" ||
+				cls === "scl-weight-lighter" ||
+				cls === "scl-style-italic" ||
+				cls === "scl-decor-underline" ||
+				cls === "scl-decor-linethrough"
 			) {
 				link.classList.remove(cls);
 			}
@@ -64,7 +69,6 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
 	const textContent: string | null = el.textContent;
 
-	// Fallback to empty strings to permanently eliminate processing crashes
 	const c1: string = el.getAttribute("data-tag") || "";
 	const c2: string = el.getAttribute("data-tags") || "";
 	const c3: string = hrefAttr || "";
@@ -81,7 +85,6 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const tokensLen = rawTokens.length;
 	if (tokensLen <= 1) return rawTokens;
 
-	// Deduplicate values inline to completely eliminate intermediate Set object allocations
 	const uniqueTokens: string[] = [];
 	for (let i = 0; i < tokensLen; i++) {
 		const token = rawTokens[i];
@@ -109,7 +112,6 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 			const tokensLen = tokens.length;
 			if (tokensLen === 0) continue;
 			
-			// Extremely fast single-pass string assembly via compiled join pipelines
 			const tagString: string = tokensLen > 0 ? "#" + tokens.join(" #") : "";
 
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
@@ -123,9 +125,9 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 }
 
 /**
- * 🚀 V8 OPTIMIZED & UNIVERSALLY COMPLIANT: Globally mutates a link element safely.
- * Uses inline values for strict target overrides (active tabs/3rd party apps) via approved APIs,
- * while utilizing functional layout modifier classes for structural typography.
+ * 🚀 FLYWEIGHT OPTIMIZED & UNIVERSALLY COMPLIANT: Globally mutates a link element safely.
+ * Pulls pre-computed semantic classes, typography and presentation data straight out of the 
+ * global rule registry via static atom ID arrays.
  */
 export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
@@ -150,11 +152,6 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 
 	clearExtraAttributes(link);
 
-	link.removeClass(
-		"scl-weight-bold", "scl-weight-lighter", "scl-style-italic", 
-		"scl-decor-underline", "scl-decor-linethrough"
-	);
-
 	if (resolution.hasMatch) {
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
 
@@ -167,6 +164,7 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 
 		link.setCssStyles(targetStyles);
 
+		// Typografi fra kjerne-oppløsningen (akkumulert stabilt)
 		if (resolution.style.fontWeight === "bold") link.addClass("scl-weight-bold");
 		if (resolution.style.fontWeight === "lighter") link.addClass("scl-weight-lighter");
 
@@ -175,15 +173,38 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 		if (decorations.includes("underline")) link.addClass("scl-decor-underline");
 		if (decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
 
-		const classesLen: number = resolution.classes.length;
-		for (let i = 0; i < classesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
-				link.addClass(cls);
+		// 🔥 1. FLYWEIGHT LAYER: Rull ut ferdigkompilerte semantiske klasser og ikoner direkte fra atom-ID-er
+		const matchedIds = resolution.matchedFlyweightIds;
+		const matchedIdsLen = matchedIds.length;
+		const registry = plugin.ruleRegistry;
+
+		for (let i = 0; i < matchedIdsLen; i++) {
+			const atomId = matchedIds[i];
+			if (atomId === undefined) continue;
+
+			const atom = registry.get(atomId);
+			if (atom === undefined) continue;
+
+			// Injiser den vakre semantiske klassen (.scl-match-tag-hund) som kode-nerdene vil ha!
+			link.addClass(atom.semanticClass);
+
+			// Hvis atomet inneholder ikoner eller unike attributter, skriv dem ut direkte
+			const atomAttrs = atom.attributes;
+			const staticKeys = plugin.activeHyphenatedKeysArray;
+			const staticKeysLen = staticKeys.length;
+
+			for (let j = 0; j < staticKeysLen; j++) {
+				const attrKey = staticKeys[j];
+				if (attrKey !== undefined) {
+					const attrValue = atomAttrs[attrKey];
+					if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
+						link.setAttribute(attrKey, attrValue);
+					}
+				}
 			}
 		}
 
-		// 🔥 1. ALLOCATION ELIMINATED: Sjekk mot den statiske arrayen i stedet for Object.keys() på resAttrs
+		// Injiser standard akkumulerte regel-attributter (ikoner, farger osv.)
 		const resAttrs = resolution.attributes;
 		const staticKeys = plugin.activeHyphenatedKeysArray;
 		const staticKeysLen = staticKeys.length;
@@ -208,7 +229,7 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 		});
 	}
 
-	// 🔥 2. ALLOCATION ELIMINATED: Iterer over activeHyphenatedKeysArray direkte for å skrive metadata til DOM-attributter
+	// 2. Metadata-injisering til DOM (Allokeringsfri lineær loop over activeHyphenatedKeysArray)
 	const propKeys = plugin.activeHyphenatedKeysArray; 
 	const propKeysLen = propKeys.length;
 
@@ -241,4 +262,3 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed");
 }
-

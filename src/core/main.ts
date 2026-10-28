@@ -43,6 +43,19 @@ export default class ResuperchargedLinks extends Plugin {
 	public cacheManager!: AttributeCacheManager;
 	public compiledRules: CompiledRule[] = [];
 	
+	// Et raskt O(1) tall-til-objekt kart for render-løkken
+	public ruleRegistry: Map<number, { 
+		semanticClass: string; 
+		color: string; 
+		backgroundColor: string; 
+		fontWeight: string;
+		fontStyle: string;
+		iconBefore: string;
+		iconAfter: string;
+		attributes: Record<string, string>; 
+		classes: string[]; 
+	}> = new Map();
+
 	private ruleConfigVersion = 0;
 	private lastAppliedThemeHash = ""; // 🚀 Tracks the applied theme signature to bypass redundant reconfigure frames
 	private readonly pendingChangedPaths: Set<string> = new Set();
@@ -274,38 +287,93 @@ export default class ResuperchargedLinks extends Plugin {
 	}
 
 	/**
-	 * Compiles both raw user fields and pre-hyphenates them for zero-allocation cache-sweeps.
+	 * Atomiserer komplekse brukerregler til et globalt Flyweight-register med unike tall-ID-er.
+	 * Håndterer Light- og Dark-mode som separate, lynraske atomer.
 	 */
 	public compileActiveAttributes(): void {
 		this.activeAttributesSet.clear();
 		this.activeAttributesArray = [];
 		
-		// Nullstill og pre-populer den flate hyphenated-arrayen med faste systemfelt
+		// 1. Nullstill og pre-populer den flate systemfelt-indeksen
 		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
+		
+		// 2. Tøm det gamle Flyweight-registeret
+		this.ruleRegistry.clear();
 		
 		if (this.settings === null || this.settings.selectors === null) return;
 
 		const selectorsProxy: CSSLink[] = this.settings.selectors;
-		if (Array.isArray(selectorsProxy)) {
-			const len = selectorsProxy.length;
-			for (let i = 0; i < len; i++) {
-				const selector: CSSLink | null = selectorsProxy[i] ?? null;
-				
-				if (selector !== null && selector.type === "attribute") {
-					const attrName: unknown = selector.name;
+		if (!Array.isArray(selectorsProxy)) return;
+		
+		const len = selectorsProxy.length;
+		let ruleIdCounter = 1; // Unike numeriske ID-er for atomene
 
-					if (typeof attrName === "string" && attrName.length > 0) {
-						this.activeAttributesSet.add(attrName);
-						
-						// Vask nøkkelen med en gang og dytt inn i den tette søkearrayen
-						const cleaned: string = cleanAttributeKey(attrName);
-						if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
-							this.activeHyphenatedKeysArray.push(cleaned);
-						}
+		for (let i = 0; i < len; i++) {
+			const selector: CSSLink | null = selectorsProxy[i] ?? null;
+			if (selector === null) continue;
+
+			// Registrer rå-attributter for filskanneren
+			if (selector.type === "attribute") {
+				const attrName: unknown = selector.name;
+				if (typeof attrName === "string" && attrName.length > 0) {
+					this.activeAttributesSet.add(attrName);
+					
+					const cleaned: string = cleanAttributeKey(attrName);
+					if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
+						this.activeHyphenatedKeysArray.push(cleaned);
 					}
 				}
 			}
+
+			// 3. Generer et vakkert, semantisk klassenavn for eksterne utviklere
+			let semanticName = "";
+			if (selector.type === "attribute" && typeof selector.name === "string") {
+				const cleanValue = typeof selector.value === "string" ? cleanAttributeKey(selector.value) : "value";
+				semanticName = `scl-match-${cleanAttributeKey(selector.name)}-${cleanValue}`;
+			} else if (selector.type === "tag" && typeof selector.value === "string") {
+				semanticName = `scl-match-tag-${cleanAttributeKey(selector.value)}`;
+			} else if (typeof selector.name === "string") {
+				semanticName = `scl-rule-${cleanAttributeKey(selector.name)}`;
+			} else {
+				semanticName = `scl-rule-atom-${ruleIdCounter}`;
+			}
+
+			// Forbered eventuelle ekstra presentasjonsattributter (f.eks. ikoner til DOM)
+			const baseAttributes: Record<string, string> = Object.create(null);
+			if (selector.iconBefore && selector.iconBefore.length > 0) baseAttributes["data-link-icon-before"] = selector.iconBefore;
+			if (selector.iconAfter && selector.iconAfter.length > 0) baseAttributes["data-link-icon-after"] = selector.iconAfter;
+
+			// 4. 🔥 REGISTRER LIGHT MODE ATOM
+			const lightId = ruleIdCounter++;
+			selector._flyweightIdLight = lightId;
+			this.ruleRegistry.set(lightId, {
+				semanticClass: semanticName,
+				color: selector.lightColor || "",
+				backgroundColor: selector.lightBgColor || "",
+				fontWeight: selector.fontWeight || "normal",
+				fontStyle: selector.fontStyle || "normal",
+				iconBefore: selector.iconBefore || "",
+				iconAfter: selector.iconAfter || "",
+				attributes: baseAttributes,
+				classes: [semanticName]
+			});
+
+			// 5. 🔥 REGISTRER DARK MODE ATOM
+			const darkId = ruleIdCounter++;
+			selector._flyweightIdDark = darkId;
+			this.ruleRegistry.set(darkId, {
+				semanticClass: semanticName,
+				color: selector.darkColor || "",
+				backgroundColor: selector.darkBgColor || "",
+				fontWeight: selector.fontWeight || "normal",
+				fontStyle: selector.fontStyle || "normal",
+				iconBefore: selector.iconBefore || "",
+				iconAfter: selector.iconAfter || "",
+				attributes: baseAttributes,
+				classes: [semanticName]
+			});
 		}
+
 		this.activeAttributesArray = Array.from(this.activeAttributesSet);
 	}
 
