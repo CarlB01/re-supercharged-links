@@ -167,6 +167,10 @@ function createMatcher(
 	};
 }
 
+// 🔥 SIKKER EMOJI-DETEKSJON: Treffer piktogrammer og faktiske emojier, men ALDRI vanlige tall eller bokstaver!
+const EMOJI_START_REGEX = /^\p{Extended_Pictographic}/u;
+const EMOJI_END_REGEX = /\p{Extended_Pictographic}$/u;
+
 export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleResolution {
 	const compiledRules: readonly CompiledRule[] = input.compiledRules;
 	const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
@@ -174,8 +178,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
 
 	const classList: string[] = ["data-link-text"];
-	
-	// Lokalt tracking-array på stakken for matchende ID-er (unngår tunge lookup-objekter)
 	const matchedFlyweightIds: number[] = [];
 	let flyweightCount = 0;
 
@@ -195,7 +197,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		hasMatch = true;
 		classList.push(`scl-rule-${rule.index}`);
 
-		// 🔥 BIND ATOM: Hent riktig Flyweight-ID basert på gjeldende light/dark-modus
 		const targetId = isDark ? rule.flyweightIdDark : rule.flyweightIdLight;
 		if (targetId > 0) {
 			matchedFlyweightIds[flyweightCount++] = targetId;
@@ -229,38 +230,30 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	attributes["data-link-bg"] = (backgroundColor !== "transparent") ? backgroundColor : "";
 	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";
 	attributes["data-link-style-decoration"] = decorations.length > 0 ? decorations.join(" ") : "";
-	attributes["data-scl-icon-before"] = (!input.skipIconBefore && iconBefore.length > 0) ? iconBefore : "";
-	attributes["data-scl-icon-after"] = (!input.skipIconAfter && iconAfter.length > 0) ? iconAfter : "";
+	
+	// 🔥 OPPDATERT DETEKSJONS-LOGIKK I DYPET:
+	const targetText: string = (input.visibleText ?? "").trim();
+	
+	// Sjekk om teksten FAKTISKT starter med en ekte emoji, eller om den spesifikt matcher regelens ikon
+	const hasBeforeConflict = EMOJI_START_REGEX.test(targetText) || (iconBefore.length > 0 && targetText.startsWith(iconBefore));
+	const hasAfterConflict = EMOJI_END_REGEX.test(targetText) || (iconAfter.length > 0 && targetText.endsWith(iconAfter));
+
+	// Vi mapper både til dine opprinnelige attributtnavn (data-scl-icon) og fallback
+	attributes["data-scl-icon-before"] = (!input.skipIconBefore && !hasBeforeConflict && iconBefore.length > 0) ? iconBefore : "";
+	attributes["data-scl-icon-after"] = (!input.skipIconAfter && !hasAfterConflict && iconAfter.length > 0) ? iconAfter : "";
 	attributes["data-link-tags"] = "";
 
-	if (includeTagMatchClasses) {
-		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
-		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
-
-		if (tagsArray.length > 0) {
-			attributes["data-link-tags"] = stringifyTags(tagsArray);
-		}
-
-		const tagsLen = tagsArray.length;
-		for (let j = 0; j < tagsLen; j++) {
-			const cleanTag = tagsArray[j];
-			if (cleanTag !== undefined && cleanTag !== null && cleanTag.length > 0) {
-				classList.push(`scl-match-tag-${cleanTag}`);
-			}
-		}
-	}
-
-	const targetText: string = (input.visibleText ?? "");
-	if (iconBefore.length > 0 && targetText.startsWith(iconBefore)) classList.push("scl-hide-before");
-	if (iconAfter.length > 0 && targetText.endsWith(iconAfter)) classList.push("scl-hide-after");
+	// Hvis vi fant en reell konflikt, legg til skjul-klassene så CSS-en rydder opp
+	if (hasBeforeConflict && iconBefore.length > 0) classList.push("scl-hide-before");
+	if (hasAfterConflict && iconAfter.length > 0) classList.push("scl-hide-after");
 
 	return {
 		hasMatch,
-		matchedFlyweightIds, // Dytter ID-listen ut til render-motoren
+		matchedFlyweightIds,
 		classes: classList,
 		attributes,
-		iconBefore,
-		iconAfter,
+		iconBefore: attributes["data-scl-icon-before"],
+		iconAfter: attributes["data-scl-icon-after"],
 		style: { color, backgroundColor, fontWeight, decorations }
 	};
 }

@@ -239,7 +239,6 @@ export class CMViewPlugin {
 		skipIconBefore = false, 
 		skipIconAfter = false
 	): Decoration {
-		// 1. Core Data Gathering: Retrieve the current cached frontmatter/metadata attributes for the file
 		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
 			this.app,
 			this.plugin,
@@ -247,13 +246,10 @@ export class CMViewPlugin {
 			this.plugin.attrCycleCache
 		);
 
-		// 2. Attribute Preparation Layer: Map raw metadata values directly into frontend data-link arrays
 		const attributes = mapRawAttrsToDataAttrs(rawAttrs);
-
-		// Determine light/dark mode context state
 		const isDark: boolean = document.body.classList.contains("theme-dark");
 		
-		// 3. Rule Resolution Engine: Evaluate compiled system selectors against our prepared metadata dataset
+		// Kjør den delte regel-motoren med nøyaktig samme input
 		const resolution = resolveRuleResolution({
 			compiledRules: this.plugin.compiledRules,
 			resolvedAttrs: rawAttrs,
@@ -264,12 +260,10 @@ export class CMViewPlugin {
 			skipIconAfter
 		});
 
-		// Fallback Guard: If no engine configuration criteria matched, return an empty styling pass
 		if (!resolution.hasMatch) {
 			return Decoration.mark({});
 		}
 
-		// 4. Style Compression Layer: Isolate and compile matching runtime CSS classes
 		const classes: string[] = [];
 		const classCount: number = resolution.classes.length;
 		for (let i = 0; i < classCount; i++) {
@@ -279,7 +273,6 @@ export class CMViewPlugin {
 			}
 		}
 
-		// V8 OPTIMIZED
 		const resAttrs = resolution.attributes;
 		const attrKeys = Object.keys(resAttrs);
 		const attrKeysLen = attrKeys.length;
@@ -294,16 +287,24 @@ export class CMViewPlugin {
 			}
 		}
 
-		if (classes.length > 0) {
-			return Decoration.mark({
-				attributes,
-				class: classes.join(" ")
-			});
+		// 🔥 DUAL-ENGINE SYNKRONSISERING FOR CM6:
+		// Vi legger ikonene inn i attributes-hashen for attr() fallback, 
+		// OG bygger en inline style-streng for lynrask CSS variabel-håndtering!
+		let inlineStyleString = "";
+		if (resolution.iconBefore && resolution.iconBefore.length > 0) {
+			attributes["data-scl-icon-before"] = resolution.iconBefore;
+			inlineStyleString += `--scl-icon-before: "${resolution.iconBefore}"; `;
+		}
+		if (resolution.iconAfter && resolution.iconAfter.length > 0) {
+			attributes["data-scl-icon-after"] = resolution.iconAfter;
+			inlineStyleString += `--scl-icon-after: "${resolution.iconAfter}"; `;
 		}
 
-		return Decoration.mark({
-			attributes
-		});
+		const decoSpec: any = { attributes };
+		if (classes.length > 0) decoSpec.class = classes.join(" ");
+		if (inlineStyleString.length > 0) decoSpec.style = inlineStyleString;
+
+		return Decoration.mark(decoSpec);
 	}
 
 	public buildDecorationsForRange(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {

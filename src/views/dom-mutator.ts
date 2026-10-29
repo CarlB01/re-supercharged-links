@@ -124,78 +124,94 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 	}
 }
 
-/**
- * 🚀 FLYWEIGHT OPTIMIZED & UNIVERSALLY COMPLIANT: Globally mutates a link element safely.
- * Pulls pre-computed semantic classes, typography and presentation data straight out of the 
- * global rule registry via static atom ID arrays.
- */
 export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
 	const isDark: boolean = document.body.classList.contains("theme-dark");
-	const visibleText: string = (link.textContent ?? "").trim();
+	const pathKey: string = rawAttrs["path"] || "";
 
+	// 🔥 Hent nodens faktiske synlige tekst for O(1) de-duplisering i dypet
+	const visibleText: string = (link.textContent || "").trim();
+
+	// 1. Kjør regel-motoren
 	const resolution = resolveRuleResolution({
-		compiledRules: plugin.compiledRules, 
+		compiledRules: plugin.compiledRules,
 		resolvedAttrs: rawAttrs,
 		isDark,
 		includeTagMatchClasses: true,
 		visibleText: visibleText
 	});
 
-	const targetColor: string = resolution.style.color || "";
-	const targetBg: string = resolution.style.backgroundColor || "";
-	const currentTrackedColor: string = link.getAttribute("data-link-color") || "";
-	const currentTrackedBg: string = link.getAttribute("data-link-bg") || "";
-
-	if (currentTrackedColor === targetColor && currentTrackedBg === targetBg && link.classList.contains("scl-processed")) {
+	// 2. DYP FLYWEIGHT BARRIERE-SJEKK
+	const ruleVersion: number = plugin.getRuleConfigVersion();
+	const targetSignature: string = `${ruleVersion}|${resolution.matchedFlyweightIds.join(",")}|${pathKey}`;
+	
+	if (link.getAttribute("data-scl-signature") === targetSignature && link.classList.contains("scl-processed")) {
 		return;
 	}
 
 	clearExtraAttributes(link);
+	link.setAttribute("data-scl-signature", targetSignature);
 
 	if (resolution.hasMatch) {
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
-
-		if (targetColor.length > 0) {
-			targetStyles.color = targetColor;
+		
+		if (resolution.style.color && resolution.style.color.length > 0) {
+			targetStyles.color = resolution.style.color;
 		}
-		if (targetBg.length > 0 && targetBg !== "transparent") {
-			targetStyles.backgroundColor = targetBg;
+		if (resolution.style.backgroundColor && resolution.style.backgroundColor !== "transparent" && resolution.style.backgroundColor.length > 0) {
+			targetStyles.backgroundColor = resolution.style.backgroundColor;
 		}
 
 		link.setCssStyles(targetStyles);
 
-		// Typografi fra kjerne-oppløsningen (akkumulert stabilt)
+		// 🔥 SKYV DATA DIREKTE UT FRA DATA-KONTRAKTEN:
+		const inlineStyle: CSSStyleDeclaration = link.style;
+		
+		if (resolution.iconBefore && resolution.iconBefore.length > 0) {
+			inlineStyle.setProperty("--scl-icon-before", `"${resolution.iconBefore}"`);
+			link.setAttribute("data-scl-icon-before", resolution.iconBefore);
+		} else {
+			inlineStyle.removeProperty("--scl-icon-before");
+			link.removeAttribute("data-scl-icon-before");
+		}
+
+		if (resolution.iconAfter && resolution.iconAfter.length > 0) {
+			inlineStyle.setProperty("--scl-icon-after", `"${resolution.iconAfter}"`);
+			link.setAttribute("data-scl-icon-after", resolution.iconAfter);
+		} else {
+			inlineStyle.removeProperty("--scl-icon-after");
+			link.removeAttribute("data-scl-icon-after");
+		}
+
 		if (resolution.style.fontWeight === "bold") link.addClass("scl-weight-bold");
 		if (resolution.style.fontWeight === "lighter") link.addClass("scl-weight-lighter");
 
-		const decorations = resolution.style.decorations;
+		const decorations: readonly string[] = resolution.style.decorations || [];
 		if (decorations.includes("italic")) link.addClass("scl-style-italic");
 		if (decorations.includes("underline")) link.addClass("scl-decor-underline");
 		if (decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
 
-		// 🔥 1. FLYWEIGHT LAYER: Rull ut ferdigkompilerte semantiske klasser og ikoner direkte fra atom-ID-er
-		const matchedIds = resolution.matchedFlyweightIds;
-		const matchedIdsLen = matchedIds.length;
+		// Rull ut atomene
+		const matchedIds: number[] = resolution.matchedFlyweightIds;
+		const matchedIdsLen: number = matchedIds.length;
 		const registry = plugin.ruleRegistry;
 
 		for (let i = 0; i < matchedIdsLen; i++) {
-			const atomId = matchedIds[i];
-			if (atomId === undefined) continue;
-
+			const rawAtomId = matchedIds[i];
+			if (rawAtomId === undefined || rawAtomId === null) continue;
+			const atomId: number = rawAtomId;
 			const atom = registry.get(atomId);
-			if (atom === undefined) continue;
+			
+			if (atom !== undefined && atom !== null) {
+				link.addClass(atom.semanticClass);
 
-			// Injiser den vakre semantiske klassen (.scl-match-tag-hund) som kode-nerdene vil ha!
-			link.addClass(atom.semanticClass);
+				const atomAttrs = atom.attributes;
+				const staticKeys: string[] = plugin.activeHyphenatedKeysArray;
+				const staticKeysLen: number = staticKeys.length;
+				for (let j = 0; j < staticKeysLen; j++) {
+					const rawAttrKey = staticKeys[j];
+					if (rawAttrKey === undefined || rawAttrKey === null) continue;
 
-			// Hvis atomet inneholder ikoner eller unike attributter, skriv dem ut direkte
-			const atomAttrs = atom.attributes;
-			const staticKeys = plugin.activeHyphenatedKeysArray;
-			const staticKeysLen = staticKeys.length;
-
-			for (let j = 0; j < staticKeysLen; j++) {
-				const attrKey = staticKeys[j];
-				if (attrKey !== undefined) {
+					const attrKey: string = rawAttrKey;
 					const attrValue = atomAttrs[attrKey];
 					if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
 						link.setAttribute(attrKey, attrValue);
@@ -203,62 +219,51 @@ export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Reco
 				}
 			}
 		}
-
-		// Injiser standard akkumulerte regel-attributter (ikoner, farger osv.)
-		const resAttrs = resolution.attributes;
-		const staticKeys = plugin.activeHyphenatedKeysArray;
-		const staticKeysLen = staticKeys.length;
-
-		for (let i = 0; i < staticKeysLen; i++) {
-			const attrKey = staticKeys[i];
-			if (attrKey !== undefined) {
-				const attrValue = resAttrs[attrKey];
-				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
-					link.setAttribute(attrKey, attrValue);
-				}
-			}
-		}
-		
-		if (targetColor.length > 0) {
-			link.setAttribute("data-link-color", targetColor);
-		}
 	} else {
-		link.setCssStyles({
-			color: "",
-			backgroundColor: ""
-		});
+		link.setCssStyles({ color: "", backgroundColor: "" });
+		link.style.removeProperty("--scl-icon-before");
+		link.style.removeProperty("--scl-icon-after");
+		link.removeAttribute("data-scl-icon-before");
+		link.removeAttribute("data-scl-icon-after");
 	}
 
-	// 2. Metadata-injisering til DOM (Allokeringsfri lineær loop over activeHyphenatedKeysArray)
-	const propKeys = plugin.activeHyphenatedKeysArray; 
-	const propKeysLen = propKeys.length;
-
+	// 5. Metadata-injisering
+	const propKeys: string[] = plugin.activeHyphenatedKeysArray;
+	const propKeysLen: number = propKeys.length;
 	for (let i = 0; i < propKeysLen; i++) {
-		const key = propKeys[i];
+		const rawKey = propKeys[i];
+		if (rawKey === undefined || rawKey === null) continue;
+
+		const key: string = rawKey;
+		if (key === "href" || key === "data-href" || key === "id" || key === "path") {
+			continue;
+		}
 		
-		if (key !== undefined) {
-			if (key === "href" || key === "data-href" || key === "id" || key === "path") {
-				continue;
-			}
+		const propValue: string | undefined | null = rawAttrs[key];
+		if (propValue === undefined || propValue === null) continue;
 
-			const propValue = rawAttrs[key];
-			if (propValue === undefined || propValue === null) continue;
-			
-			const domKey: string = cleanAttributeKey(key);
-			const attributeName = `data-link-${domKey}`;
-			let newValue: string | null = processValue(key, propValue);
+		const domKey: string = cleanAttributeKey(key);
+		const attributeName: string = `data-link-${domKey}`;
+		let newValue: string | null = processValue(key, propValue);
 
-			if (domKey === "tags" && newValue !== null) {
-				const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-				newValue = stringifyTags(cleanTokens);
-			}
+		if (domKey === "tags" && newValue !== null) {
+			const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
+			newValue = stringifyTags(cleanTokens);
+		}
 
-			if (newValue !== null && newValue.length > 0) {
-				link.setAttribute(attributeName, newValue);
-			}
+		if (newValue !== null && newValue.length > 0) {
+			link.setAttribute(attributeName, newValue);
 		}
 	}
 
-	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
+	// Til slutt, rull ut klassene fra resolusjonen direkte (inkludert felles scl-hide-before/after!)
+	const resClassesLen = resolution.classes.length;
+	for (let i = 0; i < resClassesLen; i++) {
+		const cls = resolution.classes[i];
+		if (cls && !link.classList.contains(cls)) {
+			link.addClass(cls);
+		}
+	}
+
 	link.addClass("scl-processed");
 }

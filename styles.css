@@ -354,29 +354,36 @@
 .data-link-text.scl-decor-linethrough { text-decoration: line-through; }
 
 
-/* Live Preview pseudo-icons (replaces CM widget spans) */
-.data-link-text[data-scl-icon-before]::before {
-  content: attr(data-scl-icon-before);
+/* =========================================================================
+   🚀 UNIFIED DUAL-ENGINE ICON REFLECTION LAYER (CM6 & DOM COMPLIANT)
+   ========================================================================= */
+
+.data-link-text::before {
+  content: var(--scl-icon-before, attr(data-scl-icon-before, ""));
   display: inline-block;
   flex-shrink: 0;
-  margin-right: 0;
+  margin-right: 0.35em;
+  font-style: normal;
+  font-weight: normal;
+  text-decoration: none;
 }
 
-.data-link-text[data-scl-icon-after]::after {
-  content: attr(data-scl-icon-after);
+.data-link-text::after {
+  content: var(--scl-icon-after, attr(data-scl-icon-after, ""));
   display: inline-block;
   flex-shrink: 0;
-  margin-left: 0;
+  margin-left: 0.35em;
+  font-style: normal;
+  font-weight: normal;
+  text-decoration: none;
 }
 
-/* Respect dedupe/hide flags from rule resolution */
-.data-link-text.scl-hide-before[data-scl-icon-before]::before {
-  display: none;
-}
+/* Sentralisert de-duplisering: Skjul pseudo-elementene hvis klassen er aktiv */
+.data-link-text.scl-hide-before::before,
+.data-link-text[data-scl-icon-before=""]::before { content: "" !important; margin-right: 0 !important; }
+.data-link-text.scl-hide-after::after,
+.data-link-text[data-scl-icon-after=""]::after { content: "" !important; margin-left: 0 !important; }
 
-.data-link-text.scl-hide-after[data-scl-icon-after]::after {
-  display: none;
-}
 
 /* =========================================================================
    5) 🚀 DETERMINISTIC POSITIONAL ICON REFLECTION LAYER
