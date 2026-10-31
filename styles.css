@@ -289,8 +289,9 @@
   transition: opacity 0.15s ease-in-out;
 }
 
+
 /* =========================================================================
-   4) 🚀 UTILITY CLASSES FOR THE IN-MEMORY RUNTIME ENGINE
+   4) UNIFIED DUAL-ENGINE UTILITY & LAYER DEFINITIONS
    ========================================================================= */
 
 .cm-line .data-link-text,
@@ -301,10 +302,10 @@
   vertical-align: baseline;
   border-radius: var(--scl-curve); 
   padding-left: var(--scl-padding);
-  padding-right: var(--scl-padding);;
+  padding-right: var(--scl-padding);
 }
 
-/* 1. Reset interior paddings and radius for ALL open structural segments in CodeMirror */
+/* Nullstill padding for åpne/delte segmenter i CodeMirror for silkemyk tekstflyt */
 .cm-editor .cm-formatting-link .data-link-text,
 .cm-editor .cm-formatting-link-string .data-link-text,
 .cm-editor .cm-link-alias-pipe .data-link-text,
@@ -316,46 +317,27 @@
   border-radius: 0;
 }
 
-.cm-active .cm-link + .cm-formatting-link + .cm-formatting-link-string + .cm-string.cm-url .data-link-text {
-  padding-right: var(--scl-padding);
-  border-top-right-radius: var(--scl-curve);
-  border-bottom-right-radius: var(--scl-curve);
-}
-
+/* Kant-avrundinger for åpne lenker under editering */
 .cm-active .cm-link-has-alias .data-link-text {
   padding-left: var(--scl-padding);
   border-top-left-radius: var(--scl-curve);
   border-bottom-left-radius: var(--scl-curve);
 }
-
 .cm-active .cm-link-alias .data-link-text {
   padding-right: var(--scl-padding);
   border-top-right-radius: var(--scl-curve);
   border-bottom-right-radius: var(--scl-curve);
 }
 
-/* Universal structural selector targeting all injected affix modules */
-.scl-inline-icon {
-  font-size: 0.85em;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.scl-reorder-inline.is-disabled .scl-grip-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Hold disse intakt for skrifttype og pynt */
+/* Typografi og dekorasjons-klasser levert deterministisk fra motoren */
 .data-link-text.scl-weight-bold { font-weight: bold; }
 .data-link-text.scl-weight-lighter { font-weight: lighter; }
 .data-link-text.scl-style-italic { font-style: italic; }
 .data-link-text.scl-decor-underline { text-decoration: underline; }
 .data-link-text.scl-decor-linethrough { text-decoration: line-through; }
 
-
 /* =========================================================================
-   🚀 UNIFIED DUAL-ENGINE ICON LAYER WITH CONTEXTUAL DE-DUPLICATION
+   5) GPU-AKSELERERT IKON-PRESENTASJON
    ========================================================================= */
 
 .data-link-text::before {
@@ -378,61 +360,18 @@
   text-decoration: none;
 }
 
-/* 1. Slett ikoner hvis kjerne-resolusjonen eller pipeline ber om det via skjul-klasser */
-.data-link-text.scl-hide-before::before { content: "" !important; margin-right: 0 !important; }
-.data-link-text.scl-hide-after::after { content: "" !important; margin-left: 0 !important; }
-
-/* 2. 🔑 DET MAGISKE CM6 ÅPEN-MODUS GREPET (Posisjonell rensing):
-   Når markøren står i en WikiLink, spalter CodeMirror opp lenken i unike søsken-spanner.
-   Vi må sørge for at stien ALDRI spyr ut et append-ikon midt inne i den åpne strukturen,
-   og at aliaset ALDRI spyr ut et duplisert prepend-ikon! */
-   
-/* Skjul append-ikon på stien (leading segment) når den etterfølges av en pipe eller et alias i editoren */
-.cm-editor .cm-link-has-alias::after,
-.cm-editor .cm-hmd-internal-link:has(+ .cm-link-alias-pipe)::after,
-.cm-editor [class*="scl-composite-"]::before:has(+ .cm-link-alias-pipe) {
-  content: "" !important;
-  margin-left: 0 !important;
+/* Kontrollert undertrykking uten !important: 
+   Når motoren sender med disse klassene, tvinges pseudo-elementet til tomt innhold */
+.data-link-text.scl-hide-before::before { 
+  content: ""; 
+  margin-right: 0; 
+}
+.data-link-text.scl-hide-after::after { 
+  content: ""; 
+  margin-left: 0; 
 }
 
-/* Skjul prepend-ikon på aliaset (terminal segment) når det kommer rett etter en pipe i editoren */
-.cm-editor .cm-link-alias-pipe + .cm-link-alias::before,
-.cm-editor .cm-link-alias-pipe + [class*="scl-composite-"]::before {
-  content: "" !important;
-  margin-right: 0 !important;
-}
-
-/* Skjul ikoner fullstendig på den nakne skilletegn-pipen (|) */
-.cm-editor .cm-link-alias-pipe::before,
-.cm-editor .cm-link-alias-pipe::after {
-  content: "" !important;
-  margin: 0 !important;
-}
-
-
-/* =========================================================================
-   5) 🚀 DETERMINISTIC POSITIONAL ICON REFLECTION LAYER
-   ========================================================================= */
-
-/* Absolute suppression on the syntax pipe separator marker when open */
-.cm-editor .cm-link-alias-pipe .data-link-text::before,
-.cm-editor .cm-link-alias-pipe .data-link-text::after {
-  display: none;
-}
-
-/* Suppress the trailing icon on the link path node when open */
-.cm-editor .cm-link-has-alias .data-link-text[data-scl-icon-after]::after {
-  display: none;
-}
-
-/* Only suppress prepend icons on open aliases */
-.cm-editor .cm-link-alias-pipe + .cm-link-alias .data-link-text[data-scl-icon-before]::before {
-  display: none;
-}
-
-/* Forces the closed CM6 link underline node to respect the parent's supercharged color definition */
-.cm-link .data-link-text .cm-underline,
-.cm-link .data-link-text[data-link-color] .cm-underline,
-.data-link-text[data-link-color] .cm-underline {
+/* Sørg for at Obsidian-interne understrekinger arver fargen vår */
+.data-link-text .cm-underline {
   color: inherit;
 }

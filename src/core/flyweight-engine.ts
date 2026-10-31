@@ -18,6 +18,11 @@ export interface FlyweightResponse {
 	};
 }
 
+export interface PresentationPayload {
+	readonly classes: string[];
+	readonly inlineStyles: Record<string, string>;
+}
+
 export class FlyweightEngine {
 	private app: App;
 	private plugin: ResuperchargedLinks;
@@ -137,3 +142,51 @@ export class FlyweightEngine {
 		}
 	}
 }
+
+/**
+ * Tar en rå FlyweightResponse og oversetter den til standardiserte 
+ * klasser og stiler som er 100% identiske for både DOM og CM6 attributes.
+ */
+export function mapResolutionToPresentation(resolution: FlyweightResponse): PresentationPayload {
+	const classes: string[] = [...resolution.classes];
+	const inlineStyles: Record<string, string> = Object.create(null);
+	const s = resolution.styles;
+
+	// Farger levert via standard CSS custom properties for popup/DOM-likhet
+	if (s.color) {
+		inlineStyles["--scl-color"] = s.color;
+		inlineStyles["color"] = s.color;
+	}
+	if (s.backgroundColor && s.backgroundColor !== "transparent") {
+		inlineStyles["--scl-bg"] = s.backgroundColor;
+		inlineStyles["background-color"] = s.backgroundColor;
+	}
+
+	// Ikon-variabler
+	if (s.iconBefore) {
+		inlineStyles["--scl-icon-before"] = `"${s.iconBefore}"`;
+	} else {
+		classes.push("scl-hide-before");
+	}
+
+	if (s.iconAfter) {
+		inlineStyles["--scl-icon-after"] = `"${s.iconAfter}"`;
+	} else {
+		classes.push("scl-hide-after");
+	}
+
+	// Typografi og dekorasjoner mappet til statiske nytteklasser (ingen inline-kaos)
+	if (s.fontWeight === "bold") classes.push("scl-weight-bold");
+	if (s.fontWeight === "lighter") classes.push("scl-weight-lighter");
+
+	const decosLen = s.decorations.length;
+	for (let i = 0; i < decosLen; i++) {
+		const dec = s.decorations[i];
+		if (dec === "italic") classes.push("scl-style-italic");
+		if (dec === "underline") classes.push("scl-decor-underline");
+		if (dec === "line-through") classes.push("scl-decor-linethrough");
+	}
+
+	return { classes, inlineStyles };
+}
+
