@@ -73,6 +73,46 @@ Legacy styling approaches frequently cause micro-stuttering (*jank*) in large va
 
 ---
 
+## Inner workings of the engine
+
+<pre style="font-size: 0.82em; line-height: 1.25; overflow-x: auto;">
+[User Input / Continuous Fast Scroll / Event]
+                           │
+                           ▼
+     [FlyweightEngine.getResolution(path, text)]
+                           │
+       ├──► Validates config & atom match IDs
+       └──► Returns lightweight FlyweightResponse
+                           │
+                           ▼
+       [populatePresentationPool(res, skip, skip)]
+                           │
+       ├──► Blasts previous slots clean (0% leak)
+       └──► Accumulates positive atom classes:
+            • .data-link-text     (Base anchor)
+            • .scl-with-before    (GPU prepend icon)
+            • .scl-with-after     (GPU append icon)
+            • .scl-composite-X-Y  (Static CSS color)
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+    [DOM / Popup Context]     [CM6 Live Preview]
+              │                         │
+    ├──► Ring-Buffer flush    ├──► Syntax tree scan
+    ├──► Inline color inject  ├──► Flat spec style
+    └──► Add additive classes └──► Add additive classes
+              │                         │
+              └────────────┬────────────┘
+                           │
+                           ▼
+           [Hardware Graphics Engine (GPU)]
+                           │
+       ├──► Animates static pseudo-elements
+       └──► Render frame budget: Flat <1.00ms
+</pre>
+
+---
+
 ## Technical Blueprint: Why it's faster
 
 - **Zero-Allocation Pipeline:** The high-frequency runtime queue completely strips away object instantiation (`new MutationTask`) and `WeakRef` generation during rendering sweeps. Tasks are assigned directly to pre-allocated parallel array slots, eliminating Garbage Collection (GC) churn.

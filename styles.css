@@ -340,38 +340,39 @@
    5) GPU-AKSELERERT IKON-PRESENTASJON
    ========================================================================= */
 
-.data-link-text::before {
+/* Ikonene eksisterer bare og tegnes KUN hvis elementet ber om det additivt */
+.data-link-text.scl-with-before::before {
   content: var(--scl-icon-before, "");
   display: inline-block;
   flex-shrink: 0;
-  margin-right: calc(var(--scl-icon-before-margin, 1) * 0.35em);
-  font-style: normal;
-  font-weight: normal;
-  text-decoration: none;
+  margin-right: 0.35em;
 }
 
-.data-link-text::after {
+.data-link-text.scl-with-after::after {
   content: var(--scl-icon-after, "");
   display: inline-block;
   flex-shrink: 0;
-  margin-left: calc(var(--scl-icon-after-margin, 1) * 0.35em);
-  font-style: normal;
-  font-weight: normal;
-  text-decoration: none;
+  margin-left: 0.35em;
 }
 
-/* Kontrollert undertrykking uten !important: 
-   Når motoren sender med disse klassene, tvinges pseudo-elementet til tomt innhold */
-.data-link-text.scl-hide-before::before { 
-  content: ""; 
-  margin-right: 0; 
-}
-.data-link-text.scl-hide-after::after { 
-  content: ""; 
-  margin-left: 0; 
+/* =========================================================================
+   6) DEFINTIV OVERSTYRING AV OBSIDIAN INTERN LENKE-SPESIFISITET
+   ========================================================================= */
+
+/* Tvinger lukkede Markdown-lenker i Live Preview til å respektere fargene 
+   levert av våre dynamiske kompositt- og enkeltregler. ved å hekte oss på 
+   .cm-link, vinner vi spesifisitet-krigen organisk uten !important! */
+.cm-editor .cm-link .data-link-text {
+  color: inherit;
 }
 
-/* Sørg for at Obsidian-interne understrekinger arver fargen vår */
-.data-link-text .cm-underline {
+/* =========================================================================
+   7) ABSOLUTT OVERSTYRING AV INNERST CM-UNDERLINE SPESIFISITET
+   ========================================================================= */
+
+/* Tvinger den innerste understrekings-noden i lukkede Markdown-lenker til 
+   å arve fargen fra vår superladede .data-link-text-node, i stedet for å 
+   bli kuppet av Obsidians standard lenkefarge. */
+.cm-editor .cm-link .data-link-text .cm-underline {
   color: inherit;
 }

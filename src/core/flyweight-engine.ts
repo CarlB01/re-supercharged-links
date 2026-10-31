@@ -3,6 +3,7 @@ import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { extractCleanLinkPath } from "../utils/shared-utils";
+import { resolveVirtualPreviewResolution } from "../processors/presentation.engine";
 
 export interface FlyweightResponse {
 	readonly hasMatch: boolean;
@@ -34,15 +35,25 @@ export class FlyweightEngine {
 	}
 
 	public getResolution(path: string, visibleText: string): FlyweightResponse {
-		const isDark: boolean = document.body.classList.contains("theme-dark");
 		const cleanPath: string = extractCleanLinkPath(path);
-		
+		const ruleVersion: number = this.plugin.getRuleConfigVersion();
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+
+		// ⚡ ENKEL OG BILLIG AVGRENING: Sjekker kun streng-starten.
+		// Hvis den treffer, hopper vi helt ut av den hotte kjerne-banen umiddelbart!
+		if (cleanPath.startsWith("virtual://preview/")) {
+			return resolveVirtualPreviewResolution(this.plugin, cleanPath, visibleText, ruleVersion, isDark);
+		}
+
+		// =========================================================================
+		// 🔥 KRYSTALLKLAR HOT SCROLL PATH (0% støy, maksimal V8-sympati)
+		// =========================================================================
 		const dest = this.app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), "") ?? null;
 		
 		if (dest === null) {
 			return { 
 				hasMatch: false, 
-				signature: `v${this.plugin.getRuleConfigVersion()}||${cleanPath}`, 
+				signature: `v${ruleVersion}||${cleanPath}`, 
 				classes: ["data-link-text"],
 				styles: { color: "", backgroundColor: "", fontWeight: "", iconBefore: "", iconAfter: "", decorations: [] }
 			};
@@ -58,7 +69,6 @@ export class FlyweightEngine {
 			visibleText: visibleText
 		});
 
-		const ruleVersion: number = this.plugin.getRuleConfigVersion();
 		const targetSignature: string = `${ruleVersion}|${resolution.matchedFlyweightIds.join(",")}|${dest.path}`;
 
 		return {
@@ -89,6 +99,7 @@ export class FlyweightEngine {
 		let cssString = "";
 		const isDark: boolean = document.body.classList.contains("theme-dark");
 		
+		// Enkeltregler (Kun farge, bakgrunn og typografi)
 		for (let i = 0; i < selectorsCount; i++) {
 			const rule = selectors[i];
 			if (!rule) continue;
@@ -97,32 +108,39 @@ export class FlyweightEngine {
 			let ruleStyles = "";
 
 			const textSelection = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-			if (textSelection.length > 0) ruleStyles += `color: ${textSelection}; `;
+			if (textSelection.length > 0) ruleStyles += `color: ${textSelection}; --scl-link-color: ${textSelection}; `;
 
 			const bgSelection = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
-			if (bgSelection.length > 0 && bgSelection !== "transparent") {
-				ruleStyles += `background-color: ${bgSelection}; `;
-			}
+			if (bgSelection.length > 0 && bgSelection !== "transparent") ruleStyles += `background-color: ${bgSelection}; `;
 
-			if (rule.fontWeight === "bold" || rule.fontWeight === "lighter") {
-				ruleStyles += `font-weight: ${rule.fontWeight}; `;
-			}
-
-			const fontStyle = rule.fontStyle ?? "normal";
-			if (fontStyle === "italic") ruleStyles += `font-style: italic; `;
-			if (fontStyle === "underline" || fontStyle === "line-through") {
-				ruleStyles += `text-decoration: ${fontStyle}; `;
-			}
+			if (rule.fontWeight === "bold" || rule.fontWeight === "lighter") ruleStyles += `font-weight: ${rule.fontWeight}; `;
+			if (rule.fontStyle === "italic") ruleStyles += `font-style: italic; `;
+			if (rule.fontStyle === "underline" || rule.fontStyle === "line-through") ruleStyles += `text-decoration: ${rule.fontStyle}; `;
 
 			if (ruleStyles.length > 0) {
-				// Sikrer ren og stabil prioritet for individuelle klasser og kompositt-sammensetninger
 				cssString += `
-					.scl-rule-${runtimeId},
-					.scl-composite-${runtimeId},
-					[class*="scl-composite-${runtimeId}"] {
-						${ruleStyles}
-					}
-				`;
+					.scl-rule-${runtimeId}, .scl-composite-${runtimeId} { 
+						${ruleStyles} 
+					}\n`;
+			}
+		}
+
+		// Sammensatte (Compound) regler
+		for (let i = 0; i < selectorsCount; i++) {
+			for (let j = i + 1; j < selectorsCount; j++) {
+				const ruleB = selectors[j];
+				if (!ruleB) continue;
+
+				let compositeStyles = "";
+				const colorB = isDark ? (ruleB.darkColor ?? "") : (ruleB.lightColor ?? "");
+				if (colorB.length > 0) compositeStyles += `color: ${colorB}; --scl-link-color: ${colorB}; `;
+				
+				const bgB = isDark ? (ruleB.darkBgColor ?? "") : (ruleB.lightBgColor ?? "");
+				if (bgB.length > 0 && bgB !== "transparent") compositeStyles += `background-color: ${bgB}; `;
+
+				if (compositeStyles.length > 0) {
+					cssString += `.scl-composite-${i}-${j} { ${compositeStyles} }\n`;
+				}
 			}
 		}
 

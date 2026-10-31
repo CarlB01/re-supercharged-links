@@ -1,6 +1,8 @@
 import { FlyweightResponse } from "../core/flyweight-engine";
+import ResuperchargedLinks from "../core/main";
+import { cleanAttributeKey, cleanRuleValue } from "../utils/shared-utils";
+import { resolveRuleResolution } from "./rule-engine";
 
-// En fast struktur som lever permanent i minnet og aldri kastes
 export interface PreAllocatedPresentation {
 	hasMatch: boolean;
 	classesCount: number;
@@ -10,56 +12,53 @@ export interface PreAllocatedPresentation {
 	readonly styleValues: string[];
 }
 
-// Instansieres nøyaktig ÉN gang ved oppstart. Heap-forurensning = 0.
 const SHARED_PRESENTATION_POOL: PreAllocatedPresentation = {
 	hasMatch: false,
 	classesCount: 0,
 	stylesCount: 0,
-	classes: new Array<string>(32).fill(""),       // Plass til maks 32 klasser per node
-	styleKeys: new Array<string>(16).fill(""),     // Plass til maks 16 stiler per node
-	styleValues: new Array<string>(16).fill("")
+	classes: new Array<string>(64).fill(""),       
+	styleKeys: new Array<string>(32).fill(""),     
+	styleValues: new Array<string>(32).fill("")
 };
 
-/**
- * Fyller opp den globale bufferen uten en eneste ny allokering på heapen.
- * V8 monomorf-optimalisert: Formene på arrayene endrer seg aldri.
- */
 export function populatePresentationPool(
 	resolution: FlyweightResponse,
 	skipIconBefore = false,
 	skipIconAfter = false
 ): PreAllocatedPresentation {
 	const pool = SHARED_PRESENTATION_POOL;
+	
+	// ⚡ RENSLIGHETS-GARANTI (Utrydder blank side/forurensning):
+	// Vi nuller ut slots fra forrige kjøring så gamle noder aldri lekker inn i nye noder!
+	const oldClassesCount = pool.classesCount;
+	for (let i = 0; i < oldClassesCount; i++) pool.classes[i] = "";
+	const oldStylesCount = pool.stylesCount;
+	for (let i = 0; i < oldStylesCount; i++) {
+		pool.styleKeys[i] = "";
+		pool.styleValues[i] = "";
+	}
+
 	pool.hasMatch = resolution.hasMatch;
 	pool.classesCount = 0;
 	pool.stylesCount = 0;
 
 	if (!resolution.hasMatch) {
 		pool.classes[pool.classesCount++] = "data-link-text";
-		pool.classes[pool.classesCount++] = "scl-hide-before";
-		pool.classes[pool.classesCount++] = "scl-hide-after";
 		return pool;
 	}
 
-	// 1. Basistekst-klasse
 	pool.classes[pool.classesCount++] = "data-link-text";
 
-	// 2. Fyll inn stiler lineært (unngår Object.keys og Object.create)
 	const s = resolution.styles;
 	if (s.color.length > 0) {
-		pool.styleKeys[pool.stylesCount] = "--scl-color";
-		pool.styleValues[pool.stylesCount++] = s.color;
 		pool.styleKeys[pool.stylesCount] = "color";
 		pool.styleValues[pool.stylesCount++] = s.color;
 	}
 	if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
-		pool.styleKeys[pool.stylesCount] = "--scl-bg";
-		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
 		pool.styleKeys[pool.stylesCount] = "background-color";
 		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
 	}
 
-	// 3. Typografi
 	if (s.fontWeight === "bold") pool.classes[pool.classesCount++] = "scl-weight-bold";
 	if (s.fontWeight === "lighter") pool.classes[pool.classesCount++] = "scl-weight-lighter";
 
@@ -71,22 +70,21 @@ export function populatePresentationPool(
 		if (dec === "line-through") pool.classes[pool.classesCount++] = "scl-decor-linethrough";
 	}
 
-	// 4. Ikoner med posisjonell sjekk
+	// 🌟 DET ADDITIVE APPARATET: 
+	// Vi dytter ikon-variablene INLINE direkte på elementet. 
+	// Da slipper vi at det globale stilarket saboterer sammensatte regler!
 	if (s.iconBefore.length > 0 && !skipIconBefore) {
+		pool.classes[pool.classesCount++] = "scl-with-before";
 		pool.styleKeys[pool.stylesCount] = "--scl-icon-before";
 		pool.styleValues[pool.stylesCount++] = `"${s.iconBefore}"`;
-	} else {
-		pool.classes[pool.classesCount++] = "scl-hide-before";
 	}
 
 	if (s.iconAfter.length > 0 && !skipIconAfter) {
+		pool.classes[pool.classesCount++] = "scl-with-after";
 		pool.styleKeys[pool.stylesCount] = "--scl-icon-after";
 		pool.styleValues[pool.stylesCount++] = `"${s.iconAfter}"`;
-	} else {
-		pool.classes[pool.classesCount++] = "scl-hide-after";
 	}
 
-	// 5. Kompositt-klasser levert fra motoren
 	const resClassesLen = resolution.classes.length;
 	for (let i = 0; i < resClassesLen; i++) {
 		const cls = resolution.classes[i];
@@ -96,4 +94,57 @@ export function populatePresentationPool(
 	}
 
 	return pool;
+}
+
+/**
+ * Dedikert virtuell kanal for eksterne applikasjoner (Mybrain) og innstillingspanelet.
+ * Isolert utenfor den hotte scroll-banen for å beskytte V8-motorens inlining-optimalisering.
+ */
+export function resolveVirtualPreviewResolution(
+	plugin: ResuperchargedLinks,
+	cleanPath: string,
+	visibleText: string,
+	ruleVersion: number,
+	isDark: boolean
+): FlyweightResponse {
+	const ruleIndexStr = cleanPath.replace("virtual://preview/", "");
+	const ruleIndex = parseInt(ruleIndexStr, 10);
+	const rawProps: Record<string, string> = Object.create(null) as Record<string, string>;
+	const classesList: string[] = ["data-link-text"];
+
+	const selectors = plugin.settings?.selectors ?? [];
+	const rule = selectors[ruleIndex];
+	
+	if (rule) {
+		const rawValue = cleanRuleValue(rule.value);
+		if (rule.type === "tag" && rawValue.length > 0) rawProps["tags"] = `#${rawValue}`;
+		if (rule.type === "path" && rawValue.length > 0) rawProps["path"] = rawValue;
+		if (rule.type === "attribute" && rawValue.length > 0) {
+			const attrKey = cleanAttributeKey(rule.name);
+			if (attrKey.length > 0) rawProps[attrKey] = rawValue;
+		}
+		classesList.push(`scl-composite-${ruleIndex}`);
+	}
+	
+	const resolution = resolveRuleResolution({
+		compiledRules: plugin.compiledRules,
+		resolvedAttrs: rawProps,
+		isDark,
+		includeTagMatchClasses: true,
+		visibleText: visibleText
+	});
+
+	return {
+		hasMatch: resolution.hasMatch,
+		signature: `preview|${ruleVersion}|${ruleIndex}`,
+		classes: classesList,
+		styles: {
+			color: resolution.style.color,
+			backgroundColor: resolution.style.backgroundColor,
+			fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
+			iconBefore: resolution.iconBefore,
+			iconAfter: resolution.iconAfter,
+			decorations: resolution.style.decorations
+		}
+	};
 }

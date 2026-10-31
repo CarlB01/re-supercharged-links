@@ -8,6 +8,7 @@ import { extractCleanLinkPath } from "../utils/shared-utils";
 import { CSSLink } from "../types/css-link";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 import { mapRawAttrsToDataAttrs } from "../utils/link-attribute-mapper";
+import { populatePresentationPool } from "../processors/presentation.engine";
 
 export const themeCompartment: Compartment = new Compartment();
 
@@ -239,57 +240,64 @@ export class CMViewPlugin {
 		skipIconBefore = false, 
 		skipIconAfter = false
 	): Decoration {
-		// 1. Hent den ferdig akkumulerte fasiten fra kjerne-API-et (O(1))
+		// 1. LIVSSYKLUS-GUARD: Forhindrer oppstarts-krasj hvis motoren ikke er initialisert
+		if (!this.plugin.flyweightEngine) {
+			return Decoration.mark({});
+		}
+
+		// 2. Hent den ferdig akkumulerte tilstandsfasiten fra kjerne-motoren (O(1))
 		const resolution = this.plugin.flyweightEngine.getResolution(file.path, visibleLabel);
 
 		if (!resolution.hasMatch) {
 			return Decoration.mark({});
 		}
 
-		// 2. Bygg et minimalt attributtkart for å holde CodeMirror stabil
-		const attributes: Record<string, string> = Object.create(null);
+		// 3. Populer den globale, uforanderlige minne-poolen (0 allokeringer under scroll!)
+		const presentation = populatePresentationPool(resolution, skipIconBefore, skipIconAfter);
+
+		// 4. Opprett et uforanderlig attributtkart for CodeMirror-elementet
+		const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 		attributes["data-link-path"] = file.path;
 
-		const classes: string[] = [...resolution.classes];
-		if (!classes.includes("data-link-text")) {
-			classes.push("data-link-text");
+		// Bevarer data-link-color kun for bakoverkompatibilitet med eldre eksterne temaer
+		if (resolution.styles.color.length > 0) {
+			attributes["data-link-color"] = resolution.styles.color;
 		}
 
-		// 3. 🔥 DYNAMISK INLINE-VARIABEL STRØM FOR CM6:
-		// Vi bygger en superlett stil-streng med de ferdig akkumulerte fargene og ikonene.
-		// Vi respekterer skjul-flaggene fra pipeline-loopen direkte her!
-		let inlineStyle = "";
-		const s = resolution.styles;
-
-		if (s.color) {
-			inlineStyle += `color: ${s.color}; `;
-		}
-		if (s.backgroundColor) {
-			inlineStyle += `background-color: ${s.backgroundColor}; `;
-		}
-		if (s.fontWeight) {
-			inlineStyle += `font-weight: ${s.fontWeight}; `;
+		// 5. 🔥 ADDITIV INLINE-VARIABEL STRØM FOR CM6:
+		// Vi bygger en superlett, flat CSS-streng av stil-slotsene levert direkte fra poolen.
+		// Siden CM6 kaster toppnivå-styles, plasserer vi dette trygt i attributes.style som en streng!
+		let inlineStyleString = "";
+		const stylesCount = presentation.stylesCount;
+		
+		for (let i = 0; i < stylesCount; i++) {
+			const key = presentation.styleKeys[i];
+			const val = presentation.styleValues[i];
+			if (key && val) {
+				inlineStyleString += `${key}: ${val}; `;
+			}
 		}
 
-		// Injiser ikoner hvis de ikke er undertrykt av posisjonen i lenken
-		if (s.iconBefore && !skipIconBefore) {
-			inlineStyle += `--scl-icon-before: "${s.iconBefore}"; `;
-		} else {
-			classes.push("scl-hide-before");
+		if (inlineStyleString.length > 0) {
+			attributes["style"] = inlineStyleString; // 🌟 Godtas 100% av CodeMirror 6!
 		}
 
-		if (s.iconAfter && !skipIconAfter) {
-			inlineStyle += `--scl-icon-after: "${s.iconAfter}"; `;
-		} else {
-			classes.push("scl-hide-after");
+		// 6. Samle klassene fra poolen til en flat, ren streng levert til editoren
+		const classesCount = presentation.classesCount;
+		const activeClasses: string[] = [];
+		
+		for (let i = 0; i < classesCount; i++) {
+			const cls = presentation.classes[i];
+			if (cls) {
+				activeClasses.push(cls);
+			}
 		}
 
-		const decoSpec: any = { attributes, class: classes.join(" ") };
-		if (inlineStyle.length > 0) {
-			decoSpec.style = inlineStyle;
-		}
-
-		return Decoration.mark(decoSpec);
+		// 7. Generer og returner den uforanderlige mark-dekorasjonen
+		return Decoration.mark({
+			attributes,
+			class: activeClasses.join(" ")
+		});
 	}
 
 	public buildDecorationsForRange(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
@@ -345,11 +353,6 @@ export class CMViewPlugin {
 		}
 	}
 
-	/**
-	 * Isolated Production Pipeline for standard Markdown links ([alias](target)).
-	 * Processes structural tokens linearly and injects unified decorations across all siblings.
-	 * Dynamically evaluates token-level labels to prevent icon duplication across open segments.
-	 */
 	private processMarkdownLinkPipeline(
 		view: EditorView,
 		node: CodeMirrorNodeRef,
@@ -358,7 +361,6 @@ export class CMViewPlugin {
 		nodeRangeKey: string
 	): boolean {
 		if (nodeNameLower !== "link") {
-			// Enforce strict constraint letting only the top-level parent "link" node execute the lane iteration
 			state.processedRanges.add(nodeRangeKey);
 			return true;
 		}
@@ -405,9 +407,11 @@ export class CMViewPlugin {
 		const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
 		if (targetFile !== null) {
 			
-			// 🌟 LOCAL CURSOR TRACKING MATRIX: Proven via parallel log verification to be 100% stable
+			// 🌟 SKUDDSIKKER SYNKRONISERING AV MARKØR-MATRISEN (- 1):
+			// Ved å trekke fra 1, slår vi på åpen-tilstand akkurat i det CodeMirror splitter nodene.
+			// Dette utrydder de overflødige ikonene når du står helt til venstre for '[' permanent!
 			const cursorHead = view.state.selection.main.head;
-			const isLinkOpen = cursorHead >= node.from && cursorHead <= linkEndPosition;
+			const isLinkOpen = cursorHead >= (node.from - 1) && cursorHead <= linkEndPosition;
 
 			syntaxTree(view.state).iterate({
 				from: node.from,
@@ -421,28 +425,28 @@ export class CMViewPlugin {
 
 					if (isTargetFormatting || isAliasText || isUrlText) {
 						if (isTargetFormatting) {
-							// Formatting components ([, ], (, )): Omit all affix icon attributes completely
+							// Formateringstegn ([, ], (, )): Ingen ikoner overhodet
 							const formatDeco: Decoration = this.processLinkDecoration(targetFile, "", true, true);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, formatDeco);
 						} else if (isAliasText) {
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 							
 							if (!isLinkOpen) {
-								// Context: Closed State. Renders as a single visual capsule. Enable both prepend and append icons natively.
+								// Lukket kapsel: Full pakke (både prepend og append natively)
 								const closedDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, false);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
 							} else {
-								// Context: Open State (Leading segment). Render prepend icon, but suppress append icon to avoid layout collision.
+								// Åpen modus (Alias-teksten): Vis prepend, slukk append-ikonet i midten!
 								const aliasDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, true);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
 							}
 						} else if (isUrlText) {
-							// Context: Open State (Terminal URL segment). Suppress prepend icon, render append icon at the outer terminal boundary.
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+							// Åpen modus (URL-strengen): Slukk prepend-ikonet i midten, vis kun append på terminalgrensen!
 							const urlDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, true, false);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, urlDeco);
 						}
-						// Single-pass binary string concatenation avoids template literal heap pressure
+						
 						const siblingKey = sibling.from + "-" + sibling.to;
 						state.processedRanges.add(nodeRangeKey);
 						state.processedRanges.add(siblingKey);
@@ -457,10 +461,6 @@ export class CMViewPlugin {
 		return true;
 	}
 
-	/**
-	 * Isolated Production Pipeline for structural WikiLinks ([[path|alias]]).
-	 * Korrigert for å sende 100% korrekte posisjonelle flagg i åpen vs lukket modus.
-	 */
 	private processWikiLinkPipeline(
 		view: EditorView,
 		node: CodeMirrorNodeRef,
@@ -478,6 +478,10 @@ export class CMViewPlugin {
 		let targetPathToken = "";
 		let wikiEndPosition = node.to;
 		let isChainClosed = false; 
+		
+		// 🛠️ SKUDDSIKKER STRUKTUR-SKANNER:
+		// Vi sjekker om det finnes en alias-struktur i hele lenke-intervallet uten restriksjoner.
+		let hasAliasStructure = false;
 
 		syntaxTree(view.state).iterate({
 			from: node.from,
@@ -486,10 +490,16 @@ export class CMViewPlugin {
 				if (isChainClosed) return true;
 				const sibName = sibling.name.toLowerCase();
 				
+				// Hent ut målstien/filnavnet fra det første gyldige segmentet
 				if (sibName.includes("hmd-internal-link") || sibName.includes("link-has-alias") || sibName.includes("cm-link-has-alias")) {
 					if (targetPathToken.length === 0) {
 						targetPathToken = view.state.doc.sliceString(sibling.from, sibling.to);
 					}
+				}
+				
+				// ⚡ BREMSESJEKK: Hvis et hvilket som helst token i kjeden er en pipe eller et alias, flagger vi det umiddelbart!
+				if (sibName.includes("alias") || sibName.includes("pipe")) {
+					hasAliasStructure = true;
 				}
 				
 				if (sibName.includes("formatting")) {
@@ -514,49 +524,45 @@ export class CMViewPlugin {
 			return true;
 		}
 
+		// Cursor-trackingen din som er verifisert 100% stabil
+		const cursorHead = view.state.selection.main.head;
+		const isLinkOpenUnderCursor = cursorHead >= node.from -2 && cursorHead <= wikiEndPosition;
+
 		syntaxTree(view.state).iterate({
 			from: node.from,
 			to: wikiEndPosition,
 			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 				const sName = sibling.name.toLowerCase();
+				const sText = view.state.doc.sliceString(sibling.from, sibling.to);
 				
-				const isPathNode = sName.includes("hmd-internal-link") || sName.includes("cm-link-has-alias") || sName.includes("link-has-alias");
-				const isAliasNode = sName.includes("cm-link-alias") || sName.includes("link-alias");
+				const isPipeNode = sName.includes("alias-pipe") || sText === "|";
+				const isAliasNode = sName.includes("link-alias") && !sName.includes("pipe");
+				const isPathNode = (sName.includes("hmd-internal-link") || sName.includes("link-has-alias")) && !isPipeNode && !isAliasNode;
 
-				if (isPathNode || isAliasNode) {
-					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
+				if (isPipeNode) {
+					const pipeDeco: Decoration = this.processLinkDecoration(file, "", true, true);
+					this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
+				} 
+				else if (isPathNode) {
+					const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 					
-					if (sText === "|") {
-						// 2. TOKEN (Pipen): Alltid skjul begge ikoner!
-						const pipeDeco: Decoration = this.processLinkDecoration(file, "", true, true);
-						this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
-					} 
-					else if (isPathNode) {
-						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
-						
-						if (isChainClosed) {
-							// 🔒 LUKKET MODUS (Hel capsule): Vis begge ikoner natively
-							const closedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, false);
-							this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
-						} else {
-							// 🔓 ÅPEN MODUS - 1. TOKEN (Stien): Vis prepend, undertrykk append!
-							const openPathDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, true);
-							this.decorateRangeOnce(state, sibling.from, sibling.to, openPathDeco);
-						}
-					} 
-					else if (isAliasNode) {
-						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
-						
-						if (isChainClosed) {
-							const closedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, false);
-							this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
-						} else {
-							// 🔓 ÅPEN MODUS - 3. TOKEN (Alias): Undertrykk prepend, vis append!
-							const openAliasDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, true, false);
-							this.decorateRangeOnce(state, sibling.from, sibling.to, openAliasDeco);
-						}
-					}
+					// Stien slukker append-ikonet kun hvis lenken faktisk redigeres OG har et alias
+					const shouldSkipAfter = isLinkOpenUnderCursor && hasAliasStructure;
 					
+					const pathDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, shouldSkipAfter);
+					this.decorateRangeOnce(state, sibling.from, sibling.to, pathDeco);
+				} 
+				else if (isAliasNode) {
+					const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+					
+					// Aliaset slukker prepend-ikonet sitt hvis lenken redigeres
+					const shouldSkipBefore = isLinkOpenUnderCursor;
+					
+					const aliasDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, shouldSkipBefore, false);
+					this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
+				}
+				
+				if (isPipeNode || isPathNode || isAliasNode) {
 					const siblingKey = sibling.from + "-" + sibling.to;
 					state.processedRanges.add(siblingKey);
 				}
@@ -606,9 +612,9 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 }
 
 /**
- * 🎨 STANDARDIZED EDITORS COMPARTMENT:
- * Deaktivert for dynamiske regler da FlyweightEngine.refreshGlobalStyles() 
- * nå leverer de ferdig akkumulerte stilene universelt til hele appen.
+ * 🎨 RENT OG DEFINITIVT OPPGJØR MED GAMMEL JS-LOGIKK:
+ * Siden FlyweightEngine nå leverer ferdige akkumulerte stiler universelt via 
+ * inline-variabler og styles.css, deaktiverer vi dette tema-systemet for godt!
  */
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
 	// Returner tom utvidelse. Editoren henter nå farger og ikoner 

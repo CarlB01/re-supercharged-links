@@ -6,7 +6,7 @@ import { renderRuleSentence } from "./components/rule-renderer";
 import { moveRule } from "./components/rule-order-engine";
 import { cleanAttributeKey, cleanRuleValue, cleanSearchQuery, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
 import { sanitizeRule } from "../processors/rule-engine";
-import { updateVisibleLinks } from "../processors/dom-reconciler";
+import { purgeAndResetAllTabHeaders, updateVisibleLinks } from "../processors/dom-reconciler";
 import ResuperchargedLinks from "../core/main";
 import { EDITABLE_PROPERTIES } from "./settings-constants";
 import { applyStylesAndAttributesToLink } from "../views/dom-mutator";
@@ -181,9 +181,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 	}
 
 	public compilePaneStyles(): void {
+		// 1. Brutal og kontant oppfriskning av stilarket for å plukke opp UI-endringer
+		if (this.plugin.flyweightEngine) {
+			this.plugin.flyweightEngine.refreshGlobalStyles();
+		}
+
 		const selectors: CSSLink[] = this.plugin.settings?.selectors ?? [];
-		
-		// ⚡ SØKESIKRING: Vi itererer kun over reglene som faktisk kom seg gjennom søkefilteret
 		const filteredSelectors = this.getFilteredSelectors(selectors);
 		const filteredCount = filteredSelectors.length;
 
@@ -191,7 +194,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 			const rule: CSSLink | null = filteredSelectors[i] ?? null;
 			if (rule === null) continue;
 
-			// Finn den nøyaktige master-indeksen for å kunne slå opp i DOM-en
 			const masterIndex = selectors.indexOf(rule);
 			if (masterIndex === -1) continue;
 
@@ -203,24 +205,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 			const rawValue: string = cleanRuleValue(rule.value);
 
-			// 1. Konstruer en typesikker mock-payload for kjerne-motoren
-			const mockProps: Record<string, string> = {};
-			
-			if (rule.type === "tag" && rawValue.length > 0) {
-				// ⚡ CORE-FIX: Kjerne-motoren din splitter opp tags basert på mellomrom og forventer hashtag format
-				// for at de dynamiske CSS-matchklassene (scl-match-tag-#...) skal bli generert riktig!
-				mockProps["tags"] = `#${rawValue}`;
-			} else if (rule.type === "attribute") {
-				const attrKey: string = cleanAttributeKey(rule.name);
-				if (attrKey.length > 0) {
-					mockProps[attrKey] = rawValue;
-				}
-			} else if (rule.type === "path" && rawValue.length > 0) {
-				mockProps["path"] = rawValue;
-			}
-
-			// ⚡ DATA-HREF FIX: Forhåndsvisningen trenger en data-href for å matche den reelle DOM-strukturen din
-			mockProps["data-href"] = "Note";
+			// 2. KALL DET OFFISIELLE FLYWEIGHT-API-ET:
+			// Vi sender inn den virtuelle stihandleren vår. DOM-mutatoren og poolen 
+			// vil automatisk behandle "Note"-noden med 100% nøyaktig samme additive logikk!
+			const mockProps: Record<string, string> = {
+				path: `virtual://preview/${masterIndex}`
+			};
 
 			applyStylesAndAttributesToLink(noteEl, mockProps, this.plugin);
 
@@ -283,6 +273,11 @@ export default class SCLSettingTab extends PluginSettingTab {
 	}
 
 	public _generateSnippet(): void {
+
+		if (typeof purgeAndResetAllTabHeaders === "function") {
+			purgeAndResetAllTabHeaders(this.app);
+		}
+		
 		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
 		this.plugin.clearAttrCycleCache();
 

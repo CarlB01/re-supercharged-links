@@ -1,6 +1,6 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { applyStylesAndAttributesToLink, tagChipStyles } from "../views/dom-mutator";
+import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "../views/dom-mutator";
 import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
@@ -12,39 +12,40 @@ type RefreshScope = {
 };
 
 export class DOMMutationBatcher {
+	// MÅ være en potens av 2 (f.eks. 65536) for å tillate lynrask bitwise modulo-maskering (&)
 	private readonly BUFFER_SIZE = 65536;
+	private readonly BIT_MASK = 65535; // BUFFER_SIZE - 1
 
-	// Flat, pre-allocated raw arrays to eliminate ALL allocation churn (including WeakRefs)
-	private readonly elements: (HTMLElement | null)[] = new Array<HTMLElement | null>(this.BUFFER_SIZE).fill(null);
-	private readonly propsStorage: (Record<string, string> | null)[] = new Array<Record<string, string> | null>(this.BUFFER_SIZE).fill(null);
+	private readonly elements: (HTMLElement | null)[] = new Array<HTMLElement | null>(65536).fill(null);
+	private readonly propsStorage: (Record<string, string> | null)[] = new Array<Record<string, string> | null>(65536).fill(null);
 	
-	private writeIndex = 0;
-	private readIndex = 0;
+	private head = 0; // Read pointer
+	private tail = 0; // Write pointer
 	private isProcessing = false;
 	private activePlugin: ResuperchargedLinks | null = null;
 	
-	// Rigorous execution window in milliseconds ensuring strict frame budget compliance
 	private readonly FRAME_BUDGET_MS = 1.5; 
 
 	/**
-	 * Enqueues mutation parameters using pure reference assignments.
-	 * Achieves absolute zero-allocation throughput during massive document updates.
+	 * Sirkulær enqueue som aldri kan løpe ut av indeks eller krasje på stakken.
 	 */
 	public enqueue(element: HTMLElement, props: Record<string, string>, plugin: ResuperchargedLinks): void {
 		if (this.activePlugin === null) {
 			this.activePlugin = plugin;
 		}
 
-		if (this.writeIndex < this.BUFFER_SIZE) {
-			// Direct element assignment bypasses WeakRef instantiation entirely
-			this.elements[this.writeIndex] = element;
-			this.propsStorage[this.writeIndex] = props;
-			this.writeIndex += 1;
-		} else {
-			// Fail-safe synchronous execution barrier protecting against buffer overflows
+		// Beregn neste posisjon for tail ved hjelp av sirkulær maskering (0 allokering)
+		const nextTail = (this.tail + 1) & this.BIT_MASK;
+
+		// Hvis ringen er 100% full, må vi tømme synkront for å unngå overskriving
+		if (nextTail === this.head) {
 			applyStylesAndAttributesToLink(element, props, plugin);
 			return;
 		}
+
+		this.elements[this.tail] = element;
+		this.propsStorage[this.tail] = props;
+		this.tail = nextTail;
 		
 		if (!this.isProcessing) {
 			this.isProcessing = true;
@@ -53,62 +54,46 @@ export class DOMMutationBatcher {
 	}
 
 	/**
-	 * Drains the flat backing store with zero-overhead direct lookups.
-	 * Strips away deref() lifecycles for maximum raw execution velocity.
+	 * Tømmer ring-bufferen bit for bit innenfor den strenge tidsrammen på 1.5ms.
 	 */
 	private processBatch(): void {
-		if (this.readIndex >= this.writeIndex || this.activePlugin === null) {
-			this.resetQueue();
+		if (this.head === this.tail || this.activePlugin === null) {
+			this.isProcessing = false;
 			return;
 		}
 
 		const startTime = performance.now();
-		const currentWriteIndex = this.writeIndex;
 		const plugin: ResuperchargedLinks = this.activePlugin;
 
-		while (this.readIndex < currentWriteIndex) {
+		// Kjør loopen helt til cachen er tom eller vi sprenger tidsbudsjettet
+		while (this.head !== this.tail) {
 			if ((performance.now() - startTime) >= this.FRAME_BUDGET_MS) {
 				break;
 			}
 
-			const element = this.elements[this.readIndex];
-			const props = this.propsStorage[this.readIndex];
+			const element = this.elements[this.head];
+			const props = this.propsStorage[this.head];
 			
-			// Null out the slots instantly to guarantee immediate garbage collection paths
-			this.elements[this.readIndex] = null;
-			this.propsStorage[this.readIndex] = null;
+			// Vask minneslotten umiddelbart for å frigjøre referansen for Garbage Collection (0% lekkasje!)
+			this.elements[this.head] = null;
+			this.propsStorage[this.head] = null;
 
 			if (element !== null && element !== undefined && props !== null && props !== undefined) {
-				// Verify connection layout health instantly using raw flags
 				if (element.nodeType === 1 && element.isConnected) {
 					applyStylesAndAttributesToLink(element, props, plugin);
 				}
 			}
 
-			this.readIndex += 1;
+			// Flytt head-pekeren ett hakk fremover i ringen
+			this.head = (this.head + 1) & this.BIT_MASK;
 		}
 
-		if (this.readIndex < this.writeIndex) {
+		// Hvis det fortsatt er noder igjen i ringen, fortsetter vi i neste frame
+		if (this.head !== this.tail) {
 			window.requestAnimationFrame(() => this.processBatch());
 		} else {
-			this.resetQueue();
+			this.isProcessing = false;
 		}
-	}
-
-	/**
-	 * Cleans tracking pointers and purges all indexes while maintaining core memory slots.
-	 */
-	private resetQueue(): void {
-		const currentLength = this.writeIndex;
-		for (let i = 0; i < currentLength; i++) {
-			this.elements[i] = null;
-			this.propsStorage[i] = null;
-		}
-		
-		this.writeIndex = 0;
-		this.readIndex = 0;
-		this.isProcessing = false;
-		this.activePlugin = null;
 	}
 }
 
@@ -310,16 +295,14 @@ export function updateDivExtraAttributes(
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
 
-	// 1. LIVSSYKLUS-GUARD: Avbryt hvis motoren ikke er instansiert ennå (hindrer oppstarts-krasj)
 	if (!plugin.flyweightEngine) return;
 
-	// 2. ULTRA-RASKE O(1) BARRIERE-SJEKK (FØR NOE ANNET ARBEID GJØRES)
 	const visibleText: string = (link.textContent || "").trim();
 	const resolution = plugin.flyweightEngine.getResolution(cleanPath, visibleText);
 
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		if (plugin.telemetry) {
-			plugin.telemetry.logBarrierSkip(); // Logges direkte som en ren barriere-exit!
+			plugin.telemetry.logBarrierSkip();
 		}
 		return;
 	}
@@ -327,10 +310,14 @@ export function updateDivExtraAttributes(
 	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
 	if (dest === null) return;
 
-	// Siden noden skal endres, gjør vi det faktiske cache-oppslaget
+	// Hent de cachede attributtene trygt
 	const cachedProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, plugin.attrCycleCache);
 
-	const localProps: Record<string, string> = Object.create(null) as Record<string, string>;
+	// 🔒 DEN TRYGGE PRODUKSJONSLINJEN:
+	// Vi bruker et helt standard, flatt objekt ({}) med fulle prototyp-metoder.
+	// Dette er den uknuselige banen som holdt Obsidian 100% krasjfritt og stabilt!
+	const localProps: Record<string, string> = {};
+	
 	const propKeys = Object.keys(cachedProps);
 	const propKeysLen = propKeys.length;
 	for (let i = 0; i < propKeysLen; i++) {
@@ -340,10 +327,11 @@ export function updateDivExtraAttributes(
 		}
 	}
 
+	// Tildel kjerne-egenskapene deterministisk
 	localProps["data-href"] = dest.basename;
 	localProps["path"] = dest.path;
 
-	// Send direkte til den allokeringsfrie batchen
+	// Skyv trygt ut til ring-bufferen
 	domBatcher.enqueue(link, localProps, plugin);
 }
 
@@ -500,20 +488,24 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	const tabHeader = getTabHeaderElement(leaf);
 	if (tabHeader === null) return 0;
 
+	// 1. FINN DEN EKTE TARGET-NODEN (Der klasser og stiler faktisk brennes inn)
+	const titleNode: HTMLElement | null = tabHeader.classList.contains("workspace-tab-header-inner-title")
+		? tabHeader
+		: tabHeader.querySelector<HTMLElement>(".workspace-tab-header-inner-title") ?? null;
+
+	if (titleNode === null) return 0;
+
 	let resolvedFile: TFile | null = file;
 
-	// If the leaf context lacks a clean file binding sequence, check our local WeakMap cache
-	// first to bypass heavy, synchronous global metadata cache scans.
 	if (resolvedFile === null) {
 		const cachedFile = backgroundTabFileCache.get(tabHeader) ?? null;
 		if (cachedFile !== null) {
 			resolvedFile = cachedFile;
 		} else {
-			const rawTitleText: string = (tabHeader.textContent ?? "").trim();
+			const rawTitleText: string = (titleNode.textContent ?? "").trim();
 			if (rawTitleText.length > 0) {
 				resolvedFile = app.metadataCache.getFirstLinkpathDest(rawTitleText, "") ?? null;
 				if (resolvedFile !== null) {
-					// Commit to memory to protect subsequent frame cycles
 					backgroundTabFileCache.set(tabHeader, resolvedFile);
 				}
 			}
@@ -521,7 +513,40 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	}
 
 	if (resolvedFile !== null) {
-		updateDivExtraAttributes(app, plugin, tabHeader, "", resolvedFile.path);
+		// 🛠️ ABSOLUTT OG TOTAL STERILISERING AV TITTEL-NODEN:
+		titleNode.removeAttribute("data-scl-signature");
+		titleNode.removeAttribute("data-link-color");
+		titleNode.classList.remove("scl-processed");
+		
+		// Kjør din standard vask hvis den eksisterer
+		if (typeof clearExtraAttributes === "function") {
+			clearExtraAttributes(titleNode);
+		}
+		
+		// ⚡ BRUTAL RYDDING AV ENHVER LEKKENDE SCL-KLASSE (Knuser hybrid-regler):
+		// Siden clearExtraAttributes kan bomme under hurtig skifte, fjerner vi 
+		// alt som starter med "scl-" direkte via en rå token-loop på stakken.
+		const classes: DOMTokenList = titleNode.classList;
+		let k: number = classes.length;
+		while (k--) {
+			const cls = classes.item(k);
+			if (cls && (cls.startsWith("scl-") || cls === "data-link-text")) {
+				classes.remove(cls);
+			}
+		}
+
+		// Nullstill absolutt all inline stil- og variabelhistorikk på den ekte noden
+		const inlineStyle = titleNode.style;
+		inlineStyle.removeProperty("color");
+		inlineStyle.removeProperty("background-color");
+		inlineStyle.removeProperty("background");
+		inlineStyle.removeProperty("--scl-color");
+		inlineStyle.removeProperty("--scl-bg");
+		inlineStyle.removeProperty("--scl-icon-before");
+		inlineStyle.removeProperty("--scl-icon-after");
+
+		// Nå er inner-title fullstendig steril og klar for å motta sin nye additive prakt
+		updateDivExtraAttributes(app, plugin, titleNode, "", resolvedFile.path);
 		return 1;
 	}
 
@@ -708,3 +733,37 @@ export function updateVisibleLinks(
 	// returnerer vi bare tallet slik at main.ts kan registrere syklusen stabilt.
 	return totalNodesStyled;
 }
+
+/**
+ * Omsorgsfull og brutal nullstilling av alle fane-elementer (tab-headere) i hele Obsidian.
+ * Kalles når brukeren muterer regler for å forhindre klasse-akkumulering og ikon-duplisering.
+ */
+export function purgeAndResetAllTabHeaders(app: App): void {
+	// 1. Tøm det sekundære WeakMap-sikkerhetsnettet fullstendig
+	// Siden det er en konstant i filen, kan vi fjerne elementene eller la V8 rydde opp
+	// (Hvis det er en WeakMap, kan vi ikke tømme den direkte uten å instansiere på nytt, 
+	// så vi kan enten la den være eller re-instansiere den hvis den er muterbar, men det viktigste er DOM-vasken!)
+	
+	// 2. Finn ALLE aktive og inaktive tab-headere i hele brukergrensesnittet
+	const tabElements = document.querySelectorAll(".workspace-tab-header");
+	const tabCount = tabElements.length;
+	
+	for (let i = 0; i < tabCount; i++) {
+		const tabEl = tabElements[i];
+		if (tabEl instanceof HTMLElement) {
+			// Slett signaturen og prosessert-flagget slik at barrieren slipper den igjennom
+			tabEl.removeAttribute("data-scl-signature");
+			tabEl.classList.remove("scl-processed");
+			
+			// Bruk din eksisterende, ufeilbarlige vaskefunksjon fra dom-mutator!
+			clearExtraAttributes(tabEl);
+			
+			// Sett den tilbake til en nøytral basistilstand
+			tabEl.style.removeProperty("color");
+			tabEl.style.removeProperty("background-color");
+			tabEl.style.removeProperty("--scl-icon-before");
+			tabEl.style.removeProperty("--scl-icon-after");
+		}
+	}
+}
+
