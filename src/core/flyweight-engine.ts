@@ -144,49 +144,71 @@ export class FlyweightEngine {
 }
 
 /**
- * Tar en rå FlyweightResponse og oversetter den til standardiserte 
- * klasser og stiler som er 100% identiske for både DOM og CM6 attributes.
+ * Oversetter en rå FlyweightResponse til standardiserte, typesikre 
+ * klasser og stiler som er identiske for både DOM og CodeMirror 6.
  */
-export function mapResolutionToPresentation(resolution: FlyweightResponse): PresentationPayload {
-	const classes: string[] = [...resolution.classes];
-	const inlineStyles: Record<string, string> = Object.create(null);
+export function mapResolutionToPresentation(
+	resolution: FlyweightResponse,
+	skipIconBefore: boolean = false,
+	skipIconAfter: boolean = false
+): PresentationPayload {
+	const classes: string[] = [];
+	const inlineStyles: Record<string, string> = Object.create(null) as Record<string, string>;
 	const s = resolution.styles;
 
-	// Farger levert via standard CSS custom properties for popup/DOM-likhet
-	if (s.color) {
-		inlineStyles["--scl-color"] = s.color;
-		inlineStyles["color"] = s.color;
-	}
-	if (s.backgroundColor && s.backgroundColor !== "transparent") {
-		inlineStyles["--scl-bg"] = s.backgroundColor;
-		inlineStyles["background-color"] = s.backgroundColor;
-	}
+	// 1. Alltid inkluder basistekst-klassen hvis matchen er gyldig
+	if (resolution.hasMatch) {
+		classes.push("data-link-text");
 
-	// Ikon-variabler
-	if (s.iconBefore) {
-		inlineStyles["--scl-icon-before"] = `"${s.iconBefore}"`;
+		// 2. Farger og bakgrunner (både som rå verdier og CSS-variabler for popup-likhet)
+		if (s.color.length > 0) {
+			inlineStyles["--scl-color"] = s.color;
+			inlineStyles["color"] = s.color;
+		}
+		if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
+			inlineStyles["--scl-bg"] = s.backgroundColor;
+			inlineStyles["background-color"] = s.backgroundColor;
+		}
+
+		// 3. Typografi fra det sentrale oppslaget
+		if (s.fontWeight === "bold") classes.push("scl-weight-bold");
+		if (s.fontWeight === "lighter") classes.push("scl-weight-lighter");
+
+		const decosLen = s.decorations.length;
+		for (let i = 0; i < decosLen; i++) {
+			const dec = s.decorations[i];
+			if (dec === "italic") classes.push("scl-style-italic");
+			if (dec === "underline") classes.push("scl-decor-underline");
+			if (dec === "line-through") classes.push("scl-decor-linethrough");
+		}
+
+		// 4. Ikon-håndtering med streng posisjonell overstyring
+		if (s.iconBefore.length > 0 && !skipIconBefore) {
+			inlineStyles["--scl-icon-before"] = `"${s.iconBefore}"`;
+		} else {
+			classes.push("scl-hide-before");
+		}
+
+		if (s.iconAfter.length > 0 && !skipIconAfter) {
+			inlineStyles["--scl-icon-after"] = `"${s.iconAfter}"`;
+		} else {
+			classes.push("scl-hide-after");
+		}
+
+		// 5. Kompositt-klasser fra regel-motoren (.scl-composite-X-Y)
+		const resolutionClassesLen = resolution.classes.length;
+		for (let i = 0; i < resolutionClassesLen; i++) {
+			const cls = resolution.classes[i];
+			if (cls && cls !== "data-link-text" && !classes.includes(cls)) {
+				classes.push(cls);
+			}
+		}
 	} else {
+		// Fallback for nøytrale noder: Sørg for at variabler og ikoner vaskes bort
+		classes.push("data-link-text");
 		classes.push("scl-hide-before");
-	}
-
-	if (s.iconAfter) {
-		inlineStyles["--scl-icon-after"] = `"${s.iconAfter}"`;
-	} else {
 		classes.push("scl-hide-after");
-	}
-
-	// Typografi og dekorasjoner mappet til statiske nytteklasser (ingen inline-kaos)
-	if (s.fontWeight === "bold") classes.push("scl-weight-bold");
-	if (s.fontWeight === "lighter") classes.push("scl-weight-lighter");
-
-	const decosLen = s.decorations.length;
-	for (let i = 0; i < decosLen; i++) {
-		const dec = s.decorations[i];
-		if (dec === "italic") classes.push("scl-style-italic");
-		if (dec === "underline") classes.push("scl-decor-underline");
-		if (dec === "line-through") classes.push("scl-decor-linethrough");
 	}
 
 	return { classes, inlineStyles };
 }
-

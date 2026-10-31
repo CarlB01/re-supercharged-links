@@ -1,4 +1,6 @@
+import { mapResolutionToPresentation } from "../core/flyweight-engine";
 import ResuperchargedLinks from "../core/main";
+import { populatePresentationPool } from "../processors/presentation.engine";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTags } from "../utils/shared-utils";
 
@@ -124,78 +126,64 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 	}
 }
 
-export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
+export function applyStylesAndAttributesToLink(
+	link: HTMLElement, 
+	rawAttrs: Record<string, string>, 
+	plugin: ResuperchargedLinks
+): void {
 	const pathKey: string = rawAttrs["path"] || "";
 	const visibleText: string = (link.textContent || "").trim();
 
-	// 1. Hent fasiten fra det sentrale bakgrunns-API-et (O(1))
 	const resolution = plugin.flyweightEngine.getResolution(pathKey, visibleText);
 
-	// 2. O(1) Dyp barriere-sjekk via den unike kompositt-signaturen
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		return; 
 	}
 
-	// 3. Nullstill forrige syklus sine klasser og attributter
 	clearExtraAttributes(link);
-	
-	// 4. Lås den nye signaturen fast på elementet
 	link.setAttribute("data-scl-signature", resolution.signature);
 
-	if (resolution.hasMatch) {
-		const targetStyles: Partial<CSSStyleDeclaration> = {};
-		const s = resolution.styles;
+	const presentation = populatePresentationPool(resolution);
+	const inlineStyle: CSSStyleDeclaration = link.style;
 
-		// 🌟 ROBUST HYBRID-REFLEKSJON: Farger og bakgrunn settes inline for 100% 
-		// kompatibilitet med Lesemodus/DOM, mens ikoner tildeles via lette CSS-variabler.
-		if (s.color && s.color.length > 0) {
-			targetStyles.color = s.color;
-			link.setAttribute("data-link-color", s.color);
-		}
-		if (s.backgroundColor && s.backgroundColor !== "transparent" && s.backgroundColor.length > 0) {
-			targetStyles.backgroundColor = s.backgroundColor;
-		}
-
-		const inlineStyle: CSSStyleDeclaration = link.style;
-		
-		if (s.iconBefore && s.iconBefore.length > 0) {
-			inlineStyle.setProperty("--scl-icon-before", `"${s.iconBefore}"`);
-		} else {
-			inlineStyle.removeProperty("--scl-icon-before");
-		}
-
-		if (s.iconAfter && s.iconAfter.length > 0) {
-			inlineStyle.setProperty("--scl-icon-after", `"${s.iconAfter}"`);
-		} else {
-			inlineStyle.removeProperty("--scl-icon-after");
-		}
-
-		link.setCssStyles(targetStyles);
-
-		// Typografi fra det sentrale oppslaget
-		if (s.fontWeight === "bold") link.addClass("scl-weight-bold");
-		if (s.fontWeight === "lighter") link.addClass("scl-weight-lighter");
-
-		if (s.decorations.includes("italic")) link.addClass("scl-style-italic");
-		if (s.decorations.includes("underline")) link.addClass("scl-decor-underline");
-		if (s.decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
-
-		// Klask på klassene fra det sentrale API-svaret (inkludert .scl-composite-X-Y)
-		const classesLen = resolution.classes.length;
-		for (let i = 0; i < classesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls && !link.classList.contains(cls)) {
-				link.addClass(cls);
+	if (presentation.hasMatch) {
+		// 1. Påfør inline-stiler via rå indeks-loop
+		const stylesCount = presentation.stylesCount;
+		for (let i = 0; i < stylesCount; i++) {
+			const key = presentation.styleKeys[i];
+			const val = presentation.styleValues[i];
+			if (key && val) {
+				inlineStyle.setProperty(key, val);
+				
+				if (key === "color") {
+					link.setAttribute("data-link-color", val);
+				}
 			}
 		}
-	} else {
-		link.setCssStyles({ color: "", backgroundColor: "" });
-		link.style.removeProperty("--scl-icon-before");
-		link.style.removeProperty("--scl-icon-after");
-	}
 
-	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
-	link.addClass("scl-processed");
+		// 2. Påfør klasser via rå indeks-loop
+		const classesCount = presentation.classesCount;
+		for (let i = 0; i < classesCount; i++) {
+			const cls = presentation.classes[i];
+			if (cls && !link.classList.contains(cls)) {
+				link.classList.add(cls);
+			}
+		}
+		} else {
+			// Hvis ingen regler matcher, sikrer vi en total vask av elementets fargeegenskaper
+			inlineStyle.removeProperty("color");
+			inlineStyle.removeProperty("background-color");
+			inlineStyle.removeProperty("--scl-color");
+			inlineStyle.removeProperty("--scl-bg");
+			inlineStyle.removeProperty("--scl-icon-before");
+			inlineStyle.removeProperty("--scl-icon-after");
+			
+			link.classList.add("data-link-text");
+			link.classList.add("scl-hide-before");
+			link.classList.add("scl-hide-after");
+		}
+
+		link.classList.add("scl-processed");
 }
 
 

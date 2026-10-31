@@ -281,10 +281,6 @@ export function updateContainer(
 	return styledCount;
 }
 
-/**
- * Contextual attribute updater targeting interface boundaries and multi-select pill layouts.
- * Synchronously evaluates the rule engine to execute O(1) barrier exits before queue allocation.
- */
 export function updateDivExtraAttributes(
 	app: App,
 	plugin: ResuperchargedLinks,
@@ -314,16 +310,27 @@ export function updateDivExtraAttributes(
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
 
+	// 1. LIVSSYKLUS-GUARD: Avbryt hvis motoren ikke er instansiert ennå (hindrer oppstarts-krasj)
+	if (!plugin.flyweightEngine) return;
+
+	// 2. ULTRA-RASKE O(1) BARRIERE-SJEKK (FØR NOE ANNET ARBEID GJØRES)
+	const visibleText: string = (link.textContent || "").trim();
+	const resolution = plugin.flyweightEngine.getResolution(cleanPath, visibleText);
+
+	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
+		if (plugin.telemetry) {
+			plugin.telemetry.logBarrierSkip(); // Logges direkte som en ren barriere-exit!
+		}
+		return;
+	}
+
 	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
 	if (dest === null) return;
 
-	// 1. Fetch the pure, shared metadata cache hit
+	// Siden noden skal endres, gjør vi det faktiske cache-oppslaget
 	const cachedProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, plugin.attrCycleCache);
 
-	// 2. Clone using a high-performance clear prototype maps to append context-specific markers
 	const localProps: Record<string, string> = Object.create(null) as Record<string, string>;
-
-	// Fast linear property copy loop to maintain V8 monomorphic structures
 	const propKeys = Object.keys(cachedProps);
 	const propKeysLen = propKeys.length;
 	for (let i = 0; i < propKeysLen; i++) {
@@ -333,61 +340,10 @@ export function updateDivExtraAttributes(
 		}
 	}
 
-	// 2. Synchronously run the rule engine against the cached attributes BEFORE queueing
-	const isDark: boolean = document.body.classList.contains("theme-dark");
-	const resolution = resolveRuleResolution({
-		compiledRules: plugin.compiledRules,
-		resolvedAttrs: localProps,
-		isDark,
-		includeTagMatchClasses: true 
-	});
-
 	localProps["data-href"] = dest.basename;
+	localProps["path"] = dest.path;
 
-	// 3. THE O(1) BARRIER CHECK: Verify if the DOM element already satisfies the rule resolution
-	let isAlreadyUpToDate = true;
-
-	if (resolution.hasMatch) {
-		const targetColor: string = resolution.style.color;
-		const targetBg: string = resolution.style.backgroundColor;
-
-		// Check custom attributes and variables
-		if (link.getAttribute("data-link-color") !== targetColor) isAlreadyUpToDate = false;
-		if (link.style.getPropertyValue("--scl-color") !== targetColor) isAlreadyUpToDate = false;
-		if (targetBg.length > 0 && targetBg !== "transparent" && link.style.getPropertyValue("--scl-bg") !== targetBg) isAlreadyUpToDate = false;
-
-		// Check internal classes mapped by the rule engine
-		if (resolution.style.fontWeight === "bold" && !link.classList.contains("scl-weight-bold")) isAlreadyUpToDate = false;
-		if (resolution.style.fontWeight === "lighter" && !link.classList.contains("scl-weight-lighter")) isAlreadyUpToDate = false;
-		if (resolution.style.decorations.includes("italic") && !link.classList.contains("scl-style-italic")) isAlreadyUpToDate = false;
-		if (resolution.style.decorations.includes("underline") && !link.classList.contains("scl-decor-underline")) isAlreadyUpToDate = false;
-		if (resolution.style.decorations.includes("line-through") && !link.classList.contains("scl-decor-linethrough")) isAlreadyUpToDate = false;
-
-		// Check dynamic standard classes
-		const classesLen: number = resolution.classes.length;
-		for (let i = 0; i < classesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
-				if (!link.classList.contains(cls)) {
-					isAlreadyUpToDate = false;
-					break;
-				}
-			}
-		}
-	} else {
-		// If it shouldn't have matches, ensure it doesn't possess active modifier trackers
-		if (link.hasAttribute("data-link-color") || link.classList.contains("scl-weight-bold") || link.classList.contains("scl-style-italic")) {
-			isAlreadyUpToDate = false;
-		}
-	}
-
-	// If the DOM matches perfectly, log to telemetry and bypass batcher allocation entirely!
-	if (isAlreadyUpToDate) {
-		plugin.telemetry.logBarrierSkip(); // ✨ Syncs with your printReport() logic
-		return;
-	}
-
-	// 4. Heavy execution branch: Only enqueue when structural mutations are strictly required
+	// Send direkte til den allokeringsfrie batchen
 	domBatcher.enqueue(link, localProps, plugin);
 }
 
