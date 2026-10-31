@@ -112,7 +112,8 @@
       "iconAfter": "🀄️",
       "lightBgColor": "#e0d23e",
       "_flyweightIdLight": 19,
-      "_flyweightIdDark": 20
+      "_flyweightIdDark": 20,
+      "iconBefore": "🦄"
     },
     {
       "type": "tag",

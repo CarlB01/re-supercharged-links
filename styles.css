@@ -355,34 +355,59 @@
 
 
 /* =========================================================================
-   🚀 UNIFIED DUAL-ENGINE ICON REFLECTION LAYER (CM6 & DOM COMPLIANT)
+   🚀 UNIFIED DUAL-ENGINE ICON LAYER WITH CONTEXTUAL DE-DUPLICATION
    ========================================================================= */
 
 .data-link-text::before {
-  content: var(--scl-icon-before, attr(data-scl-icon-before, ""));
+  content: var(--scl-icon-before, "");
   display: inline-block;
   flex-shrink: 0;
-  margin-right: 0.35em;
+  margin-right: calc(var(--scl-icon-before-margin, 1) * 0.35em);
   font-style: normal;
   font-weight: normal;
   text-decoration: none;
 }
 
 .data-link-text::after {
-  content: var(--scl-icon-after, attr(data-scl-icon-after, ""));
+  content: var(--scl-icon-after, "");
   display: inline-block;
   flex-shrink: 0;
-  margin-left: 0.35em;
+  margin-left: calc(var(--scl-icon-after-margin, 1) * 0.35em);
   font-style: normal;
   font-weight: normal;
   text-decoration: none;
 }
 
-/* Sentralisert de-duplisering: Skjul pseudo-elementene hvis klassen er aktiv */
-.data-link-text.scl-hide-before::before,
-.data-link-text[data-scl-icon-before=""]::before { content: "" !important; margin-right: 0 !important; }
-.data-link-text.scl-hide-after::after,
-.data-link-text[data-scl-icon-after=""]::after { content: "" !important; margin-left: 0 !important; }
+/* 1. Slett ikoner hvis kjerne-resolusjonen eller pipeline ber om det via skjul-klasser */
+.data-link-text.scl-hide-before::before { content: "" !important; margin-right: 0 !important; }
+.data-link-text.scl-hide-after::after { content: "" !important; margin-left: 0 !important; }
+
+/* 2. 🔑 DET MAGISKE CM6 ÅPEN-MODUS GREPET (Posisjonell rensing):
+   Når markøren står i en WikiLink, spalter CodeMirror opp lenken i unike søsken-spanner.
+   Vi må sørge for at stien ALDRI spyr ut et append-ikon midt inne i den åpne strukturen,
+   og at aliaset ALDRI spyr ut et duplisert prepend-ikon! */
+   
+/* Skjul append-ikon på stien (leading segment) når den etterfølges av en pipe eller et alias i editoren */
+.cm-editor .cm-link-has-alias::after,
+.cm-editor .cm-hmd-internal-link:has(+ .cm-link-alias-pipe)::after,
+.cm-editor [class*="scl-composite-"]::before:has(+ .cm-link-alias-pipe) {
+  content: "" !important;
+  margin-left: 0 !important;
+}
+
+/* Skjul prepend-ikon på aliaset (terminal segment) når det kommer rett etter en pipe i editoren */
+.cm-editor .cm-link-alias-pipe + .cm-link-alias::before,
+.cm-editor .cm-link-alias-pipe + [class*="scl-composite-"]::before {
+  content: "" !important;
+  margin-right: 0 !important;
+}
+
+/* Skjul ikoner fullstendig på den nakne skilletegn-pipen (|) */
+.cm-editor .cm-link-alias-pipe::before,
+.cm-editor .cm-link-alias-pipe::after {
+  content: "" !important;
+  margin: 0 !important;
+}
 
 
 /* =========================================================================

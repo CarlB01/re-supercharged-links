@@ -239,70 +239,55 @@ export class CMViewPlugin {
 		skipIconBefore = false, 
 		skipIconAfter = false
 	): Decoration {
-		const rawAttrs: Record<string, string> = fetchTargetAttributesCached(
-			this.app,
-			this.plugin,
-			file,
-			this.plugin.attrCycleCache
-		);
-
-		const attributes = mapRawAttrsToDataAttrs(rawAttrs);
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		
-		// Kjør den delte regel-motoren med nøyaktig samme input
-		const resolution = resolveRuleResolution({
-			compiledRules: this.plugin.compiledRules,
-			resolvedAttrs: rawAttrs,
-			isDark,
-			includeTagMatchClasses: true,
-			visibleText: visibleLabel,
-			skipIconBefore, 
-			skipIconAfter
-		});
+		// 1. Hent den ferdig akkumulerte fasiten fra kjerne-API-et (O(1))
+		const resolution = this.plugin.flyweightEngine.getResolution(file.path, visibleLabel);
 
 		if (!resolution.hasMatch) {
 			return Decoration.mark({});
 		}
 
-		const classes: string[] = [];
-		const classCount: number = resolution.classes.length;
-		for (let i = 0; i < classCount; i++) {
-			const c = resolution.classes[i];
-			if (c !== undefined && c !== null && c.length > 0) {
-				classes.push(c);
-			}
+		// 2. Bygg et minimalt attributtkart for å holde CodeMirror stabil
+		const attributes: Record<string, string> = Object.create(null);
+		attributes["data-link-path"] = file.path;
+
+		const classes: string[] = [...resolution.classes];
+		if (!classes.includes("data-link-text")) {
+			classes.push("data-link-text");
 		}
 
-		const resAttrs = resolution.attributes;
-		const attrKeys = Object.keys(resAttrs);
-		const attrKeysLen = attrKeys.length;
+		// 3. 🔥 DYNAMISK INLINE-VARIABEL STRØM FOR CM6:
+		// Vi bygger en superlett stil-streng med de ferdig akkumulerte fargene og ikonene.
+		// Vi respekterer skjul-flaggene fra pipeline-loopen direkte her!
+		let inlineStyle = "";
+		const s = resolution.styles;
 
-		for (let i = 0; i < attrKeysLen; i++) {
-			const attrKey = attrKeys[i];
-			if (attrKey !== undefined) {
-				const attrValue = resAttrs[attrKey];
-				if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
-					attributes[attrKey] = attrValue;
-				}
-			}
+		if (s.color) {
+			inlineStyle += `color: ${s.color}; `;
+		}
+		if (s.backgroundColor) {
+			inlineStyle += `background-color: ${s.backgroundColor}; `;
+		}
+		if (s.fontWeight) {
+			inlineStyle += `font-weight: ${s.fontWeight}; `;
 		}
 
-		// 🔥 DUAL-ENGINE SYNKRONSISERING FOR CM6:
-		// Vi legger ikonene inn i attributes-hashen for attr() fallback, 
-		// OG bygger en inline style-streng for lynrask CSS variabel-håndtering!
-		let inlineStyleString = "";
-		if (resolution.iconBefore && resolution.iconBefore.length > 0) {
-			attributes["data-scl-icon-before"] = resolution.iconBefore;
-			inlineStyleString += `--scl-icon-before: "${resolution.iconBefore}"; `;
-		}
-		if (resolution.iconAfter && resolution.iconAfter.length > 0) {
-			attributes["data-scl-icon-after"] = resolution.iconAfter;
-			inlineStyleString += `--scl-icon-after: "${resolution.iconAfter}"; `;
+		// Injiser ikoner hvis de ikke er undertrykt av posisjonen i lenken
+		if (s.iconBefore && !skipIconBefore) {
+			inlineStyle += `--scl-icon-before: "${s.iconBefore}"; `;
+		} else {
+			classes.push("scl-hide-before");
 		}
 
-		const decoSpec: any = { attributes };
-		if (classes.length > 0) decoSpec.class = classes.join(" ");
-		if (inlineStyleString.length > 0) decoSpec.style = inlineStyleString;
+		if (s.iconAfter && !skipIconAfter) {
+			inlineStyle += `--scl-icon-after: "${s.iconAfter}"; `;
+		} else {
+			classes.push("scl-hide-after");
+		}
+
+		const decoSpec: any = { attributes, class: classes.join(" ") };
+		if (inlineStyle.length > 0) {
+			decoSpec.style = inlineStyle;
+		}
 
 		return Decoration.mark(decoSpec);
 	}
@@ -474,8 +459,7 @@ export class CMViewPlugin {
 
 	/**
 	 * Isolated Production Pipeline for structural WikiLinks ([[path|alias]]).
-	 * Computes absolute node boundaries and streams unified decorations linearly via AST layout.
-	 * Dynamically evaluates token-level labels to prevent icon duplication across open segments.
+	 * Korrigert for å sende 100% korrekte posisjonelle flagg i åpen vs lukket modus.
 	 */
 	private processWikiLinkPipeline(
 		view: EditorView,
@@ -484,7 +468,6 @@ export class CMViewPlugin {
 		nodeNameLower: string,
 		nodeRangeKey: string
 	): boolean {
-		// Enforce constraint: Only let the primary anchor nodes coordinate the inline sequence sweep
 		const isPrimaryAnchor = nodeNameLower.includes("hmd-internal-link") || nodeNameLower.includes("link-has-alias") || nodeNameLower.includes("cm-link-has-alias");
 		if (!isPrimaryAnchor) {
 			state.processedRanges.add(nodeRangeKey);
@@ -494,15 +477,13 @@ export class CMViewPlugin {
 		const currentLine = view.state.doc.lineAt(node.from);
 		let targetPathToken = "";
 		let wikiEndPosition = node.to;
-		let isKjedeLukket = false; // 🔑 THE SAFETY LOCK: Restricts multi-link bleed
+		let isChainClosed = false; 
 
-		// UNIFIED WIKILINK LOOKAHEAD: Scan forward within line boundaries to resolve path string and lock the closing brackets
 		syntaxTree(view.state).iterate({
 			from: node.from,
 			to: currentLine.to,
 			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
-				if (isKjedeLukket) return true;
-
+				if (isChainClosed) return true;
 				const sibName = sibling.name.toLowerCase();
 				
 				if (sibName.includes("hmd-internal-link") || sibName.includes("link-has-alias") || sibName.includes("cm-link-has-alias")) {
@@ -511,18 +492,16 @@ export class CMViewPlugin {
 					}
 				}
 				
-				// MEMORY OPTIMIZATION: Shield heap allocations by only string-slicing explicit formatting elements
 				if (sibName.includes("formatting")) {
 					if (view.state.doc.sliceString(sibling.from, sibling.to) === "]]" && sibling.from >= node.to) {
 						wikiEndPosition = sibling.to;
-						isKjedeLukket = true;
+						isChainClosed = true;
 					}
 				}
 				return true;
 			}
 		});
 
-		// Fallback block if the tree is completely collapsed/closed
 		if (targetPathToken.length === 0) {
 			targetPathToken = view.state.doc.sliceString(node.from, node.to);
 		}
@@ -535,34 +514,49 @@ export class CMViewPlugin {
 			return true;
 		}
 
-		// CONSTRAINED SINGLE-PASS INJECTION: Paint exactly the tokens isolated within this link's validated boundaries
 		syntaxTree(view.state).iterate({
 			from: node.from,
 			to: wikiEndPosition,
 			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 				const sName = sibling.name.toLowerCase();
 				
-				// Target internal links, aliases, and the pipe character cleanly under a unified selection matrix
-				const isEkteWikiNode = 
-					sName.includes("hmd-internal-link") || 
-					sName.includes("cm-link-has-alias") || 
-					sName.includes("link-has-alias") || 
-					sName.includes("cm-link-alias") ||
-					sName.includes("link-alias");
+				const isPathNode = sName.includes("hmd-internal-link") || sName.includes("cm-link-has-alias") || sName.includes("link-has-alias");
+				const isAliasNode = sName.includes("cm-link-alias") || sName.includes("link-alias");
 
-				if (isEkteWikiNode) {
+				if (isPathNode || isAliasNode) {
 					const sText = view.state.doc.sliceString(sibling.from, sibling.to);
 					
 					if (sText === "|") {
-						const pipeDeco: Decoration = this.processLinkDecoration(file, "", true);
+						// 2. TOKEN (Pipen): Alltid skjul begge ikoner!
+						const pipeDeco: Decoration = this.processLinkDecoration(file, "", true, true);
 						this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
-					} else {
+					} 
+					else if (isPathNode) {
 						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
-						const localizedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel);
-
-						this.decorateRangeOnce(state, sibling.from, sibling.to, localizedDeco);
+						
+						if (isChainClosed) {
+							// 🔒 LUKKET MODUS (Hel capsule): Vis begge ikoner natively
+							const closedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, false);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
+						} else {
+							// 🔓 ÅPEN MODUS - 1. TOKEN (Stien): Vis prepend, undertrykk append!
+							const openPathDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, true);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, openPathDeco);
+						}
+					} 
+					else if (isAliasNode) {
+						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+						
+						if (isChainClosed) {
+							const closedDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, false);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
+						} else {
+							// 🔓 ÅPEN MODUS - 3. TOKEN (Alias): Undertrykk prepend, vis append!
+							const openAliasDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, true, false);
+							this.decorateRangeOnce(state, sibling.from, sibling.to, openAliasDeco);
+						}
 					}
-					// Avoids backtick allocations entirely inside the hot sibling iterator
+					
 					const siblingKey = sibling.from + "-" + sibling.to;
 					state.processedRanges.add(siblingKey);
 				}
@@ -611,49 +605,17 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 	return null;
 }
 
+/**
+ * 🎨 STANDARDIZED EDITORS COMPARTMENT:
+ * Deaktivert for dynamiske regler da FlyweightEngine.refreshGlobalStyles() 
+ * nå leverer de ferdig akkumulerte stilene universelt til hele appen.
+ */
 export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
-	const themeSpec: Record<string, Record<string, string>> = {};
-	const selectors: CSSLink[] = Array.isArray(plugin.settings?.selectors) ? plugin.settings.selectors : [];
-	const isDark: boolean = document.body.classList.contains("theme-dark");
-
-	const selectorsCount: number = selectors.length;
-	for (let i = 0; i < selectorsCount; i++) {
-		const rule: CSSLink | null = selectors[i] ?? null;
-		if (rule === null) continue;
-
-		const runtimeId: string = String(i);
-		const ruleStyles: Record<string, string> = {};
-
-		const textSelection: string = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-		if (textSelection.length > 0) ruleStyles.color = textSelection;
-
-		const bgSelection: string = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
-		if (bgSelection.length > 0 && bgSelection !== "transparent") ruleStyles["background-color"] = bgSelection;
-
-		const fontWeight: string = rule.fontWeight ?? "normal";
-		if (fontWeight !== "normal") ruleStyles["font-weight"] = fontWeight;
-
-		const fontStyle: string = rule.fontStyle ?? "normal";
-		if (fontStyle === "italic") ruleStyles["font-style"] = "italic";
-		if (fontStyle === "underline") ruleStyles["text-decoration"] = "underline";
-		if (fontStyle === "line-through") ruleStyles["text-decoration"] = "line-through";
-
-		if (Object.keys(ruleStyles).length > 0) {
-			// Construct a high-specificity selector chain to force color inheritance 
-			// down to the innermost .cm-underline node within closed Live Preview links.
-			const selector: string = 
-				`&.data-link-text.scl-rule-${runtimeId}, ` +
-				`.scl-rule-${runtimeId} .cm-underline, ` +
-				`.cm-link:has(.scl-rule-${runtimeId}) .cm-underline, ` + // Targets the parent container if supported
-				`.scl-rule-${runtimeId}`;
-				
-			themeSpec[selector] = ruleStyles;
-		}
-
-	}
-
-	return EditorView.theme(themeSpec);
+	// Returner tom utvidelse. Editoren henter nå farger og ikoner 
+	// fra det felles globale stilarket, og akkumuleringen blir 100% perfekt!
+	return [];
 }
+
 
 export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): Extension {
 	return ViewPlugin.fromClass(

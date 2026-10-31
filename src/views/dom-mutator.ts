@@ -125,145 +125,77 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 }
 
 export function applyStylesAndAttributesToLink(link: HTMLElement, rawAttrs: Record<string, string>, plugin: ResuperchargedLinks): void {
-	const isDark: boolean = document.body.classList.contains("theme-dark");
 	const pathKey: string = rawAttrs["path"] || "";
-
-	// 🔥 Hent nodens faktiske synlige tekst for O(1) de-duplisering i dypet
 	const visibleText: string = (link.textContent || "").trim();
 
-	// 1. Kjør regel-motoren
-	const resolution = resolveRuleResolution({
-		compiledRules: plugin.compiledRules,
-		resolvedAttrs: rawAttrs,
-		isDark,
-		includeTagMatchClasses: true,
-		visibleText: visibleText
-	});
+	// 1. Hent fasiten fra det sentrale bakgrunns-API-et (O(1))
+	const resolution = plugin.flyweightEngine.getResolution(pathKey, visibleText);
 
-	// 2. DYP FLYWEIGHT BARRIERE-SJEKK
-	const ruleVersion: number = plugin.getRuleConfigVersion();
-	const targetSignature: string = `${ruleVersion}|${resolution.matchedFlyweightIds.join(",")}|${pathKey}`;
-	
-	if (link.getAttribute("data-scl-signature") === targetSignature && link.classList.contains("scl-processed")) {
-		return;
+	// 2. O(1) Dyp barriere-sjekk via den unike kompositt-signaturen
+	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
+		return; 
 	}
 
+	// 3. Nullstill forrige syklus sine klasser og attributter
 	clearExtraAttributes(link);
-	link.setAttribute("data-scl-signature", targetSignature);
+	
+	// 4. Lås den nye signaturen fast på elementet
+	link.setAttribute("data-scl-signature", resolution.signature);
 
 	if (resolution.hasMatch) {
 		const targetStyles: Partial<CSSStyleDeclaration> = {};
-		
-		if (resolution.style.color && resolution.style.color.length > 0) {
-			targetStyles.color = resolution.style.color;
+		const s = resolution.styles;
+
+		// 🌟 ROBUST HYBRID-REFLEKSJON: Farger og bakgrunn settes inline for 100% 
+		// kompatibilitet med Lesemodus/DOM, mens ikoner tildeles via lette CSS-variabler.
+		if (s.color && s.color.length > 0) {
+			targetStyles.color = s.color;
+			link.setAttribute("data-link-color", s.color);
 		}
-		if (resolution.style.backgroundColor && resolution.style.backgroundColor !== "transparent" && resolution.style.backgroundColor.length > 0) {
-			targetStyles.backgroundColor = resolution.style.backgroundColor;
+		if (s.backgroundColor && s.backgroundColor !== "transparent" && s.backgroundColor.length > 0) {
+			targetStyles.backgroundColor = s.backgroundColor;
+		}
+
+		const inlineStyle: CSSStyleDeclaration = link.style;
+		
+		if (s.iconBefore && s.iconBefore.length > 0) {
+			inlineStyle.setProperty("--scl-icon-before", `"${s.iconBefore}"`);
+		} else {
+			inlineStyle.removeProperty("--scl-icon-before");
+		}
+
+		if (s.iconAfter && s.iconAfter.length > 0) {
+			inlineStyle.setProperty("--scl-icon-after", `"${s.iconAfter}"`);
+		} else {
+			inlineStyle.removeProperty("--scl-icon-after");
 		}
 
 		link.setCssStyles(targetStyles);
 
-		// 🔥 SKYV DATA DIREKTE UT FRA DATA-KONTRAKTEN:
-		const inlineStyle: CSSStyleDeclaration = link.style;
-		
-		if (resolution.iconBefore && resolution.iconBefore.length > 0) {
-			inlineStyle.setProperty("--scl-icon-before", `"${resolution.iconBefore}"`);
-			link.setAttribute("data-scl-icon-before", resolution.iconBefore);
-		} else {
-			inlineStyle.removeProperty("--scl-icon-before");
-			link.removeAttribute("data-scl-icon-before");
-		}
+		// Typografi fra det sentrale oppslaget
+		if (s.fontWeight === "bold") link.addClass("scl-weight-bold");
+		if (s.fontWeight === "lighter") link.addClass("scl-weight-lighter");
 
-		if (resolution.iconAfter && resolution.iconAfter.length > 0) {
-			inlineStyle.setProperty("--scl-icon-after", `"${resolution.iconAfter}"`);
-			link.setAttribute("data-scl-icon-after", resolution.iconAfter);
-		} else {
-			inlineStyle.removeProperty("--scl-icon-after");
-			link.removeAttribute("data-scl-icon-after");
-		}
+		if (s.decorations.includes("italic")) link.addClass("scl-style-italic");
+		if (s.decorations.includes("underline")) link.addClass("scl-decor-underline");
+		if (s.decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
 
-		if (resolution.style.fontWeight === "bold") link.addClass("scl-weight-bold");
-		if (resolution.style.fontWeight === "lighter") link.addClass("scl-weight-lighter");
-
-		const decorations: readonly string[] = resolution.style.decorations || [];
-		if (decorations.includes("italic")) link.addClass("scl-style-italic");
-		if (decorations.includes("underline")) link.addClass("scl-decor-underline");
-		if (decorations.includes("line-through")) link.addClass("scl-decor-linethrough");
-
-		// Rull ut atomene
-		const matchedIds: number[] = resolution.matchedFlyweightIds;
-		const matchedIdsLen: number = matchedIds.length;
-		const registry = plugin.ruleRegistry;
-
-		for (let i = 0; i < matchedIdsLen; i++) {
-			const rawAtomId = matchedIds[i];
-			if (rawAtomId === undefined || rawAtomId === null) continue;
-			const atomId: number = rawAtomId;
-			const atom = registry.get(atomId);
-			
-			if (atom !== undefined && atom !== null) {
-				link.addClass(atom.semanticClass);
-
-				const atomAttrs = atom.attributes;
-				const staticKeys: string[] = plugin.activeHyphenatedKeysArray;
-				const staticKeysLen: number = staticKeys.length;
-				for (let j = 0; j < staticKeysLen; j++) {
-					const rawAttrKey = staticKeys[j];
-					if (rawAttrKey === undefined || rawAttrKey === null) continue;
-
-					const attrKey: string = rawAttrKey;
-					const attrValue = atomAttrs[attrKey];
-					if (attrValue !== undefined && attrValue !== null && attrValue.length > 0) {
-						link.setAttribute(attrKey, attrValue);
-					}
-				}
+		// Klask på klassene fra det sentrale API-svaret (inkludert .scl-composite-X-Y)
+		const classesLen = resolution.classes.length;
+		for (let i = 0; i < classesLen; i++) {
+			const cls = resolution.classes[i];
+			if (cls && !link.classList.contains(cls)) {
+				link.addClass(cls);
 			}
 		}
 	} else {
 		link.setCssStyles({ color: "", backgroundColor: "" });
 		link.style.removeProperty("--scl-icon-before");
 		link.style.removeProperty("--scl-icon-after");
-		link.removeAttribute("data-scl-icon-before");
-		link.removeAttribute("data-scl-icon-after");
 	}
 
-	// 5. Metadata-injisering
-	const propKeys: string[] = plugin.activeHyphenatedKeysArray;
-	const propKeysLen: number = propKeys.length;
-	for (let i = 0; i < propKeysLen; i++) {
-		const rawKey = propKeys[i];
-		if (rawKey === undefined || rawKey === null) continue;
-
-		const key: string = rawKey;
-		if (key === "href" || key === "data-href" || key === "id" || key === "path") {
-			continue;
-		}
-		
-		const propValue: string | undefined | null = rawAttrs[key];
-		if (propValue === undefined || propValue === null) continue;
-
-		const domKey: string = cleanAttributeKey(key);
-		const attributeName: string = `data-link-${domKey}`;
-		let newValue: string | null = processValue(key, propValue);
-
-		if (domKey === "tags" && newValue !== null) {
-			const cleanTokens: string[] = parseSpaceSeparatedTokens(newValue);
-			newValue = stringifyTags(cleanTokens);
-		}
-
-		if (newValue !== null && newValue.length > 0) {
-			link.setAttribute(attributeName, newValue);
-		}
-	}
-
-	// Til slutt, rull ut klassene fra resolusjonen direkte (inkludert felles scl-hide-before/after!)
-	const resClassesLen = resolution.classes.length;
-	for (let i = 0; i < resClassesLen; i++) {
-		const cls = resolution.classes[i];
-		if (cls && !link.classList.contains(cls)) {
-			link.addClass(cls);
-		}
-	}
-
+	if (!link.classList.contains("data-link-text")) link.addClass("data-link-text");
 	link.addClass("scl-processed");
 }
+
+

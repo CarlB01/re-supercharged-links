@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, View, Plugin, debounce, Notice, App } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, getLinkpath } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
@@ -7,15 +7,17 @@ import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/setti
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
-import { CompiledRule, compileSelectors } from '../processors/rule-engine';
+import { CompiledRule, compileSelectors, resolveRuleResolution } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
 import { CSSLink } from '../types/css-link';
 import { AttributeCacheManager } from '../processors/cache-manager';
-import { cleanAttributeKey, compactPrefixes, normalizePathForQueue } from '../utils/shared-utils';
+import { cleanAttributeKey, compactPrefixes, extractCleanLinkPath, normalizePathForQueue } from '../utils/shared-utils';
 import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 import { SCLSettings } from '../settings/settings-constants';
+import { fetchTargetAttributesCached } from '../processors/attribute-fetcher';
+import { FlyweightEngine } from "./flyweight-engine";
 
 interface ObsidianInternalMarkdownView extends View {
 	editor?: {
@@ -32,6 +34,8 @@ interface ObsidianPluginRegistry {
 export default class ResuperchargedLinks extends Plugin {
 	declare public settings: SCLSettings;
 	public settingTab!: SCLSettingTab;
+	public flyweightEngine!: FlyweightEngine;
+
 	public observers!: [MutationObserver, string, string][];
 	public modalObservers!: MutationObserver[];
 	public attrCycleCache!: Map<string, Record<string, string>>;
@@ -206,6 +210,9 @@ export default class ResuperchargedLinks extends Plugin {
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
+		this.flyweightEngine = new FlyweightEngine(this.app, this);
+		this.flyweightEngine.refreshGlobalStyles();
+
 		this.addCommand({
 			id: "scl-telemetry-report",
 			name: "Print styling performance telemetry report",
@@ -270,7 +277,8 @@ export default class ResuperchargedLinks extends Plugin {
 		});
 	}
 	
-	public override onunload(): void {		
+	public override onunload(): void {	
+		this.flyweightEngine.destroy();	
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();
 		this.activeAttributesSet.clear();
@@ -461,4 +469,5 @@ export default class ResuperchargedLinks extends Plugin {
 			void violation;
 		}
 	}
+
 }

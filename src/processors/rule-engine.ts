@@ -31,7 +31,6 @@ export interface CompiledRule {
 
 export interface RuleResolution {
 	readonly hasMatch: boolean;
-	// 🔥 FLYWEIGHT MATCHER: En tett array av matchende atom-ID-er (lynrask lineær iterasjon i dom-mutator)
 	readonly matchedFlyweightIds: number[];
 	readonly classes: string[]; 
 	readonly attributes: Record<string, string>;
@@ -177,10 +176,9 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	const isDark: boolean = input.isDark;
 	const includeTagMatchClasses: boolean = input.includeTagMatchClasses;
 
-	const classList: string[] = ["data-link-text"];
-	const matchedFlyweightIds: number[] = [];
-	let flyweightCount = 0;
-
+	const matchedIds: number[] = [];
+	const matchedRuleIndexes: number[] = [];
+	
 	let hasMatch = false;
 	let color = "";
 	let backgroundColor = "";
@@ -195,27 +193,31 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		if (rule === null || !rule.match(resolvedAttrs)) continue;
 
 		hasMatch = true;
-		classList.push(`scl-rule-${rule.index}`);
+		matchedRuleIndexes.push(rule.index);
 
 		const targetId = isDark ? rule.flyweightIdDark : rule.flyweightIdLight;
 		if (targetId > 0) {
-			matchedFlyweightIds[flyweightCount++] = targetId;
+			matchedIds.push(targetId);
 		}
 
+		// 🎨 Siste regel overskriver farge og bakgrunn helt lineært
 		const textSelection: string = isDark ? rule.darkColor : rule.lightColor;
 		if (textSelection.length > 0) color = textSelection;
 
 		const bgSelection: string = isDark ? rule.darkBgColor : rule.lightBgColor;
 		if (bgSelection.length > 0 && bgSelection !== "transparent") backgroundColor = bgSelection;
 
-		if (rule.fontWeight === "lighter" || rule.fontWeight === "bold") {
+		// 💪 Fet eller tynn overskriver forrige. Normal gjør ingenting.
+		if (rule.fontWeight === "bold" || rule.fontWeight === "lighter") {
 			fontWeight = rule.fontWeight;
 		}
 
+		// 🪄 Tekstpynt akkumuleres stabilt via bitwise OR (|=)
 		if (rule.fontStyle === "italic") decorationBits |= DECOR_ITALIC;
 		if (rule.fontStyle === "underline") decorationBits |= DECOR_UNDERLINE;
 		if (rule.fontStyle === "line-through") decorationBits |= DECOR_LINE_THROUGH;
 
+		// 🐕 Siste regel erstatter forrige ikon fullstendig
 		if (rule.iconBefore.length > 0) iconBefore = rule.iconBefore;
 		if (rule.iconAfter.length > 0) iconAfter = rule.iconAfter;
 	}
@@ -225,31 +227,51 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if ((decorationBits & DECOR_UNDERLINE) !== 0) decorations.push("underline");
 	if ((decorationBits & DECOR_LINE_THROUGH) !== 0) decorations.push("line-through");
 
+	const classList: string[] = ["data-link-text"];
+	
+	// Lag den unike sammensatte klassen for det globale stilarket
+	if (matchedRuleIndexes.length > 0) {
+		classList.push(`scl-composite-${matchedRuleIndexes.join("-")}`);
+	}
+
 	const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 	attributes["data-link-color"] = color;
-	attributes["data-link-bg"] = (backgroundColor !== "transparent") ? backgroundColor : "";
+	attributes["data-link-bg"] = backgroundColor;
 	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";
 	attributes["data-link-style-decoration"] = decorations.length > 0 ? decorations.join(" ") : "";
-	
-	// 🔥 OPPDATERT DETEKSJONS-LOGIKK I DYPET:
-	const targetText: string = (input.visibleText ?? "").trim();
-	
-	// Sjekk om teksten FAKTISKT starter med en ekte emoji, eller om den spesifikt matcher regelens ikon
-	const hasBeforeConflict = EMOJI_START_REGEX.test(targetText) || (iconBefore.length > 0 && targetText.startsWith(iconBefore));
-	const hasAfterConflict = EMOJI_END_REGEX.test(targetText) || (iconAfter.length > 0 && targetText.endsWith(iconAfter));
 
-	// Vi mapper både til dine opprinnelige attributtnavn (data-scl-icon) og fallback
+	// Sjekk for emoji-konflikter i lenketeksten for de-duplisering via Extended_Pictographic
+	const targetText: string = (input.visibleText ?? "").trim();
+	const hasBeforeConflict = /^\p{Extended_Pictographic}/u.test(targetText) || (iconBefore.length > 0 && targetText.startsWith(iconBefore));
+	const hasAfterConflict = /\p{Extended_Pictographic}$/u.test(targetText) || (iconAfter.length > 0 && targetText.endsWith(iconAfter));
+
 	attributes["data-scl-icon-before"] = (!input.skipIconBefore && !hasBeforeConflict && iconBefore.length > 0) ? iconBefore : "";
 	attributes["data-scl-icon-after"] = (!input.skipIconAfter && !hasAfterConflict && iconAfter.length > 0) ? iconAfter : "";
 	attributes["data-link-tags"] = "";
 
-	// Hvis vi fant en reell konflikt, legg til skjul-klassene så CSS-en rydder opp
+	if (includeTagMatchClasses) {
+		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
+		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
+
+		if (tagsArray.length > 0) {
+			attributes["data-link-tags"] = stringifyTags(tagsArray);
+		}
+
+		const tagsLen = tagsArray.length;
+		for (let j = 0; j < tagsLen; j++) {
+			const cleanTag = tagsArray[j];
+			if (cleanTag !== undefined && cleanTag !== null && cleanTag.length > 0) {
+				classList.push(`scl-match-tag-${cleanTag}`);
+			}
+		}
+	}
+
 	if (hasBeforeConflict && iconBefore.length > 0) classList.push("scl-hide-before");
 	if (hasAfterConflict && iconAfter.length > 0) classList.push("scl-hide-after");
 
 	return {
 		hasMatch,
-		matchedFlyweightIds,
+		matchedFlyweightIds: matchedIds,
 		classes: classList,
 		attributes,
 		iconBefore: attributes["data-scl-icon-before"],
