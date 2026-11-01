@@ -1,22 +1,18 @@
-import { WorkspaceLeaf, View, Plugin, debounce, Notice, App, getLinkpath } from 'obsidian';
+import { WorkspaceLeaf, View, Plugin, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
-
 import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
-import { CompiledRule, compileSelectors, resolveRuleResolution } from '../processors/rule-engine';
+import { compileSelectors } from '../processors/rule-engine';
 import { updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
-import { CSSLink } from '../types/css-link';
 import { AttributeCacheManager } from '../processors/cache-manager';
-import { cleanAttributeKey, compactPrefixes, extractCleanLinkPath, normalizePathForQueue } from '../utils/shared-utils';
 import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 import { SCLSettings } from '../settings/settings-constants';
-import { fetchTargetAttributesCached } from '../processors/attribute-fetcher';
 import { FlyweightEngine } from "./flyweight-engine";
 
 interface ObsidianInternalMarkdownView extends View {
@@ -39,160 +35,13 @@ export default class ResuperchargedLinks extends Plugin {
 	public observers!: [MutationObserver, string, string][];
 	public modalObservers!: MutationObserver[];
 	public attrCycleCache!: Map<string, Record<string, string>>;
-	public activeAttributesSet: Set<string> = new Set();
-	public activeAttributesArray: string[] = [];
-	public activeHyphenatedKeysArray: string[] = [];
-
+	
 	public telemetry!: PluginPerformanceTracker;
 	public cacheManager!: AttributeCacheManager;
-	public compiledRules: CompiledRule[] = [];
 	
-	// Et raskt O(1) tall-til-objekt kart for render-løkken
-	public ruleRegistry: Map<number, { 
-		semanticClass: string; 
-		color: string; 
-		backgroundColor: string; 
-		fontWeight: string;
-		fontStyle: string;
-		iconBefore: string;
-		iconAfter: string;
-		attributes: Record<string, string>; 
-		classes: string[]; 
-	}> = new Map();
-
-	private ruleConfigVersion = 0;
 	private lastAppliedThemeHash = ""; // 🚀 Tracks the applied theme signature to bypass redundant reconfigure frames
-	private readonly pendingChangedPaths: Set<string> = new Set();
-	private readonly pendingChangedPrefixes: Set<string> = new Set();
-
-	private readonly scheduleVisibleRefresh = debounce((): void => {
-		this.flushPendingRefresh();
-	}, 180, false);
 
 	private doTelemetry = true;
-
-	public enqueuePath(path: string): void {
-		const normalized: string = normalizePathForQueue(path);
-		if (normalized.length === 0) return;
-		this.pendingChangedPaths.add(normalized);
-	}
-
-	public enqueuePrefix(prefix: string): void {
-		const normalized: string = normalizePathForQueue(prefix);
-		if (normalized.length === 0) return;
-		this.pendingChangedPrefixes.add(normalized.endsWith("/") ? normalized : `${normalized}/`);
-	}
-
-	public triggerScheduleRefresh(): void {
-		this.scheduleVisibleRefresh();
-	}
-
-	public touchAttrCacheKey(key: string): void {
-		this.cacheManager.touchAttrCacheKey(key);
-	}
-
-	private flushPendingRefresh(): void {
-		if (this.pendingChangedPaths.size === 0 && this.pendingChangedPrefixes.size === 0) return;
-
-		const pathSet = new Set<string>();
-		this.pendingChangedPaths.forEach((p) => pathSet.add(p));
-		
-		const changedPrefixes: string[] = [];
-		this.pendingChangedPrefixes.forEach((p) => changedPrefixes.push(p));
-
-		this.pendingChangedPaths.clear();
-		this.pendingChangedPrefixes.clear();
-
-		const compactedPrefixes: string[] = compactPrefixes(changedPrefixes);
-		const prefixSet = new Set<string>();
-		for (let i = 0; i < compactedPrefixes.length; i++) {
-			const pref = compactedPrefixes[i];
-			if (pref) prefixSet.add(pref);
-		}
-
-		const trackingActive: boolean = this.telemetry.getTrackingState();
-		const startMark: number = trackingActive ? Date.now() : 0;
-
-		const nodesProcessed: number = updateVisibleLinks(this.app, this, { paths: pathSet, prefixes: prefixSet });
-
-		if (trackingActive) {
-			const elapsed: number = Date.now() - startMark;
-			this.telemetry.recordUpdateCycle(elapsed, nodesProcessed);
-		}
-	}
-
-	public invalidateAttrCacheByPath(path: string): void {
-		if (this.cacheManager !== null) {
-			this.cacheManager.invalidatePath(path);
-		}
-	}
-
-	public invalidateAttrCacheByPrefix(prefix: string): void {
-		if (this.cacheManager !== null) {
-			this.cacheManager.invalidatePrefix(prefix);
-		}
-	}
-
-	public bumpRuleConfigVersion(): void {
-		this.ruleConfigVersion += 1;
-		const selectorsArray = this.settings?.selectors ?? [];
-		this.compiledRules = compileSelectors(selectorsArray);
-		this.clearAttrCycleCache();
-	}
-
-	public getRuleConfigVersion(): number {
-		return this.ruleConfigVersion;
-	}
-
-	public clearAttrCycleCache(): void {
-		if (this.cacheManager) {
-			this.cacheManager.clearAllCache();
-		}
-	}
-
-	/**
-	 * Reconfigures CodeMirror 6 editor extensions safely across active workspace leaves.
-	 * Implements a strict O(1) state hash barrier to completely bypass layout sweeps 
-	 * when compiled styling rules and active core dark/light status remain static.
-	 */
-	public refreshEditorThemes(): void {
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const version: number = this.getRuleConfigVersion();
-		
-		// Compile a precise structural state string tracking environment changes
-		const currentThemeHash = `${version}-${isDark ? "dark" : "light"}`;
-
-		// 🚀 THE O(1) BARRIER INTERCEPT: Haltet instantly if the configuration maps perfectly to memory
-		if (this.lastAppliedThemeHash === currentThemeHash) {
-			return;
-		}
-
-		// Store the fresh signature instantly to protect subsequent redundant calls
-		this.lastAppliedThemeHash = currentThemeHash;
-
-		const currentTheme = createRuntimeEditorTheme(this);
-		
-		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			const view = leaf.view ?? null;
-			if (view === null) return;
-
-			if (view.getViewType() === "markdown") {
-				const markdownView = view as ObsidianInternalMarkdownView;
-				const cm = markdownView.editor?.cm ?? null;
-				
-				// Verify instance health and ensuring the state compartment mapping exists natively
-				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== null) {
-					try {
-						cm.dispatch({
-							effects: themeCompartment.reconfigure(currentTheme)
-						});
-					} catch {
-						return;
-					}
-				}
-			}
-		});
-	}
 
 	public override async onload(): Promise<void> {
 		this.observers = [];
@@ -200,19 +49,17 @@ export default class ResuperchargedLinks extends Plugin {
 		this.attrCycleCache = new Map();
 		
 		this.telemetry = new PluginPerformanceTracker(this.doTelemetry);
-		this.cacheManager = new AttributeCacheManager(this.attrCycleCache);
+		this.cacheManager = new AttributeCacheManager(this.app, this, this.attrCycleCache);
 		await this.cleanupLegacySnippetFile();
 		this.detectPluginCollisions();
 		
 		await this.loadSettings();
-		this.compileActiveAttributes();
 		
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
 		this.flyweightEngine = new FlyweightEngine(this.app, this);
-		this.flyweightEngine.refreshGlobalStyles();
-
+		
 		this.addCommand({
 			id: "scl-telemetry-report",
 			name: "Print styling performance telemetry report",
@@ -254,7 +101,7 @@ export default class ResuperchargedLinks extends Plugin {
 		]);
 
 		this.app.workspace.onLayoutReady((): void => {
-			this.clearAttrCycleCache();
+			this.cacheManager.clearAttrCycleCache();
 			initViewObservers(this);
 
 			const currentDoc: Document | null = document ?? null;
@@ -279,11 +126,7 @@ export default class ResuperchargedLinks extends Plugin {
 	
 	public override onunload(): void {	
 		this.flyweightEngine.destroy();	
-		this.pendingChangedPaths.clear();
-		this.pendingChangedPrefixes.clear();
-		this.activeAttributesSet.clear();
-		this.activeAttributesArray = [];
-		this.compiledRules = [];
+		this.cacheManager.destroy();
 		this.lastAppliedThemeHash = "";
 		
 		if (this.attrCycleCache) {
@@ -294,136 +137,12 @@ export default class ResuperchargedLinks extends Plugin {
 		removeStylingFromViews(this);
 	}
 
-	/**
-	 * Atomiserer komplekse brukerregler til et globalt Flyweight-register med unike tall-ID-er.
-	 * Håndterer Light- og Dark-mode som separate, lynraske atomer.
-	 */
-	public compileActiveAttributes(): void {
-		this.activeAttributesSet.clear();
-		this.activeAttributesArray = [];
-		
-		// 1. Nullstill og pre-populer den flate systemfelt-indeksen
-		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
-		
-		// 2. Tøm det gamle Flyweight-registeret
-		this.ruleRegistry.clear();
-		
-		if (this.settings === null || this.settings.selectors === null) return;
-
-		const selectorsProxy: CSSLink[] = this.settings.selectors;
-		if (!Array.isArray(selectorsProxy)) return;
-		
-		const len = selectorsProxy.length;
-		let ruleIdCounter = 1; // Unike numeriske ID-er for atomene
-
-		for (let i = 0; i < len; i++) {
-			const selector: CSSLink | null = selectorsProxy[i] ?? null;
-			if (selector === null) continue;
-
-			// Registrer rå-attributter for filskanneren
-			if (selector.type === "attribute") {
-				const attrName: unknown = selector.name;
-				if (typeof attrName === "string" && attrName.length > 0) {
-					this.activeAttributesSet.add(attrName);
-					
-					const cleaned: string = cleanAttributeKey(attrName);
-					if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
-						this.activeHyphenatedKeysArray.push(cleaned);
-					}
-				}
-			}
-
-			// 3. Generer et vakkert, semantisk klassenavn for eksterne utviklere
-			let semanticName = "";
-			if (selector.type === "attribute" && typeof selector.name === "string") {
-				const cleanValue = typeof selector.value === "string" ? cleanAttributeKey(selector.value) : "value";
-				semanticName = `scl-match-${cleanAttributeKey(selector.name)}-${cleanValue}`;
-			} else if (selector.type === "tag" && typeof selector.value === "string") {
-				semanticName = `scl-match-tag-${cleanAttributeKey(selector.value)}`;
-			} else if (typeof selector.name === "string") {
-				semanticName = `scl-rule-${cleanAttributeKey(selector.name)}`;
-			} else {
-				semanticName = `scl-rule-atom-${ruleIdCounter}`;
-			}
-
-			// Forbered eventuelle ekstra presentasjonsattributter (f.eks. ikoner til DOM)
-			const baseAttributes: Record<string, string> = Object.create(null);
-			if (selector.iconBefore && selector.iconBefore.length > 0) baseAttributes["data-link-icon-before"] = selector.iconBefore;
-			if (selector.iconAfter && selector.iconAfter.length > 0) baseAttributes["data-link-icon-after"] = selector.iconAfter;
-
-			// 4. 🔥 REGISTRER LIGHT MODE ATOM
-			const lightId = ruleIdCounter++;
-			selector._flyweightIdLight = lightId;
-			this.ruleRegistry.set(lightId, {
-				semanticClass: semanticName,
-				color: selector.lightColor || "",
-				backgroundColor: selector.lightBgColor || "",
-				fontWeight: selector.fontWeight || "normal",
-				fontStyle: selector.fontStyle || "normal",
-				iconBefore: selector.iconBefore || "",
-				iconAfter: selector.iconAfter || "",
-				attributes: baseAttributes,
-				classes: [semanticName]
-			});
-
-			// 5. 🔥 REGISTRER DARK MODE ATOM
-			const darkId = ruleIdCounter++;
-			selector._flyweightIdDark = darkId;
-			this.ruleRegistry.set(darkId, {
-				semanticClass: semanticName,
-				color: selector.darkColor || "",
-				backgroundColor: selector.darkBgColor || "",
-				fontWeight: selector.fontWeight || "normal",
-				fontStyle: selector.fontStyle || "normal",
-				iconBefore: selector.iconBefore || "",
-				iconAfter: selector.iconAfter || "",
-				attributes: baseAttributes,
-				classes: [semanticName]
-			});
-		}
-
-		this.activeAttributesArray = Array.from(this.activeAttributesSet);
-	}
-
-	public processPathMutation(path: string): void {
-		if (path.length === 0) return;
-
-		this.invalidateAttrCacheByPath(path);
-		this.cacheManager.markPathTouched(path);
-		this.enqueuePath(path);
-
-		if (path.endsWith("/")) {
-			this.invalidateAttrCacheByPrefix(path);
-			this.enqueuePrefix(path);
-		}
-	}
-
-	public handlePathMutation(path: string, isPrefix = false): void {
-		if (path.length === 0) return;
-
-		if (isPrefix) {
-			this.cacheManager.invalidatePrefix(path);
-		} else {
-			this.cacheManager.invalidatePath(path);
-		}
-
-		this.cacheManager.markPathTouched(path);
-
-		if (isPrefix) {
-			this.enqueuePrefix(path);
-		} else {
-			this.enqueuePath(path);
-		}
-
-		this.triggerScheduleRefresh();
-	}
-
 	public async loadSettings(): Promise<void> {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
 		const selectorsArray = this.settings?.selectors ?? [];
-		this.compiledRules = compileSelectors(selectorsArray);
+		this.cacheManager.compiledRules = compileSelectors(selectorsArray);
 
 		if (dataRepaired) {
 			await this.saveSettings();
@@ -468,6 +187,50 @@ export default class ResuperchargedLinks extends Plugin {
 			const violation: string = error instanceof Error ? error.name : "RegistryAccessViolation";
 			void violation;
 		}
+	}
+
+		/**
+	 * Reconfigures CodeMirror 6 editor extensions safely across active workspace leaves.
+	 * Implements a strict O(1) state hash barrier to completely bypass layout sweeps 
+	 * when compiled styling rules and active core dark/light status remain static.
+	 */
+	public refreshEditorThemes(): void {
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+		const version: number = this.cacheManager.getRuleConfigVersion();
+		
+		// Compile a precise structural state string tracking environment changes
+		const currentThemeHash = `${version}-${isDark ? "dark" : "light"}`;
+
+		// 🚀 THE O(1) BARRIER INTERCEPT: Haltet instantly if the configuration maps perfectly to memory
+		if (this.lastAppliedThemeHash === currentThemeHash) {
+			return;
+		}
+
+		// Store the fresh signature instantly to protect subsequent redundant calls
+		this.lastAppliedThemeHash = currentThemeHash;
+
+		const currentTheme = createRuntimeEditorTheme(this);
+		
+		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			const view = leaf.view ?? null;
+			if (view === null) return;
+
+			if (view.getViewType() === "markdown") {
+				const markdownView = view as ObsidianInternalMarkdownView;
+				const cm = markdownView.editor?.cm ?? null;
+				
+				// Verify instance health and ensuring the state compartment mapping exists natively
+				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== null) {
+					try {
+						cm.dispatch({
+							effects: themeCompartment.reconfigure(currentTheme)
+						});
+					} catch {
+						return;
+					}
+				}
+			}
+		});
 	}
 
 }

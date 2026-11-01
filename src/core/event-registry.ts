@@ -13,7 +13,7 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	const updateLinksDebounced = debounce((_file: TFile | null) => {
 		if (!app.workspace.layoutReady) return;
 
-		plugin.clearAttrCycleCache();
+		plugin.cacheManager.clearAttrCycleCache();
 		
 		const trackingActive: boolean = plugin.telemetry.getTrackingState();
 		const startMark: number = trackingActive ? Date.now() : 0;
@@ -50,27 +50,27 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	}));
 
 	plugin.registerEvent(app.vault.on("rename", (file: TAbstractFile, oldPath: string): void => {
-		plugin.processPathMutation(oldPath);
-		plugin.processPathMutation(file.path);
-		plugin.triggerScheduleRefresh();
+		plugin.cacheManager.processPathMutation(oldPath);
+		plugin.cacheManager.processPathMutation(file.path);
+		plugin.cacheManager.triggerScheduleRefresh();
 	}));
 
 	// Vault Operations - All filesystem alterations route into the single queue channel safely
 	plugin.registerEvent(app.vault.on("modify", (file: TAbstractFile): void => {
 		if (!(file instanceof TFile)) return;
-		plugin.handlePathMutation(file.path);
+		plugin.cacheManager.handlePathMutation(file.path);
 	}));
 
 	plugin.registerEvent(app.vault.on("delete", (file: TAbstractFile): void => {
 		const path: string = file.path;
 		if (path.length === 0) return;
-		plugin.handlePathMutation(file.path);
+		plugin.cacheManager.handlePathMutation(file.path);
 	}));
 
 	// Core Metadata Changed Hook
 	plugin.registerEvent(app.metadataCache.on("changed", (file: TFile): void => {
 		if (plugin.cacheManager.wasPathTouchedRecently(file.path)) return;
-		plugin.enqueuePath(file.path);
-		plugin.triggerScheduleRefresh();
+		plugin.cacheManager.enqueuePath(file.path);
+		plugin.cacheManager.triggerScheduleRefresh();
 	}));
 }

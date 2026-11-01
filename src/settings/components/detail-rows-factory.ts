@@ -49,7 +49,7 @@ export function getRuleDetailItems(
 
 	const applySilent = async (propName: string, value: string): Promise<void> => {
 		await tab.setControlValue(`scl_${propName}_${index}`, value, true);
-		tab.plugin.compileActiveAttributes();
+		tab.plugin.flyweightEngine.compileActiveAttributes();
 		triggerStylesUpdate();
 	};
 	
@@ -187,8 +187,8 @@ export function getRuleDetailItems(
 
 				tab.activeEditIndex = null;
 
-				tab.plugin.bumpRuleConfigVersion();
-				tab.plugin.compileActiveAttributes();
+				tab.plugin.cacheManager.bumpRuleConfigVersion();
+				tab.plugin.flyweightEngine.compileActiveAttributes();
 				await tab.plugin.saveSettings();
 
 				// ⚡ Nå kan vi kalle den direkte og trygt, helt uten proxy eller fallback-imports!

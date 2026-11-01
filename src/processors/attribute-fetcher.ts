@@ -45,7 +45,7 @@ export function fetchTargetAttributesSync(
 	const cache = app.metadataCache.getFileCache(dest) ?? null;
 	if (cache === null) return rawProps;
 
-	const activeAttributes: string[] = pluginInstance.activeAttributesArray;
+	const activeAttributes: string[] = pluginInstance.flyweightEngine.activeAttributesArray;
 	const activeAttrsLen = activeAttributes.length;
 	
 	// 🔥 Pre-allokert indeks-tracker på stakken (ingen heap-allokering) for å unngå Object.keys()
@@ -164,7 +164,7 @@ export function fetchTargetAttributesCached(
 	dest: TFile,
 	cache: AttrCache 
 ): Record<string, string> {
-	const ruleConfigVersion: number = typeof plugin.getRuleConfigVersion === "function" ? plugin.getRuleConfigVersion() : 0;
+	const ruleConfigVersion: number = typeof plugin.cacheManager.getRuleConfigVersion === "function" ? plugin.cacheManager.getRuleConfigVersion() : 0;
 	const normalizedPath: string = normalizeCachePath(dest.path);
 	
 	// Pure file tracking independent of layout context
@@ -177,7 +177,7 @@ export function fetchTargetAttributesCached(
 		if (tracker !== null) {
 			tracker.logHit();
 		}
-		plugin.touchAttrCacheKey(cleanKey);
+		plugin.cacheManager.touchAttrCacheKey(cleanKey);
 		return hit;
 	}
 
@@ -190,7 +190,7 @@ export function fetchTargetAttributesCached(
 	const resolved: Record<string, string> = fetchTargetAttributesSync(app, plugin, dest, false);
 	
 	cache.set(cleanKey, resolved);
-	plugin.touchAttrCacheKey(cleanKey);
+	plugin.cacheManager.touchAttrCacheKey(cleanKey);
 	
 	if (plugin.cacheManager !== null) {
 		plugin.cacheManager.registerIndexedKey(normalizedPath, cleanKey);

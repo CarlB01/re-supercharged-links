@@ -1,14 +1,22 @@
-import { extractPathFromCacheKey, normalizeCachePath } from "../utils/shared-utils";
+import { App, debounce } from "obsidian";
+import ResuperchargedLinks from "../core/main";
+import { compactPrefixes, extractPathFromCacheKey, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
+import { updateVisibleLinks } from "./dom-reconciler";
+import { CompiledRule, compileSelectors } from "./rule-engine";
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.
  * Fully optimized for unified canonical storage mapping without V8 map iteration degradation.
  */
 export class AttributeCacheManager {
+	private app: App;
+	private plugin: ResuperchargedLinks;
+
 	private readonly attrCycleCache: Map<string, Record<string, string>>;
 	private readonly attrCacheTouchedAt: Map<string, number> = new Map();
 	private readonly recentPathTouches: Map<string, number> = new Map();
-
+	private readonly pendingChangedPaths: Set<string> = new Set();
+	private readonly pendingChangedPrefixes: Set<string> = new Set();
 	private readonly pathIndex: Map<string, Set<string>> = new Map();
 
 	// Pre-sized capacities preventing dynamic V8 memory recycling during long sessions
@@ -18,8 +26,42 @@ export class AttributeCacheManager {
 	private readonly PATH_TOUCH_MAX_ENTRIES: number = 4000;
 	private readonly PATH_TOUCH_COOLDOWN_MS: number = 400;
 
-	constructor(cacheMap: Map<string, Record<string, string>>) {
+	public compiledRules: CompiledRule[] = [];
+	private ruleConfigVersion = 0;
+
+	private readonly scheduleVisibleRefresh = debounce((): void => {
+		this.flushPendingRefresh();
+	}, 180, false);
+
+	constructor(app: App, plugin: ResuperchargedLinks, cacheMap: Map<string, Record<string, string>>) {
+		this.app = app;
+		this.plugin = plugin;
 		this.attrCycleCache = cacheMap;
+	}
+
+	public destroy(): void {
+		this.pendingChangedPaths.clear();
+		this.pendingChangedPrefixes.clear();	
+		this.compiledRules = [];
+	}
+
+	public triggerScheduleRefresh(): void {
+		this.scheduleVisibleRefresh();
+	}
+
+	public bumpRuleConfigVersion(): void {
+		this.ruleConfigVersion += 1;
+		const selectorsArray = this.plugin.settings?.selectors ?? [];
+		this.compiledRules = compileSelectors(selectorsArray);
+		this.clearAttrCycleCache();
+	}
+
+	public getRuleConfigVersion(): number {
+		return this.ruleConfigVersion;
+	}
+
+	public clearAttrCycleCache(): void {
+			this.clearAllCache();
 	}
 
 	public getPathIndex(): Map<string, Set<string>> {
@@ -86,6 +128,75 @@ export class AttributeCacheManager {
 		this.recentPathTouches.delete(normalizedPath);
 	}
 
+	public invalidateAttrCacheByPath(path: string): void {
+			this.invalidatePath(path);
+	}
+
+	public invalidateAttrCacheByPrefix(prefix: string): void {
+			this.invalidatePrefix(prefix);
+	}
+	
+	public processPathMutation(path: string): void {
+		if (path.length === 0) return;
+
+		this.invalidateAttrCacheByPath(path);
+		this.markPathTouched(path);
+		this.enqueuePath(path);
+
+		if (path.endsWith("/")) {
+			this.invalidateAttrCacheByPrefix(path);
+			this.enqueuePrefix(path);
+		}
+	}
+
+	public handlePathMutation(path: string, isPrefix = false): void {
+		if (path.length === 0) return;
+
+		if (isPrefix) {
+			this.invalidatePrefix(path);
+		} else {
+			this.invalidatePath(path);
+		}
+
+		this.markPathTouched(path);
+
+		if (isPrefix) {
+			this.enqueuePrefix(path);
+		} else {
+			this.enqueuePath(path);
+		}
+		this.triggerScheduleRefresh();
+	}
+
+	public enqueuePath(path: string): void {
+		const normalized: string = normalizePathForQueue(path);
+		if (normalized.length === 0) return;
+		this.pendingChangedPaths.add(normalized);
+	}
+
+	public enqueuePrefix(prefix: string): void {
+		const normalized: string = normalizePathForQueue(prefix);
+		if (normalized.length === 0) return;
+		this.pendingChangedPrefixes.add(normalized.endsWith("/") ? normalized : `${normalized}/`);
+	}
+
+	public markPathTouched(path: string): void {
+		if (path.length === 0) return;
+
+		const normalizedPath: string = normalizeCachePath(path);
+		this.recentPathTouches.set(normalizedPath, Date.now());
+	}
+
+	public wasPathTouchedRecently(path: string): boolean {
+		if (path.length === 0) return false;
+
+		const normalizedPath: string = normalizeCachePath(path);
+
+		const last: number = this.recentPathTouches.get(normalizedPath) ?? 0;
+		if (last === 0) return false;
+		return Date.now() - last < this.PATH_TOUCH_COOLDOWN_MS;
+	}
+
 	public invalidatePrefix(prefix: string): void {
 		if (prefix.length === 0) return;
 
@@ -110,27 +221,40 @@ export class AttributeCacheManager {
 		}
 	}
 
-	public markPathTouched(path: string): void {
-		if (path.length === 0) return;
-
-		const normalizedPath: string = normalizeCachePath(path);
-		this.recentPathTouches.set(normalizedPath, Date.now());
-	}
-
-	public wasPathTouchedRecently(path: string): boolean {
-		if (path.length === 0) return false;
-
-		const normalizedPath: string = normalizeCachePath(path);
-
-		const last: number = this.recentPathTouches.get(normalizedPath) ?? 0;
-		if (last === 0) return false;
-		return Date.now() - last < this.PATH_TOUCH_COOLDOWN_MS;
-	}
-
 	public clearAllCache(): void {
 		this.attrCycleCache.clear();
 		this.attrCacheTouchedAt.clear();
 		this.pathIndex.clear();
+	}
+
+	public flushPendingRefresh(): void {
+		if (this.pendingChangedPaths.size === 0 && this.pendingChangedPrefixes.size === 0) return;
+
+		const pathSet = new Set<string>();
+		this.pendingChangedPaths.forEach((p) => pathSet.add(p));
+		
+		const changedPrefixes: string[] = [];
+		this.pendingChangedPrefixes.forEach((p) => changedPrefixes.push(p));
+
+		this.pendingChangedPaths.clear();
+		this.pendingChangedPrefixes.clear();
+
+		const compactedPrefixes: string[] = compactPrefixes(changedPrefixes);
+		const prefixSet = new Set<string>();
+		for (let i = 0; i < compactedPrefixes.length; i++) {
+			const pref = compactedPrefixes[i];
+			if (pref) prefixSet.add(pref);
+		}
+
+		const trackingActive: boolean = this.plugin.telemetry.getTrackingState();
+		const startMark: number = trackingActive ? Date.now() : 0;
+
+		const nodesProcessed: number = updateVisibleLinks(this.app, this.plugin, { paths: pathSet, prefixes: prefixSet });
+
+		if (trackingActive) {
+			const elapsed: number = Date.now() - startMark;
+			this.plugin.telemetry.recordUpdateCycle(elapsed, nodesProcessed);
+		}
 	}
 
 	public runLifecyclePrune(): void {

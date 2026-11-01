@@ -75,11 +75,11 @@ export default class SCLSettingTab extends PluginSettingTab {
 			this.handleSearchQuery(value);
 		} else if (key.startsWith("scl_")) {
 			this.handleRuleFieldUpdate(key, value);
-			this.plugin.bumpRuleConfigVersion();
+			this.plugin.cacheManager.bumpRuleConfigVersion();
 		} else {
 			this.handleGlobalSettingUpdate(key, value);
 			if (key === "enableTagChips" || key === "getFromInlineField") {
-				this.plugin.bumpRuleConfigVersion();
+				this.plugin.cacheManager.bumpRuleConfigVersion();
 			}
 		}
 		await this.applyRuleMutationRefresh(silent);
@@ -144,8 +144,8 @@ export default class SCLSettingTab extends PluginSettingTab {
 							this.rulesSearchQuery = "";
 							
 							selectors.push(newSelector);
-							this.plugin.bumpRuleConfigVersion();
-							this.plugin.compileActiveAttributes();
+							this.plugin.cacheManager.bumpRuleConfigVersion();
+							this.plugin.flyweightEngine.compileActiveAttributes();
 							void this.plugin.saveSettings();
 							void this._generateSnippet();
 							
@@ -279,7 +279,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 		}
 		
 		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
-		this.plugin.clearAttrCycleCache();
+		this.plugin.cacheManager.clearAttrCycleCache();
 
 		// Step 2: Sweep and rebuild all currently visible links via the reconciler engine
 		updateVisibleLinks(this.app, this.plugin);
@@ -480,7 +480,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 	 */
 	private async applyRuleMutationRefresh(silent: boolean): Promise<void> {
 		// Step 1: Re-evaluate and compile the active attribute set across selectors
-		this.plugin.compileActiveAttributes();
+		this.plugin.flyweightEngine.compileActiveAttributes();
 
 		// Step 2: Route storage commands through the appropriate asynchronous I/O channel
 		if (silent) {

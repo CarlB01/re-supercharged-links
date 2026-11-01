@@ -147,7 +147,7 @@ export function processPopupContextNode(
 	
 	// Kjør regel-motoren mot de RÅ attributtene
 	const resolution = resolveRuleResolution({
-		compiledRules: plugin.compiledRules,
+		compiledRules: plugin.cacheManager.compiledRules,
 		resolvedAttrs: rawProps,
 		isDark,
 		includeTagMatchClasses: false // Ingen tag-klasser i switcher for å holde DOM-en lett

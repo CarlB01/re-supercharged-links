@@ -127,7 +127,7 @@ export function resolveVirtualPreviewResolution(
 	}
 	
 	const resolution = resolveRuleResolution({
-		compiledRules: plugin.compiledRules,
+		compiledRules: plugin.cacheManager.compiledRules,
 		resolvedAttrs: rawProps,
 		isDark,
 		includeTagMatchClasses: true,

@@ -2,8 +2,9 @@ import { App, getLinkpath } from "obsidian";
 import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 import { resolveRuleResolution } from "../processors/rule-engine";
-import { extractCleanLinkPath } from "../utils/shared-utils";
+import { cleanAttributeKey, extractCleanLinkPath } from "../utils/shared-utils";
 import { resolveVirtualPreviewResolution } from "../processors/presentation.engine";
+import { CSSLink } from "../types/css-link";
 
 export interface FlyweightResponse {
 	readonly hasMatch: boolean;
@@ -28,26 +29,131 @@ export class FlyweightEngine {
 	private app: App;
 	private plugin: ResuperchargedLinks;
 	private globalStyleEl: HTMLStyleElement | null = null;
+	public activeAttributesSet: Set<string> = new Set();
+	public activeAttributesArray: string[] = [];
+	public activeHyphenatedKeysArray: string[] = [];
+
+	// Et raskt O(1) tall-til-objekt kart for render-løkken
+	public ruleRegistry: Map<number, { 
+		semanticClass: string; 
+		color: string; 
+		backgroundColor: string; 
+		fontWeight: string;
+		fontStyle: string;
+		iconBefore: string;
+		iconAfter: string;
+		attributes: Record<string, string>; 
+		classes: string[]; 
+	}> = new Map();
 
 	constructor(app: App, plugin: ResuperchargedLinks) {
 		this.app = app;
 		this.plugin = plugin;
+
+		this.refreshGlobalStyles();
+		this.compileActiveAttributes();
+	}
+
+	/**
+	 * Atomiserer komplekse brukerregler til et globalt Flyweight-register med unike tall-ID-er.
+	 * Håndterer Light- og Dark-mode som separate, lynraske atomer.
+	 */
+	public compileActiveAttributes(): void {
+		this.activeAttributesSet.clear();
+		this.activeAttributesArray = [];
+		
+		// 1. Nullstill og pre-populer den flate systemfelt-indeksen
+		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
+		
+		// 2. Tøm det gamle Flyweight-registeret
+		this.ruleRegistry.clear();
+		
+		if (this.plugin.settings === null || this.plugin.settings.selectors === null) return;
+
+		const selectorsProxy: CSSLink[] = this.plugin.settings.selectors;
+		if (!Array.isArray(selectorsProxy)) return;
+		
+		const len = selectorsProxy.length;
+		let ruleIdCounter = 1; // Unike numeriske ID-er for atomene
+
+		for (let i = 0; i < len; i++) {
+			const selector: CSSLink | null = selectorsProxy[i] ?? null;
+			if (selector === null) continue;
+
+			// Registrer rå-attributter for filskanneren
+			if (selector.type === "attribute") {
+				const attrName: unknown = selector.name;
+				if (typeof attrName === "string" && attrName.length > 0) {
+					this.activeAttributesSet.add(attrName);
+					
+					const cleaned: string = cleanAttributeKey(attrName);
+					if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
+						this.activeHyphenatedKeysArray.push(cleaned);
+					}
+				}
+			}
+
+			// 3. Generer et vakkert, semantisk klassenavn for eksterne utviklere
+			let semanticName = "";
+			if (selector.type === "attribute" && typeof selector.name === "string") {
+				const cleanValue = typeof selector.value === "string" ? cleanAttributeKey(selector.value) : "value";
+				semanticName = `scl-match-${cleanAttributeKey(selector.name)}-${cleanValue}`;
+			} else if (selector.type === "tag" && typeof selector.value === "string") {
+				semanticName = `scl-match-tag-${cleanAttributeKey(selector.value)}`;
+			} else if (typeof selector.name === "string") {
+				semanticName = `scl-rule-${cleanAttributeKey(selector.name)}`;
+			} else {
+				semanticName = `scl-rule-atom-${ruleIdCounter}`;
+			}
+
+			// Forbered eventuelle ekstra presentasjonsattributter (f.eks. ikoner til DOM)
+			const baseAttributes: Record<string, string> = Object.create(null);
+			if (selector.iconBefore && selector.iconBefore.length > 0) baseAttributes["data-link-icon-before"] = selector.iconBefore;
+			if (selector.iconAfter && selector.iconAfter.length > 0) baseAttributes["data-link-icon-after"] = selector.iconAfter;
+
+			// 4. 🔥 REGISTRER LIGHT MODE ATOM
+			const lightId = ruleIdCounter++;
+			selector._flyweightIdLight = lightId;
+			this.ruleRegistry.set(lightId, {
+				semanticClass: semanticName,
+				color: selector.lightColor || "",
+				backgroundColor: selector.lightBgColor || "",
+				fontWeight: selector.fontWeight || "normal",
+				fontStyle: selector.fontStyle || "normal",
+				iconBefore: selector.iconBefore || "",
+				iconAfter: selector.iconAfter || "",
+				attributes: baseAttributes,
+				classes: [semanticName]
+			});
+
+			// 5. 🔥 REGISTRER DARK MODE ATOM
+			const darkId = ruleIdCounter++;
+			selector._flyweightIdDark = darkId;
+			this.ruleRegistry.set(darkId, {
+				semanticClass: semanticName,
+				color: selector.darkColor || "",
+				backgroundColor: selector.darkBgColor || "",
+				fontWeight: selector.fontWeight || "normal",
+				fontStyle: selector.fontStyle || "normal",
+				iconBefore: selector.iconBefore || "",
+				iconAfter: selector.iconAfter || "",
+				attributes: baseAttributes,
+				classes: [semanticName]
+			});
+		}
+
+		this.activeAttributesArray = Array.from(this.activeAttributesSet);
 	}
 
 	public getResolution(path: string, visibleText: string): FlyweightResponse {
 		const cleanPath: string = extractCleanLinkPath(path);
-		const ruleVersion: number = this.plugin.getRuleConfigVersion();
+		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
 		const isDark: boolean = document.body.classList.contains("theme-dark");
 
-		// ⚡ ENKEL OG BILLIG AVGRENING: Sjekker kun streng-starten.
-		// Hvis den treffer, hopper vi helt ut av den hotte kjerne-banen umiddelbart!
 		if (cleanPath.startsWith("virtual://preview/")) {
 			return resolveVirtualPreviewResolution(this.plugin, cleanPath, visibleText, ruleVersion, isDark);
 		}
 
-		// =========================================================================
-		// 🔥 KRYSTALLKLAR HOT SCROLL PATH (0% støy, maksimal V8-sympati)
-		// =========================================================================
 		const dest = this.app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), "") ?? null;
 		
 		if (dest === null) {
@@ -62,7 +168,7 @@ export class FlyweightEngine {
 		const rawProps = fetchTargetAttributesCached(this.app, this.plugin, dest, this.plugin.attrCycleCache);
 
 		const resolution = resolveRuleResolution({
-			compiledRules: this.plugin.compiledRules,
+			compiledRules: this.plugin.cacheManager.compiledRules,
 			resolvedAttrs: rawProps,
 			isDark,
 			includeTagMatchClasses: true,
@@ -158,6 +264,9 @@ export class FlyweightEngine {
 			this.globalStyleEl.remove();
 			this.globalStyleEl = null;
 		}
+		this.activeAttributesSet.clear();
+		this.activeAttributesArray = [];
+		
 	}
 }
 
