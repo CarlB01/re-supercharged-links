@@ -1,16 +1,20 @@
-import { mapResolutionToPresentation } from "../core/flyweight-engine";
 import ResuperchargedLinks from "../core/main";
 import { populatePresentationPool } from "../processors/presentation.engine";
-import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, parseSpaceSeparatedTokens, processValue, stringifyTags } from "../utils/shared-utils";
+import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 
 /**
- * Completely purges all supercharged style properties and data-link attributes.
+ * Universell og kompromissløs sterilisering av et element.
+ * Fjerner alle dynamiske data-attributter, sletter fysiske ikoner,
+ * og nullstiller alle klasser og CSS-variabler generert av regelmotoren.
  */
 export function clearExtraAttributes(link: HTMLElement): void {
+	// 1. RENS ATRIBUTTER (Fjerner data-link-*, data-scl-*, og signaturer)
+	link.removeAttribute("data-scl-signature");
+	link.removeAttribute("data-link-color");
+	
 	const attrs: NamedNodeMap = link.attributes;
 	let i: number = attrs.length;
-	
 	while (i--) {
 		const attr: Attr | null = attrs.item(i);
 		if (attr !== null) {
@@ -21,6 +25,7 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 	
+	// 2. FJERN FYSISKE INLINE-IKONER
 	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
 	const oldIconsCount: number = oldIcons.length;
 	for (let j = 0; j < oldIconsCount; j++) {
@@ -30,37 +35,36 @@ export function clearExtraAttributes(link: HTMLElement): void {
 		}
 	}
 
-	// Safely iterate backward over the live class list tokens to eliminate array allocations and double loops
+	// 3. BLIND KLASSE-VASK (Bruker de felles sentraliserte konstantene)
+	for (const cls of SCL_CLEANUP_CLASSES) {
+		link.removeClass(cls);
+	}
+
+	// Dynamiske brukergenererte klasser og sammensatte regel-kompositter
 	const currentClasses: DOMTokenList = link.classList;
 	let k: number = currentClasses.length;
-
 	while (k--) {
-		const cls: string | null = currentClasses.item(k);
-		if (cls !== null) {
-			if (
-				cls.startsWith("scl-match-") || 
-				cls.startsWith("scl-rule-") || 
-				cls === "scl-hide-before" || 
-				cls === "scl-hide-after" ||
-				cls === "scl-weight-bold" ||
-				cls === "scl-weight-lighter" ||
-				cls === "scl-style-italic" ||
-				cls === "scl-decor-underline" ||
-				cls === "scl-decor-linethrough"
-			) {
-				link.classList.remove(cls);
-			}
+		const cls = currentClasses.item(k);
+		if (cls !== null && (
+			cls.startsWith("scl-match-") || 
+			cls.startsWith("scl-rule-") || 
+			cls.startsWith("scl-composite-") // 🌟 KNUSER SPØKELSES-BAKGRUNNER PERMANENT
+		)) {
+			link.classList.remove(cls);
 		}
 	}
 
-	if (link.style.length > 0) {
-		link.setCssStyles({
-			color: "",
-			backgroundColor: "",
-			fontWeight: "",
-			fontStyle: "",
-			textDecoration: ""
-		});
+	// 4. BLIND STIL- OG VARIABEL-VASK
+	const style = link.style;
+	for (const prop of SCL_CLEANUP_PROPERTIES) {
+		style.removeProperty(prop);
+	}
+	
+	// Fallback for eldre element-styles
+	if (style.length > 0) {
+		style.removeProperty("font-weight");
+		style.removeProperty("font-style");
+		style.removeProperty("text-decoration");
 	}
 }
 
@@ -140,6 +144,7 @@ export function applyStylesAndAttributesToLink(
 		return; 
 	}
 
+	// 🚀 1. Én felles totalvask (Sletter alt av gamle stiler, variabler og ikoner)
 	clearExtraAttributes(link);
 	link.setAttribute("data-scl-signature", resolution.signature);
 
@@ -147,7 +152,7 @@ export function applyStylesAndAttributesToLink(
 	const inlineStyle: CSSStyleDeclaration = link.style;
 
 	if (presentation.hasMatch) {
-		// 1. Påfør inline-stiler via rå indeks-loop
+		// 2. Påfør inline-stiler fra pool via rå indeks-loop
 		const stylesCount = presentation.stylesCount;
 		for (let i = 0; i < stylesCount; i++) {
 			const key = presentation.styleKeys[i];
@@ -161,7 +166,7 @@ export function applyStylesAndAttributesToLink(
 			}
 		}
 
-		// 2. Påfør klasser via rå indeks-loop
+		// 3. Påfør klasser fra pool via rå indeks-loop
 		const classesCount = presentation.classesCount;
 		for (let i = 0; i < classesCount; i++) {
 			const cls = presentation.classes[i];
@@ -169,21 +174,16 @@ export function applyStylesAndAttributesToLink(
 				link.classList.add(cls);
 			}
 		}
-		} else {
-			// Hvis ingen regler matcher, sikrer vi en total vask av elementets fargeegenskaper
-			inlineStyle.removeProperty("color");
-			inlineStyle.removeProperty("background-color");
-			inlineStyle.removeProperty("--scl-color");
-			inlineStyle.removeProperty("--scl-bg");
-			inlineStyle.removeProperty("--scl-icon-before");
-			inlineStyle.removeProperty("--scl-icon-after");
-			
+	} else {
+		// 🌟 Siden clearExtraAttributes akkurat kjørte, er elementet helt sterilt.
+		// Vi trenger bare å sette på de standard u-stylede fallback-klassene!
+		if (!link.classList.contains("data-link-text")) {
 			link.classList.add("data-link-text");
-			link.classList.add("scl-hide-before");
-			link.classList.add("scl-hide-after");
 		}
+		link.classList.add("scl-hide-before");
+		link.classList.add("scl-hide-after");
+	}
 
-		link.classList.add("scl-processed");
+	link.classList.add("scl-processed");
 }
-
 

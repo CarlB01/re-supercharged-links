@@ -7,7 +7,7 @@ import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '.
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
 import { compileSelectors } from '../processors/rule-engine';
-import { updateVisibleLinks } from '../processors/dom-reconciler';
+import { purgeAndResetAllTabHeaders, updateVisibleLinks } from '../processors/dom-reconciler';
 import SCLSettingTab from '../settings/setting-tab';
 import { AttributeCacheManager } from '../processors/cache-manager';
 import { registerPluginEvents } from './event-registry';
@@ -133,8 +133,12 @@ export default class ResuperchargedLinks extends Plugin {
 			this.attrCycleCache.clear();
 		}
 
-		disconnectAllObservers(this);
 		removeStylingFromViews(this);
+
+		if (typeof purgeAndResetAllTabHeaders === "function") {
+			purgeAndResetAllTabHeaders(this.app);
+		}
+		disconnectAllObservers(this);
 	}
 
 	public async loadSettings(): Promise<void> {

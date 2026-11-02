@@ -1,10 +1,11 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { resolveRuleResolution } from "../processors/rule-engine";
 import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "../views/dom-mutator";
-import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
+import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue, SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
 import ResuperchargedLinks from "../core/main";
+import { populatePresentationPool } from "./presentation.engine";
 
 type RefreshScope = {
 	paths: Set<string>;
@@ -145,7 +146,7 @@ export function processPopupContextNode(
 
 	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, globalCache);
 	
-	// Kjør regel-motoren mot de RÅ attributtene
+	// Kjør regel-motoren mot de RÅ attributtene (Dette har du fra før)
 	const resolution = resolveRuleResolution({
 		compiledRules: plugin.cacheManager.compiledRules,
 		resolvedAttrs: rawProps,
@@ -153,70 +154,56 @@ export function processPopupContextNode(
 		includeTagMatchClasses: false // Ingen tag-klasser i switcher for å holde DOM-en lett
 	});
 
+	// 🛠️ TYPESIKKER BRO: Vi oversetter en lokal RuleResolution til en lett FlyweightResponse på stakken
+	const flyweightResponse = {
+		hasMatch: resolution.hasMatch,
+		signature: "", // Trengs ikke her da vi ikke gjør signatur-sjekk i popuper
+		classes: resolution.classes,
+		styles: {
+			color: resolution.style.color,
+			backgroundColor: resolution.style.backgroundColor,
+			fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
+			iconBefore: resolution.iconBefore,
+			iconAfter: resolution.iconAfter,
+			decorations: resolution.style.decorations
+		}
+	};
+	
+	const presentation = populatePresentationPool(flyweightResponse);
 	const style = node.style;
 
-	if (resolution.hasMatch) {
-		const activeColor: string = resolution.style.color;
-		const activeBg: string = resolution.style.backgroundColor;
-
-		// 🚀 OBSIDIAN COMPLIANT: Bruk av standard setProperty for variabler i stedet for inline-stil assignment
-		if (activeColor.length > 0) {
-			style.setProperty("--scl-color", activeColor);
-			node.setAttribute("data-link-color", activeColor);
-		} else {
-			style.removeProperty("--scl-color");
-			node.removeAttribute("data-link-color");
+	if (presentation.hasMatch) {
+		// 1. Påfør inline-stiler og CSS-variabler blindt via rå indeks-loop
+		const stylesCount = presentation.stylesCount;
+		for (let i = 0; i < stylesCount; i++) {
+			const key = presentation.styleKeys[i];
+			const val = presentation.styleValues[i];
+			if (key && val) {
+				style.setProperty(key, val);
+				
+				if (key === "color") {
+					node.setAttribute("data-link-color", val);
+				}
+			}
 		}
 
-		if (activeBg.length > 0 && activeBg !== "transparent") {
-			style.setProperty("--scl-bg", activeBg);
-		} else {
-			style.removeProperty("--scl-bg");
-		}
-
-		// Håndter font-vekt og stiler via modifier-klasser (synkronisert med styles.css)
-		if (resolution.style.fontWeight === "bold") node.addClass("scl-weight-bold");
-		if (resolution.style.fontWeight === "lighter") node.addClass("scl-weight-lighter");
-
-		const decorations = resolution.style.decorations;
-		if (decorations.includes("italic")) node.addClass("scl-style-italic");
-		if (decorations.includes("underline")) node.addClass("scl-decor-underline");
-		if (decorations.includes("line-through")) node.addClass("scl-decor-linethrough");
-
-		// Legg til regel-spesifikke klasser
-		const classesLen: number = resolution.classes.length;
-		for (let i = 0; i < classesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls !== undefined && cls !== null && cls.length > 0 && cls !== "data-link-text") {
+		// 2. Påfør klasser blindt via rå indeks-loop
+		const classesCount = presentation.classesCount;
+		for (let i = 0; i < classesCount; i++) {
+			const cls = presentation.classes[i];
+			if (cls && !node.classList.contains(cls)) {
 				node.addClass(cls);
 			}
 		}
-
-		if (!node.classList.contains("data-link-text")) node.addClass("data-link-text");
 		
 		return true;
+		
 	} else {
-		// 🚀 CLEANUP GUARD: Hvis elementet gjenbrukes under filtrering og ikke lenger matcher, vasker vi det helt rent
-		style.removeProperty("--scl-color");
-		style.removeProperty("--scl-bg");
-		node.removeAttribute("data-link-color");
-		
-		node.removeClass("scl-weight-bold");
-		node.removeClass("scl-weight-lighter");
-		node.removeClass("scl-style-italic");
-		node.removeClass("scl-decor-underline");
-		node.removeClass("scl-decor-linethrough");
-		
-		// Vi beholder 'data-link-text' klassen så CSS-en vår vet hvordan den skal style fallbacks, 
-		// men vi fjerner de dynamiske regel-klassene hvis det finnes noen
-		const classesLen: number = resolution.classes.length;
-		for (let i = 0; i < classesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls !== undefined && cls !== null && cls.length > 0) {
-				node.removeClass(cls);
-			}
-		}
+		clearExtraAttributes(node);
 
+		if (!node.classList.contains("data-link-text")) {
+			node.addClass("data-link-text");
+		}
 		return false;
 	}
 }
@@ -513,39 +500,7 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	}
 
 	if (resolvedFile !== null) {
-		// 🛠️ ABSOLUTT OG TOTAL STERILISERING AV TITTEL-NODEN:
-		titleNode.removeAttribute("data-scl-signature");
-		titleNode.removeAttribute("data-link-color");
-		titleNode.classList.remove("scl-processed");
-		
-		// Kjør din standard vask hvis den eksisterer
-		if (typeof clearExtraAttributes === "function") {
-			clearExtraAttributes(titleNode);
-		}
-		
-		// ⚡ BRUTAL RYDDING AV ENHVER LEKKENDE SCL-KLASSE (Knuser hybrid-regler):
-		// Siden clearExtraAttributes kan bomme under hurtig skifte, fjerner vi 
-		// alt som starter med "scl-" direkte via en rå token-loop på stakken.
-		const classes: DOMTokenList = titleNode.classList;
-		let k: number = classes.length;
-		while (k--) {
-			const cls = classes.item(k);
-			if (cls && (cls.startsWith("scl-") || cls === "data-link-text")) {
-				classes.remove(cls);
-			}
-		}
-
-		// Nullstill absolutt all inline stil- og variabelhistorikk på den ekte noden
-		const inlineStyle = titleNode.style;
-		inlineStyle.removeProperty("color");
-		inlineStyle.removeProperty("background-color");
-		inlineStyle.removeProperty("background");
-		inlineStyle.removeProperty("--scl-color");
-		inlineStyle.removeProperty("--scl-bg");
-		inlineStyle.removeProperty("--scl-icon-before");
-		inlineStyle.removeProperty("--scl-icon-after");
-
-		// Nå er inner-title fullstendig steril og klar for å motta sin nye additive prakt
+		clearExtraAttributes(titleNode);
 		updateDivExtraAttributes(app, plugin, titleNode, "", resolvedFile.path);
 		return 1;
 	}
@@ -734,35 +689,27 @@ export function updateVisibleLinks(
 	return totalNodesStyled;
 }
 
-/**
- * Omsorgsfull og brutal nullstilling av alle fane-elementer (tab-headere) i hele Obsidian.
- * Kalles når brukeren muterer regler for å forhindre klasse-akkumulering og ikon-duplisering.
- */
 export function purgeAndResetAllTabHeaders(app: App): void {
-	// 1. Tøm det sekundære WeakMap-sikkerhetsnettet fullstendig
-	// Siden det er en konstant i filen, kan vi fjerne elementene eller la V8 rydde opp
-	// (Hvis det er en WeakMap, kan vi ikke tømme den direkte uten å instansiere på nytt, 
-	// så vi kan enten la den være eller re-instansiere den hvis den er muterbar, men det viktigste er DOM-vasken!)
-	
-	// 2. Finn ALLE aktive og inaktive tab-headere i hele brukergrensesnittet
 	const tabElements = document.querySelectorAll(".workspace-tab-header");
 	const tabCount = tabElements.length;
 	
 	for (let i = 0; i < tabCount; i++) {
 		const tabEl = tabElements[i];
 		if (tabEl instanceof HTMLElement) {
-			// Slett signaturen og prosessert-flagget slik at barrieren slipper den igjennom
-			tabEl.removeAttribute("data-scl-signature");
-			tabEl.classList.remove("scl-processed");
+			// Finn den ekte target-noden der stilene faktisk ble brent inn
+			const titleNode = tabEl.classList.contains("workspace-tab-header-inner-title")
+				? tabEl
+				: tabEl.querySelector<HTMLElement>(".workspace-tab-header-inner-title") ?? tabEl;
+
+			// Vask den ekte tittel-noden ren!
+			clearExtraAttributes(titleNode);			
+			titleNode.classList.remove("scl-processed");
 			
-			// Bruk din eksisterende, ufeilbarlige vaskefunksjon fra dom-mutator!
-			clearExtraAttributes(tabEl);
-			
-			// Sett den tilbake til en nøytral basistilstand
-			tabEl.style.removeProperty("color");
-			tabEl.style.removeProperty("background-color");
-			tabEl.style.removeProperty("--scl-icon-before");
-			tabEl.style.removeProperty("--scl-icon-after");
+			// For sikkerhets skyld, vask også selve tabEl i tilfelle eldre regler traff den
+			if (titleNode !== tabEl) {
+				clearExtraAttributes(tabEl);
+				tabEl.classList.remove("scl-processed");
+			}
 		}
 	}
 }

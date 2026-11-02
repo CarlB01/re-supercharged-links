@@ -28,8 +28,6 @@ export function populatePresentationPool(
 ): PreAllocatedPresentation {
 	const pool = SHARED_PRESENTATION_POOL;
 	
-	// ⚡ RENSLIGHETS-GARANTI (Utrydder blank side/forurensning):
-	// Vi nuller ut slots fra forrige kjøring så gamle noder aldri lekker inn i nye noder!
 	const oldClassesCount = pool.classesCount;
 	for (let i = 0; i < oldClassesCount; i++) pool.classes[i] = "";
 	const oldStylesCount = pool.stylesCount;
@@ -53,9 +51,13 @@ export function populatePresentationPool(
 	if (s.color.length > 0) {
 		pool.styleKeys[pool.stylesCount] = "color";
 		pool.styleValues[pool.stylesCount++] = s.color;
+		pool.styleKeys[pool.stylesCount] = "--scl-color";
+		pool.styleValues[pool.stylesCount++] = s.color;
 	}
 	if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
 		pool.styleKeys[pool.stylesCount] = "background-color";
+		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
+		pool.styleKeys[pool.stylesCount] = "--scl-bg";
 		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
 	}
 
@@ -70,9 +72,6 @@ export function populatePresentationPool(
 		if (dec === "line-through") pool.classes[pool.classesCount++] = "scl-decor-linethrough";
 	}
 
-	// 🌟 DET ADDITIVE APPARATET: 
-	// Vi dytter ikon-variablene INLINE direkte på elementet. 
-	// Da slipper vi at det globale stilarket saboterer sammensatte regler!
 	if (s.iconBefore.length > 0 && !skipIconBefore) {
 		pool.classes[pool.classesCount++] = "scl-with-before";
 		pool.styleKeys[pool.stylesCount] = "--scl-icon-before";

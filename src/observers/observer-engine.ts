@@ -260,6 +260,7 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 				observer.disconnect();
 			}
 		}
+			plugin.observers = [];
 	}
 
 	const modalObservers: MutationObserver[] = plugin.modalObservers || [];
