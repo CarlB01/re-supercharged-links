@@ -183,10 +183,27 @@ export class FlyweightEngine {
 		};
 	}
 
-	public getResolution(path: string, visibleText: string): FlyweightResponse {
-		const cleanPath: string = extractCleanLinkPath(path);
+	public getResolution(pathOrFile: string | TFile, visibleText: string): FlyweightResponse {
 		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
 		const isDark: boolean = document.body.classList.contains("theme-dark");
+
+		// 1. FAST PATH: Hvis visningslaget allerede har sendt oss en ferdig TFile
+		if (pathOrFile instanceof TFile) {
+			const rawProps = fetchTargetAttributesCached(this.app, this.plugin, pathOrFile, this.plugin.attrCycleCache);
+			return this.getResolutionFromAttrs(pathOrFile, rawProps, visibleText, true);
+		}
+
+		// 2. SLOW PATH: Fallback hvis vi kun mottar en rå streng-sti
+		const cleanPath: string = extractCleanLinkPath(pathOrFile);
+
+		if (cleanPath.length === 0) {
+			return { 
+				hasMatch: false, 
+				signature: `v${ruleVersion}||empty`, 
+				classes: ["data-link-text"],
+				styles: { color: "", backgroundColor: "", fontWeight: "", iconBefore: "", iconAfter: "", decorations: [] }
+			};
+		}
 
 		if (cleanPath.startsWith("virtual://preview/")) {
 			return resolveVirtualPreviewResolution(this.plugin, cleanPath, visibleText, ruleVersion, isDark);
@@ -204,8 +221,6 @@ export class FlyweightEngine {
 		}
 
 		const rawProps = fetchTargetAttributesCached(this.app, this.plugin, dest, this.plugin.attrCycleCache);
-
-		// Delegerer nå direkte til den sentraliserte atom-kanalen
 		return this.getResolutionFromAttrs(dest, rawProps, visibleText, true);
 	}
 

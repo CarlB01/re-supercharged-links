@@ -244,14 +244,16 @@ export function updateDivExtraAttributes(
 	}
 
 	if (resolvedLinkName.length === 0) return;
+	if (!plugin.flyweightEngine) return;
 
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
 
-	if (!plugin.flyweightEngine) return;
+	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
+	if (dest === null) return;
 
 	const visibleText: string = (link.textContent || "").trim();
-	const resolution = plugin.flyweightEngine.getResolution(cleanPath, visibleText);
+	const resolution = plugin.flyweightEngine.getResolution(dest, visibleText);
 
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		if (plugin.telemetry) {
@@ -260,17 +262,8 @@ export function updateDivExtraAttributes(
 		return;
 	}
 
-	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
-	if (dest === null) return;
-
-	// Hent de cachede attributtene trygt
 	const cachedProps: Record<string, string> = fetchTargetAttributesCached(app, plugin, dest, plugin.attrCycleCache);
-
-	// 🔒 DEN TRYGGE PRODUKSJONSLINJEN:
-	// Vi bruker et helt standard, flatt objekt ({}) med fulle prototyp-metoder.
-	// Dette er den uknuselige banen som holdt Obsidian 100% krasjfritt og stabilt!
 	const localProps: Record<string, string> = {};
-	
 	const propKeys = Object.keys(cachedProps);
 	const propKeysLen = propKeys.length;
 	for (let i = 0; i < propKeysLen; i++) {
@@ -280,11 +273,9 @@ export function updateDivExtraAttributes(
 		}
 	}
 
-	// Tildel kjerne-egenskapene deterministisk
 	localProps["data-href"] = dest.basename;
 	localProps["path"] = dest.path;
 
-	// Skyv trygt ut til ring-bufferen
 	domBatcher.enqueue(link, localProps, plugin);
 }
 

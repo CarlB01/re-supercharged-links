@@ -234,13 +234,12 @@ export class CMViewPlugin {
 		skipIconBefore = false, 
 		skipIconAfter = false
 	): Decoration {
-		// 1. LIVSSYKLUS-GUARD: Forhindrer oppstarts-krasj hvis motoren ikke er initialisert
+		
 		if (!this.plugin.flyweightEngine) {
 			return Decoration.mark({});
 		}
 
-		// 2. Hent den ferdig akkumulerte tilstandsfasiten fra kjerne-motoren (O(1))
-		const resolution = this.plugin.flyweightEngine.getResolution(file.path, visibleLabel);
+		const resolution = this.plugin.flyweightEngine.getResolution(file, visibleLabel);
 
 		if (!resolution.hasMatch) {
 			return Decoration.mark({});
@@ -387,7 +386,7 @@ export class CMViewPlugin {
 			testCleanPath = view.state.doc.sliceString(node.from, node.to);
 		}
 
-		try {
+				try {
 			testCleanPath = decodeURIComponent(testCleanPath).trim();
 		} catch {
 			// Fallback containment
@@ -396,9 +395,11 @@ export class CMViewPlugin {
 		if (testCleanPath.toLowerCase().endsWith(".md")) {
 			testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
 		}
-		testCleanPath = extractCleanLinkPath(testCleanPath);
+		// 🌟 GJENINNFØRT: Sikrer at markdown-stien er barbert ren før resolveLinkFile
+		testCleanPath = extractCleanLinkPath(testCleanPath); 
 
 		const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
+
 		if (targetFile !== null) {
 			
 			// 🌟 SKUDDSIKKER SYNKRONISERING AV MARKØR-MATRISEN (- 1):
@@ -510,8 +511,7 @@ export class CMViewPlugin {
 			targetPathToken = view.state.doc.sliceString(node.from, node.to);
 		}
 
-		const cleanPath = extractCleanLinkPath(targetPathToken);
-		const file: TFile | null = resolveLinkFile(this.app, cleanPath, state.activeFileBasename, false);
+		const file: TFile | null = resolveLinkFile(this.app, targetPathToken, state.activeFileBasename, false);
 		
 		if (file === null) {
 			state.processedRanges.add(nodeRangeKey)
