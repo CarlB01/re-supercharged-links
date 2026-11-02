@@ -1,9 +1,8 @@
 import { WorkspaceLeaf, View, Plugin, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
-import { buildCMViewPlugin, themeCompartment, createRuntimeEditorTheme } from '../views/live-preview';
+import { buildCMViewPlugin } from '../views/live-preview';
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
 import { compileSelectors } from '../processors/rule-engine';
@@ -14,12 +13,6 @@ import { registerPluginEvents } from './event-registry';
 import { safeReloadCustomCss } from '../utils/obsidian-adapters';
 import { SCLSettings } from '../settings/settings-constants';
 import { FlyweightEngine } from "./flyweight-engine";
-
-interface ObsidianInternalMarkdownView extends View {
-	editor?: {
-		cm?: EditorView | null;
-	};
-}
 
 interface ObsidianPluginRegistry {
 	plugins?: {
@@ -39,8 +32,6 @@ export default class ResuperchargedLinks extends Plugin {
 	public telemetry!: PluginPerformanceTracker;
 	public cacheManager!: AttributeCacheManager;
 	
-	private lastAppliedThemeHash = ""; // 🚀 Tracks the applied theme signature to bypass redundant reconfigure frames
-
 	private doTelemetry = true;
 
 	public override async onload(): Promise<void> {
@@ -93,11 +84,9 @@ export default class ResuperchargedLinks extends Plugin {
 		registerPluginEvents(this.app, this);
 
 		const viewPluginInstance = buildCMViewPlugin(this.app, this);
-		const initialTheme = createRuntimeEditorTheme(this);
 		
 		this.registerEditorExtension([
-			Prec.lowest(viewPluginInstance),
-			themeCompartment.of(initialTheme)
+			Prec.lowest(viewPluginInstance)
 		]);
 
 		this.app.workspace.onLayoutReady((): void => {
@@ -120,14 +109,12 @@ export default class ResuperchargedLinks extends Plugin {
 					}
 				}
 			});
-			this.refreshEditorThemes();
 		});
 	}
 	
 	public override onunload(): void {	
 		this.flyweightEngine.destroy();	
 		this.cacheManager.destroy();
-		this.lastAppliedThemeHash = "";
 		
 		if (this.attrCycleCache) {
 			this.attrCycleCache.clear();
@@ -192,49 +179,4 @@ export default class ResuperchargedLinks extends Plugin {
 			void violation;
 		}
 	}
-
-		/**
-	 * Reconfigures CodeMirror 6 editor extensions safely across active workspace leaves.
-	 * Implements a strict O(1) state hash barrier to completely bypass layout sweeps 
-	 * when compiled styling rules and active core dark/light status remain static.
-	 */
-	public refreshEditorThemes(): void {
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const version: number = this.cacheManager.getRuleConfigVersion();
-		
-		// Compile a precise structural state string tracking environment changes
-		const currentThemeHash = `${version}-${isDark ? "dark" : "light"}`;
-
-		// 🚀 THE O(1) BARRIER INTERCEPT: Haltet instantly if the configuration maps perfectly to memory
-		if (this.lastAppliedThemeHash === currentThemeHash) {
-			return;
-		}
-
-		// Store the fresh signature instantly to protect subsequent redundant calls
-		this.lastAppliedThemeHash = currentThemeHash;
-
-		const currentTheme = createRuntimeEditorTheme(this);
-		
-		this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			const view = leaf.view ?? null;
-			if (view === null) return;
-
-			if (view.getViewType() === "markdown") {
-				const markdownView = view as ObsidianInternalMarkdownView;
-				const cm = markdownView.editor?.cm ?? null;
-				
-				// Verify instance health and ensuring the state compartment mapping exists natively
-				if (cm !== null && typeof cm.dispatch === "function" && themeCompartment.get(cm.state) !== null) {
-					try {
-						cm.dispatch({
-							effects: themeCompartment.reconfigure(currentTheme)
-						});
-					} catch {
-						return;
-					}
-				}
-			}
-		});
-	}
-
 }

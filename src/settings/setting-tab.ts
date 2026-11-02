@@ -278,16 +278,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 			purgeAndResetAllTabHeaders(this.app);
 		}
 		
-		// Step 1: Flush the lifecycle attribute caches clean to force a complete text regeneration
+		// Flush the lifecycle attribute caches clean to force a complete text regeneration
 		this.plugin.cacheManager.clearAttrCycleCache();
 
-		// Step 2: Sweep and rebuild all currently visible links via the reconciler engine
+		// Sweep and rebuild all currently visible links via the reconciler engine
 		updateVisibleLinks(this.app, this.plugin);
 		
-		// Step 3: Force CodeMirror extensions to re-evaluate active inline widget properties
-		this.plugin.refreshEditorThemes();
-
-		// STEP 4: READ MODE REBUILD FORCE CONDUIT
 		// Iterates through all open workspace leaves and forces a native structural view rebuild.
 		// This forces Obsidian's MarkdownPostProcessor to re-run instantly over Reading Mode documents,
 		// rendering your fresh icon configurations in real-time without requiring a file close/re-open.

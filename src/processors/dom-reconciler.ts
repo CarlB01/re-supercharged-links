@@ -146,66 +146,32 @@ export function processPopupContextNode(
 
 	const rawProps: Record<string, string> = fetchTargetAttributesCached(plugin.app, plugin, dest, globalCache);
 	
-	// Kjør regel-motoren mot de RÅ attributtene (Dette har du fra før)
-	const resolution = resolveRuleResolution({
-		compiledRules: plugin.cacheManager.compiledRules,
-		resolvedAttrs: rawProps,
-		isDark,
-		includeTagMatchClasses: false // Ingen tag-klasser i switcher for å holde DOM-en lett
-	});
+	if (!plugin.flyweightEngine) return false;
 
-	// 🛠️ TYPESIKKER BRO: Vi oversetter en lokal RuleResolution til en lett FlyweightResponse på stakken
-	const flyweightResponse = {
-		hasMatch: resolution.hasMatch,
-		signature: "", // Trengs ikke her da vi ikke gjør signatur-sjekk i popuper
-		classes: resolution.classes,
-		styles: {
-			color: resolution.style.color,
-			backgroundColor: resolution.style.backgroundColor,
-			fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
-			iconBefore: resolution.iconBefore,
-			iconAfter: resolution.iconAfter,
-			decorations: resolution.style.decorations
-		}
-	};
-	
-	const presentation = populatePresentationPool(flyweightResponse);
-	const style = node.style;
+	const visibleText: string = (node.textContent || "").trim();
+	const resolution = plugin.flyweightEngine.getResolutionFromAttrs(dest, rawProps, visibleText, false);
 
-	if (presentation.hasMatch) {
-		// 1. Påfør inline-stiler og CSS-variabler blindt via rå indeks-loop
-		const stylesCount = presentation.stylesCount;
-		for (let i = 0; i < stylesCount; i++) {
-			const key = presentation.styleKeys[i];
-			const val = presentation.styleValues[i];
-			if (key && val) {
-				style.setProperty(key, val);
-				
-				if (key === "color") {
-					node.setAttribute("data-link-color", val);
-				}
-			}
-		}
-
-		// 2. Påfør klasser blindt via rå indeks-loop
-		const classesCount = presentation.classesCount;
-		for (let i = 0; i < classesCount; i++) {
-			const cls = presentation.classes[i];
-			if (cls && !node.classList.contains(cls)) {
-				node.addClass(cls);
-			}
-		}
-		
-		return true;
-		
-	} else {
-		clearExtraAttributes(node);
-
-		if (!node.classList.contains("data-link-text")) {
-			node.addClass("data-link-text");
-		}
-		return false;
+	if (node.getAttribute("data-scl-signature") === resolution.signature && node.classList.contains("scl-processed")) {
+		return resolution.hasMatch;
 	}
+
+	const localProps: Record<string, string> = {};
+	const propKeys = Object.keys(rawProps);
+	const propKeysLen = propKeys.length;
+	for (let i = 0; i < propKeysLen; i++) {
+		const key = propKeys[i];
+		if (key !== undefined) {
+			localProps[key] = rawProps[key] ?? "";
+		}
+	}
+	localProps["data-href"] = dest.basename;
+	localProps["path"] = dest.path;
+
+	applyStylesAndAttributesToLink(node, localProps, plugin);
+
+	return resolution.hasMatch;
+	
+	
 }
 
 /**

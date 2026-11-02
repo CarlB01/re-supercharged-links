@@ -27,7 +27,6 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 			plugin.telemetry.recordUpdateCycle(elapsed, nodesCount);
 		}
 
-		plugin.refreshEditorThemes();
 	}, 200, false);
 
 	plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {

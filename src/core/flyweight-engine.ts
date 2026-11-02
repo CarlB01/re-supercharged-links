@@ -1,4 +1,4 @@
-import { App, getLinkpath } from "obsidian";
+import { App, getLinkpath, TFile } from "obsidian";
 import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
 import { resolveRuleResolution } from "../processors/rule-engine";
@@ -145,6 +145,44 @@ export class FlyweightEngine {
 		this.activeAttributesArray = Array.from(this.activeAttributesSet);
 	}
 
+	/**
+	 * Henter stil-oppløsningen direkte basert på ferdig oppslåtte attributter.
+	 * Isolert for å tillate gjenbruk fra popup-kontekster uten redundant metadata-skanning.
+	 */
+	public getResolutionFromAttrs(
+		dest: TFile,
+		rawProps: Record<string, string>,
+		visibleText: string,
+		includeTagMatchClasses = true
+	): FlyweightResponse {
+		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+
+		const resolution = resolveRuleResolution({
+			compiledRules: this.plugin.cacheManager.compiledRules,
+			resolvedAttrs: rawProps,
+			isDark,
+			includeTagMatchClasses,
+			visibleText: visibleText
+		});
+
+		const targetSignature: string = `${ruleVersion}|${resolution.matchedFlyweightIds.join(",")}|${dest.path}`;
+
+		return {
+			hasMatch: resolution.hasMatch,
+			signature: targetSignature,
+			classes: resolution.classes,
+			styles: {
+				color: resolution.style.color,
+				backgroundColor: resolution.style.backgroundColor,
+				fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
+				iconBefore: resolution.iconBefore,
+				iconAfter: resolution.iconAfter,
+				decorations: resolution.style.decorations
+			}
+		};
+	}
+
 	public getResolution(path: string, visibleText: string): FlyweightResponse {
 		const cleanPath: string = extractCleanLinkPath(path);
 		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
@@ -167,29 +205,8 @@ export class FlyweightEngine {
 
 		const rawProps = fetchTargetAttributesCached(this.app, this.plugin, dest, this.plugin.attrCycleCache);
 
-		const resolution = resolveRuleResolution({
-			compiledRules: this.plugin.cacheManager.compiledRules,
-			resolvedAttrs: rawProps,
-			isDark,
-			includeTagMatchClasses: true,
-			visibleText: visibleText
-		});
-
-		const targetSignature: string = `${ruleVersion}|${resolution.matchedFlyweightIds.join(",")}|${dest.path}`;
-
-		return {
-			hasMatch: resolution.hasMatch,
-			signature: targetSignature,
-			classes: resolution.classes,
-			styles: {
-				color: resolution.style.color,
-				backgroundColor: resolution.style.backgroundColor,
-				fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
-				iconBefore: resolution.iconBefore,
-				iconAfter: resolution.iconAfter,
-				decorations: resolution.style.decorations
-			}
-		};
+		// Delegerer nå direkte til den sentraliserte atom-kanalen
+		return this.getResolutionFromAttrs(dest, rawProps, visibleText, true);
 	}
 
 	public refreshGlobalStyles(): void {
@@ -270,72 +287,3 @@ export class FlyweightEngine {
 	}
 }
 
-/**
- * Oversetter en rå FlyweightResponse til standardiserte, typesikre 
- * klasser og stiler som er identiske for både DOM og CodeMirror 6.
- */
-export function mapResolutionToPresentation(
-	resolution: FlyweightResponse,
-	skipIconBefore: boolean = false,
-	skipIconAfter: boolean = false
-): PresentationPayload {
-	const classes: string[] = [];
-	const inlineStyles: Record<string, string> = Object.create(null) as Record<string, string>;
-	const s = resolution.styles;
-
-	// 1. Alltid inkluder basistekst-klassen hvis matchen er gyldig
-	if (resolution.hasMatch) {
-		classes.push("data-link-text");
-
-		// 2. Farger og bakgrunner (både som rå verdier og CSS-variabler for popup-likhet)
-		if (s.color.length > 0) {
-			inlineStyles["--scl-color"] = s.color;
-			inlineStyles["color"] = s.color;
-		}
-		if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
-			inlineStyles["--scl-bg"] = s.backgroundColor;
-			inlineStyles["background-color"] = s.backgroundColor;
-		}
-
-		// 3. Typografi fra det sentrale oppslaget
-		if (s.fontWeight === "bold") classes.push("scl-weight-bold");
-		if (s.fontWeight === "lighter") classes.push("scl-weight-lighter");
-
-		const decosLen = s.decorations.length;
-		for (let i = 0; i < decosLen; i++) {
-			const dec = s.decorations[i];
-			if (dec === "italic") classes.push("scl-style-italic");
-			if (dec === "underline") classes.push("scl-decor-underline");
-			if (dec === "line-through") classes.push("scl-decor-linethrough");
-		}
-
-		// 4. Ikon-håndtering med streng posisjonell overstyring
-		if (s.iconBefore.length > 0 && !skipIconBefore) {
-			inlineStyles["--scl-icon-before"] = `"${s.iconBefore}"`;
-		} else {
-			classes.push("scl-hide-before");
-		}
-
-		if (s.iconAfter.length > 0 && !skipIconAfter) {
-			inlineStyles["--scl-icon-after"] = `"${s.iconAfter}"`;
-		} else {
-			classes.push("scl-hide-after");
-		}
-
-		// 5. Kompositt-klasser fra regel-motoren (.scl-composite-X-Y)
-		const resolutionClassesLen = resolution.classes.length;
-		for (let i = 0; i < resolutionClassesLen; i++) {
-			const cls = resolution.classes[i];
-			if (cls && cls !== "data-link-text" && !classes.includes(cls)) {
-				classes.push(cls);
-			}
-		}
-	} else {
-		// Fallback for nøytrale noder: Sørg for at variabler og ikoner vaskes bort
-		classes.push("data-link-text");
-		classes.push("scl-hide-before");
-		classes.push("scl-hide-after");
-	}
-
-	return { classes, inlineStyles };
-}

@@ -1,16 +1,10 @@
 import { syntaxTree } from "@codemirror/language";
-import { Compartment, Extension, Line, RangeSetBuilder } from "@codemirror/state";
+import { Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
-import { resolveRuleResolution } from "../processors/rule-engine";
 import { extractCleanLinkPath } from "../utils/shared-utils";
-import { CSSLink } from "../types/css-link";
-import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
-import { mapRawAttrsToDataAttrs } from "../utils/link-attribute-mapper";
 import { populatePresentationPool } from "../processors/presentation.engine";
-
-export const themeCompartment: Compartment = new Compartment();
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -610,18 +604,6 @@ export function resolveLinkFile(app: App, linkText: string, activeFileBasename: 
 	if (abstractFile instanceof TFile) return abstractFile;
 	return null;
 }
-
-/**
- * 🎨 RENT OG DEFINITIVT OPPGJØR MED GAMMEL JS-LOGIKK:
- * Siden FlyweightEngine nå leverer ferdige akkumulerte stiler universelt via 
- * inline-variabler og styles.css, deaktiverer vi dette tema-systemet for godt!
- */
-export function createRuntimeEditorTheme(plugin: ResuperchargedLinks): Extension {
-	// Returner tom utvidelse. Editoren henter nå farger og ikoner 
-	// fra det felles globale stilarket, og akkumuleringen blir 100% perfekt!
-	return [];
-}
-
 
 export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): Extension {
 	return ViewPlugin.fromClass(
