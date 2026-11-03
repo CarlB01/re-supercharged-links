@@ -283,11 +283,10 @@ export class FlyweightEngine {
 		}
 
 		if (cssString.length > 0) {
-			const styleEl: HTMLStyleElement = document.createElement("style");
-			styleEl.id = "scl-global-flyweight-rules";
-			styleEl.textContent = cssString;
-			document.head.appendChild(styleEl);
-			this.globalStyleEl = styleEl;
+			const styleEl = activeDocument.head.createEl("style", { text: cssString });
+    	styleEl.id = "scl-global-flyweight-rules";
+    
+    	this.globalStyleEl = styleEl;
 		}
 	}
 
