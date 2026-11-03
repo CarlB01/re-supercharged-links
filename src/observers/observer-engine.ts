@@ -171,8 +171,19 @@ function watchContainer(
 		for (let i = 0; i < recordsCount; i++) {
 			const m: MutationRecord | null = records[i] ?? null;
 			if (m !== null && m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
-				relevantChangeDetected = true;
-				break;
+				// 🔥 FIX: Sjekk om nodene som ble lagt til/fjernet er våre egne ikoner
+				const isOurOwnIcon = Array.from(m.addedNodes).concat(Array.from(m.removedNodes))
+					.some(node => node instanceof HTMLElement && (
+						node.classList.contains("scl-inline-icon") || 
+						node.classList.contains("scl-processed")
+					));
+					
+				if (isOurOwnIcon) continue; // Ignorer egne mutasjoner for å unngå sirkelløkke!
+
+				if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
+					relevantChangeDetected = true;
+					break;
+				}
 			}
 		}
 		if (!relevantChangeDetected) return;

@@ -289,7 +289,6 @@
   transition: opacity 0.15s ease-in-out;
 }
 
-
 /* =========================================================================
    4) UNIFIED DUAL-ENGINE UTILITY & LAYER DEFINITIONS
    ========================================================================= */
@@ -298,11 +297,19 @@
 .suggestion-item .data-link-text,
 .search-result-file-matches .data-link-text,
 .data-link-text {
-  display: inline-block;
+  display: inline; /* Endret fra inline-block for å bevare klikk-matrisen */
   vertical-align: baseline;
   border-radius: var(--scl-curve); 
   padding-left: var(--scl-padding);
   padding-right: var(--scl-padding);
+}
+
+/* Aktiver et trygt flex-miljø KUN når lenken faktisk har ikoner */
+.data-link-text.scl-with-before,
+.data-link-text.scl-with-after {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
 
 /* Nullstill padding for åpne/delte segmenter i CodeMirror for silkemyk tekstflyt */
@@ -312,6 +319,7 @@
 .cm-editor .cm-link-has-alias .data-link-text,
 .cm-editor .cm-link-alias .data-link-text,
 .cm-editor .cm-string.cm-url .data-link-text {
+  display: inline;
   padding-left: 0;
   padding-right: 0;
   border-radius: 0;
@@ -319,11 +327,13 @@
 
 /* Kant-avrundinger for åpne lenker under editering */
 .cm-active .cm-link-has-alias .data-link-text {
+  display: inline-block; /* Bevar inline-block lokalt under redigering om nødvendig */
   padding-left: var(--scl-padding);
   border-top-left-radius: var(--scl-curve);
   border-bottom-left-radius: var(--scl-curve);
 }
 .cm-active .cm-link-alias .data-link-text {
+  display: inline-block;
   padding-right: var(--scl-padding);
   border-top-right-radius: var(--scl-curve);
   border-bottom-right-radius: var(--scl-curve);
@@ -336,32 +346,32 @@
 .data-link-text.scl-decor-underline { text-decoration: underline; }
 .data-link-text.scl-decor-linethrough { text-decoration: line-through; }
 
+.data-link-text {
+  --scl-color: inherit;
+  --scl-bg: transparent;
+}
+
 /* =========================================================================
    5) GPU-AKSELERERT IKON-PRESENTASJON
    ========================================================================= */
-
-/* Ikonene eksisterer bare og tegnes KUN hvis elementet ber om det additivt */
+.data-link-text.scl-with-after::after,
 .data-link-text.scl-with-before::before {
-  content: var(--scl-icon-before, "");
   display: inline-block;
   flex-shrink: 0;
-  margin-right: 0.35em;
+  line-height: 1;
+}
+
+.data-link-text.scl-with-before::before {
+  content: var(--scl-icon-before, "");
 }
 
 .data-link-text.scl-with-after::after {
   content: var(--scl-icon-after, "");
-  display: inline-block;
-  flex-shrink: 0;
-  margin-left: 0.35em;
 }
 
 /* =========================================================================
    6) DEFINTIV OVERSTYRING AV OBSIDIAN INTERN LENKE-SPESIFISITET
    ========================================================================= */
-
-/* Tvinger lukkede Markdown-lenker i Live Preview til å respektere fargene 
-   levert av våre dynamiske kompositt- og enkeltregler. ved å hekte oss på 
-   .cm-link, vinner vi spesifisitet-krigen organisk uten !important! */
 .cm-editor .cm-link .data-link-text {
   color: inherit;
 }
@@ -369,10 +379,6 @@
 /* =========================================================================
    7) ABSOLUTT OVERSTYRING AV INNERST CM-UNDERLINE SPESIFISITET
    ========================================================================= */
-
-/* Tvinger den innerste understrekings-noden i lukkede Markdown-lenker til 
-   å arve fargen fra vår superladede .data-link-text-node, i stedet for å 
-   bli kuppet av Obsidians standard lenkefarge. */
 .cm-editor .cm-link .data-link-text .cm-underline {
   color: inherit;
 }

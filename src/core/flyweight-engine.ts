@@ -28,7 +28,6 @@ export interface PresentationPayload {
 export class FlyweightEngine {
 	private app: App;
 	private plugin: ResuperchargedLinks;
-	private globalStyleEl: HTMLStyleElement | null = null;
 	public activeAttributesSet: Set<string> = new Set();
 	public activeAttributesArray: string[] = [];
 	public activeHyphenatedKeysArray: string[] = [];
@@ -50,7 +49,6 @@ export class FlyweightEngine {
 		this.app = app;
 		this.plugin = plugin;
 
-		this.refreshGlobalStyles();
 		this.compileActiveAttributes();
 	}
 
@@ -224,77 +222,7 @@ export class FlyweightEngine {
 		return this.getResolutionFromAttrs(dest, rawProps, visibleText, true);
 	}
 
-	public refreshGlobalStyles(): void {
-		if (this.globalStyleEl) {
-			this.globalStyleEl.remove();
-			this.globalStyleEl = null;
-		}
-
-		const selectors = Array.isArray(this.plugin.settings?.selectors) ? this.plugin.settings.selectors : [];
-		const selectorsCount = selectors.length;
-		if (selectorsCount === 0) return;
-
-		let cssString = "";
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		
-		// Enkeltregler (Kun farge, bakgrunn og typografi)
-		for (let i = 0; i < selectorsCount; i++) {
-			const rule = selectors[i];
-			if (!rule) continue;
-
-			const runtimeId = String(i);
-			let ruleStyles = "";
-
-			const textSelection = isDark ? (rule.darkColor ?? "") : (rule.lightColor ?? "");
-			if (textSelection.length > 0) ruleStyles += `color: ${textSelection}; --scl-link-color: ${textSelection}; `;
-
-			const bgSelection = isDark ? (rule.darkBgColor ?? "") : (rule.lightBgColor ?? "");
-			if (bgSelection.length > 0 && bgSelection !== "transparent") ruleStyles += `background-color: ${bgSelection}; `;
-
-			if (rule.fontWeight === "bold" || rule.fontWeight === "lighter") ruleStyles += `font-weight: ${rule.fontWeight}; `;
-			if (rule.fontStyle === "italic") ruleStyles += `font-style: italic; `;
-			if (rule.fontStyle === "underline" || rule.fontStyle === "line-through") ruleStyles += `text-decoration: ${rule.fontStyle}; `;
-
-			if (ruleStyles.length > 0) {
-				cssString += `
-					.scl-rule-${runtimeId}, .scl-composite-${runtimeId} { 
-						${ruleStyles} 
-					}\n`;
-			}
-		}
-
-		// Sammensatte (Compound) regler
-		for (let i = 0; i < selectorsCount; i++) {
-			for (let j = i + 1; j < selectorsCount; j++) {
-				const ruleB = selectors[j];
-				if (!ruleB) continue;
-
-				let compositeStyles = "";
-				const colorB = isDark ? (ruleB.darkColor ?? "") : (ruleB.lightColor ?? "");
-				if (colorB.length > 0) compositeStyles += `color: ${colorB}; --scl-link-color: ${colorB}; `;
-				
-				const bgB = isDark ? (ruleB.darkBgColor ?? "") : (ruleB.lightBgColor ?? "");
-				if (bgB.length > 0 && bgB !== "transparent") compositeStyles += `background-color: ${bgB}; `;
-
-				if (compositeStyles.length > 0) {
-					cssString += `.scl-composite-${i}-${j} { ${compositeStyles} }\n`;
-				}
-			}
-		}
-
-		if (cssString.length > 0) {
-			const styleEl = activeDocument.head.createEl("style", { text: cssString });
-    	styleEl.id = "scl-global-flyweight-rules";
-    
-    	this.globalStyleEl = styleEl;
-		}
-	}
-
 	public destroy(): void {
-		if (this.globalStyleEl) {
-			this.globalStyleEl.remove();
-			this.globalStyleEl = null;
-		}
 		this.activeAttributesSet.clear();
 		this.activeAttributesArray = [];
 		

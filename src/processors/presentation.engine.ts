@@ -39,13 +39,12 @@ export function populatePresentationPool(
 	pool.hasMatch = resolution.hasMatch;
 	pool.classesCount = 0;
 	pool.stylesCount = 0;
+	pool.classes[pool.classesCount++] = "data-link-text";
 
 	if (!resolution.hasMatch) {
 		pool.classes[pool.classesCount++] = "data-link-text";
 		return pool;
 	}
-
-	pool.classes[pool.classesCount++] = "data-link-text";
 
 	const s = resolution.styles;
 	if (s.color.length > 0) {

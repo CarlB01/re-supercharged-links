@@ -181,10 +181,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 	}
 
 	public compilePaneStyles(): void {
-		// 1. Brutal og kontant oppfriskning av stilarket for å plukke opp UI-endringer
-		if (this.plugin.flyweightEngine) {
-			this.plugin.flyweightEngine.refreshGlobalStyles();
-		}
 
 		const selectors: CSSLink[] = this.plugin.settings?.selectors ?? [];
 		const filteredSelectors = this.getFilteredSelectors(selectors);

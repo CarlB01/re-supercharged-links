@@ -123,9 +123,6 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
 				htmlEl.setAttribute("data-link-tags", tagString);
 			}
-			if (!htmlEl.classList.contains("data-link-text")) {
-				htmlEl.addClass("data-link-text");
-			}
 		}
 	}
 }
@@ -140,33 +137,40 @@ export function applyStylesAndAttributesToLink(
 
 	const resolution = plugin.flyweightEngine.getResolution(pathKey, visibleText);
 
+	// 1. SJEKK SIGNATUR: Hvis noden er ferdig prosessert og ingenting er endret, RØR DEN IKKE.
+	// Dette er ekstremt kritisk for myBrain for å unngå å bryte klikk-lyttere!
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		return; 
 	}
 
-	// 🚀 1. Én felles totalvask (Sletter alt av gamle stiler, variabler og ikoner)
-	clearExtraAttributes(link);
-	link.setAttribute("data-scl-signature", resolution.signature);
+	// 2. Er dette en myBrain-node? Da beskytter vi den mot aggressiv rensing som dreper klikk
+	const isThirdPartyView = link.classList.contains("focusable-note-link") || link.closest(".mybrain-view") !== null;
+
+	if (isThirdPartyView) {
+		// Skånsom vask i stedet for totalvask: Bare oppdater signaturen og la kjerne-attributtene til myBrain være i fred
+		link.setAttribute("data-scl-signature", resolution.signature);
+	} else {
+		// Standard fullstendig totalvask for trygge Obsidian-noder
+		clearExtraAttributes(link);
+		link.setAttribute("data-scl-signature", resolution.signature);
+	}
 
 	const presentation = populatePresentationPool(resolution);
 	const inlineStyle: CSSStyleDeclaration = link.style;
 
 	if (presentation.hasMatch) {
-		// 2. Påfør inline-stiler fra pool via rå indeks-loop
 		const stylesCount = presentation.stylesCount;
 		for (let i = 0; i < stylesCount; i++) {
 			const key = presentation.styleKeys[i];
 			const val = presentation.styleValues[i];
 			if (key && val) {
 				inlineStyle.setProperty(key, val);
-				
 				if (key === "color") {
 					link.setAttribute("data-link-color", val);
 				}
 			}
 		}
 
-		// 3. Påfør klasser fra pool via rå indeks-loop
 		const classesCount = presentation.classesCount;
 		for (let i = 0; i < classesCount; i++) {
 			const cls = presentation.classes[i];
@@ -175,8 +179,6 @@ export function applyStylesAndAttributesToLink(
 			}
 		}
 	} else {
-		// 🌟 Siden clearExtraAttributes akkurat kjørte, er elementet helt sterilt.
-		// Vi trenger bare å sette på de standard u-stylede fallback-klassene!
 		if (!link.classList.contains("data-link-text")) {
 			link.classList.add("data-link-text");
 		}
@@ -186,4 +188,3 @@ export function applyStylesAndAttributesToLink(
 
 	link.classList.add("scl-processed");
 }
-
