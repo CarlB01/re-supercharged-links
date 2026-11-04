@@ -457,7 +457,7 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	}
 
 	if (resolvedFile !== null) {
-		clearExtraAttributes(titleNode);
+		clearExtraAttributes(titleNode, plugin);
 		updateDivExtraAttributes(app, plugin, titleNode, "", resolvedFile.path);
 		return 1;
 	}
@@ -646,7 +646,7 @@ export function updateVisibleLinks(
 	return totalNodesStyled;
 }
 
-export function purgeAndResetAllTabHeaders(app: App): void {
+export function purgeAndResetAllTabHeaders(app: App, plugin: ResuperchargedLinks): void {
 	const tabElements = document.querySelectorAll(".workspace-tab-header");
 	const tabCount = tabElements.length;
 	
@@ -659,12 +659,12 @@ export function purgeAndResetAllTabHeaders(app: App): void {
 				: tabEl.querySelector<HTMLElement>(".workspace-tab-header-inner-title") ?? tabEl;
 
 			// Vask den ekte tittel-noden ren!
-			clearExtraAttributes(titleNode);			
+			clearExtraAttributes(titleNode, plugin);			
 			titleNode.classList.remove("scl-processed");
 			
 			// For sikkerhets skyld, vask også selve tabEl i tilfelle eldre regler traff den
 			if (titleNode !== tabEl) {
-				clearExtraAttributes(tabEl);
+				clearExtraAttributes(tabEl, plugin);
 				tabEl.classList.remove("scl-processed");
 			}
 		}

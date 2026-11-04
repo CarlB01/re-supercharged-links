@@ -4,63 +4,54 @@ import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import { SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 
 /**
- * Universell og kompromissløs sterilisering av et element.
- * Fjerner alle dynamiske data-attributter, sletter fysiske ikoner,
- * og nullstiller alle klasser og CSS-variabler generert av regelmotoren.
+ * Kirurgisk, sentralisert sterilisering av et element.
+ * Sletter KUN attributter og klasser generert av de aktive regel-atomene.
  */
-export function clearExtraAttributes(link: HTMLElement): void {
-	// 1. RENS ATRIBUTTER (Fjerner data-link-*, data-scl-*, og signaturer)
+export function clearExtraAttributes(link: HTMLElement, plugin: ResuperchargedLinks): void {
+	// 1. STATISK SYSTEM-RENS: Vask våre egne kjente signaturer
 	link.removeAttribute("data-scl-signature");
 	link.removeAttribute("data-link-color");
-	
-	const attrs: NamedNodeMap = link.attributes;
-	let i: number = attrs.length;
-	while (i--) {
-		const attr: Attr | null = attrs.item(i);
-		if (attr !== null) {
-			const name: string = attr.name;
-			if (name.includes("data-link") || name.startsWith("data-scl-")) {
-				link.removeAttribute(name);
+	link.removeAttribute("data-link-tags");
+
+	const engine = plugin.flyweightEngine;
+	if (engine) {
+		// 2. SENTRALISERT ATTRIBUTT-VASK: Slett alt som motoren har flagget som aktivt
+		const attrs: NamedNodeMap = link.attributes;
+		let i: number = attrs.length;
+		while (i--) {
+			const attr: Attr | null = attrs.item(i);
+			if (attr !== null) {
+				const name: string = attr.name;
+				if (engine.activePresentationAttributesSet && engine.activePresentationAttributesSet.has(name)) {
+					link.removeAttribute(name);
+				}
+			}
+		}
+
+		// 3. SENTRALISERT KLASSE-VASK: Slett KUN klasser som finnes i det sentrale lookup-et
+		const currentClasses: DOMTokenList = link.classList;
+		let k: number = currentClasses.length;
+		while (k--) {
+			const cls = currentClasses.item(k);
+			if (cls !== null && (
+				cls.startsWith("scl-composite-") || 
+				(engine.activeSemanticClassesSet && engine.activeSemanticClassesSet.has(cls))
+			)) {
+				link.classList.remove(cls);
 			}
 		}
 	}
-	
-	// 2. FJERN FYSISKE INLINE-IKONER
-	const oldIcons: NodeListOf<HTMLElement> = link.querySelectorAll(".scl-inline-icon");
-	const oldIconsCount: number = oldIcons.length;
-	for (let j = 0; j < oldIconsCount; j++) {
-		const iconEl: HTMLElement | null = oldIcons[j] ?? null;
-		if (iconEl !== null) {
-			iconEl.remove();
-		}
-	}
 
-	// 3. BLIND KLASSE-VASK (Bruker de felles sentraliserte konstantene)
+	// 4. STATISK STIL- OG VARIABEL-VASK (Fra sentrale konstanter)
 	for (const cls of SCL_CLEANUP_CLASSES) {
 		link.removeClass(cls);
 	}
 
-	// Dynamiske brukergenererte klasser og sammensatte regel-kompositter
-	const currentClasses: DOMTokenList = link.classList;
-	let k: number = currentClasses.length;
-	while (k--) {
-		const cls = currentClasses.item(k);
-		if (cls !== null && (
-			cls.startsWith("scl-match-") || 
-			cls.startsWith("scl-rule-") || 
-			cls.startsWith("scl-composite-") // 🌟 KNUSER SPØKELSES-BAKGRUNNER PERMANENT
-		)) {
-			link.classList.remove(cls);
-		}
-	}
-
-	// 4. BLIND STIL- OG VARIABEL-VASK
 	const style = link.style;
 	for (const prop of SCL_CLEANUP_PROPERTIES) {
 		style.removeProperty(prop);
 	}
 	
-	// Fallback for eldre element-styles
 	if (style.length > 0) {
 		style.removeProperty("font-weight");
 		style.removeProperty("font-style");
@@ -68,9 +59,6 @@ export function clearExtraAttributes(link: HTMLElement): void {
 	}
 }
 
-/**
- * Extracts and normalizes tag cache tokens directly from layout elements safely.
- */
 export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	const hrefAttr: string | null = el.getAttribute("href");
 	const textContent: string | null = el.textContent;
@@ -101,9 +89,6 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 	return uniqueTokens;
 }
 
-/**
- * Extends Supercharged styling frameworks safely to active tag chip nodes inside view containers.
- */
 export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLinks): void {
 	if (!plugin.settings.enableTagChips) return;
 
@@ -137,22 +122,15 @@ export function applyStylesAndAttributesToLink(
 
 	const resolution = plugin.flyweightEngine.getResolution(pathKey, visibleText);
 
-	// 1. SJEKK SIGNATUR: Hvis noden er ferdig prosessert og ingenting er endret, RØR DEN IKKE.
-	// Dette er ekstremt kritisk for myBrain for å unngå å bryte klikk-lyttere!
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		return; 
 	}
 
-	// 2. Er dette en myBrain-node? Da beskytter vi den mot aggressiv rensing som dreper klikk
-	const isThirdPartyView = link.classList.contains("focusable-note-link") || link.closest(".mybrain-view") !== null;
+	clearExtraAttributes(link, plugin);
+	link.setAttribute("data-scl-signature", resolution.signature);
 
-	if (isThirdPartyView) {
-		// Skånsom vask i stedet for totalvask: Bare oppdater signaturen og la kjerne-attributtene til myBrain være i fred
-		link.setAttribute("data-scl-signature", resolution.signature);
-	} else {
-		// Standard fullstendig totalvask for trygge Obsidian-noder
-		clearExtraAttributes(link);
-		link.setAttribute("data-scl-signature", resolution.signature);
+	if (!link.classList.contains("scl-processed")) {
+		link.classList.add("scl-processed");
 	}
 
 	const presentation = populatePresentationPool(resolution);
@@ -178,13 +156,5 @@ export function applyStylesAndAttributesToLink(
 				link.classList.add(cls);
 			}
 		}
-	} else {
-		if (!link.classList.contains("data-link-text")) {
-			link.classList.add("data-link-text");
-		}
-		link.classList.add("scl-hide-before");
-		link.classList.add("scl-hide-after");
 	}
-
-	link.classList.add("scl-processed");
 }

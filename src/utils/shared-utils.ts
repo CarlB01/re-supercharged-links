@@ -8,7 +8,6 @@ export const SCL_CLEANUP_CLASSES: readonly string[] = [
 	"scl-decor-linethrough",
 	"scl-with-before",
 	"scl-with-after",
-	"data-link-text",
 	"scl-processed"
 ];
 
@@ -359,24 +358,6 @@ export function extractPathFromCacheKey(key: string): string | null {
 		return null; 
 	}
 	return key.substring(startPos, secondIdx);
-}
-
-/**
- * Constructs a standardized, cross-window safe inline icon span element layout.
- * Synchronizes DOM structures perfectly across Live Preview, Reading Mode, and Settings.
- */
-export function createInlineIconSpan(targetDocument: Document, icon: string, isBefore: boolean): HTMLElement {
-	const activeWindow = targetDocument.defaultView ?? window;
-
-	const span = activeWindow.createSpan({
-		cls: isBefore 
-			? "scl-inline-icon scl-inline-icon-before" 
-			: "scl-inline-icon scl-inline-icon-after",
-		text: icon
-	})
-	span.setAttribute("contenteditable", "false");
-	
-	return span;
 }
 
 /**

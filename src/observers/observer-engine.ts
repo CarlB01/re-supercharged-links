@@ -14,6 +14,9 @@ const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTML
 const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = new WeakMap<HTMLElement, Map<string, MutationObserver>>();
 const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
 
+// Legg til en global trådlås øverst i view-observer.ts
+let isMutationLockActive = false;
+
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 	const prev: number | null = scheduledContainerUpdates.get(container) ?? null;
 	if (prev !== null) {
@@ -153,7 +156,6 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	plugin.modalObservers.push(observer);
 }
 
-
 function watchContainer(
 	viewType: string | null,
 	observerKey: string,
@@ -165,20 +167,22 @@ function watchContainer(
 	disconnectExistingObserver(container, observerKey);
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+		if (isMutationLockActive) return;
+
 		const recordsCount = records.length;
 		let relevantChangeDetected = false;
 
 		for (let i = 0; i < recordsCount; i++) {
 			const m: MutationRecord | null = records[i] ?? null;
-			if (m !== null && m.type === "childList" && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
-				// 🔥 FIX: Sjekk om nodene som ble lagt til/fjernet er våre egne ikoner
-				const isOurOwnIcon = Array.from(m.addedNodes).concat(Array.from(m.removedNodes))
-					.some(node => node instanceof HTMLElement && (
-						node.classList.contains("scl-inline-icon") || 
+			if (m !== null && m.type === "childList") {
+				
+				// Sjekk om mutasjonen inneholder våre egne prosesserte elementer
+				const hasSelfMutations = Array.from(m.addedNodes).concat(Array.from(m.removedNodes))
+					.some(node => node.instanceOf && node.instanceOf(HTMLElement) &&  
 						node.classList.contains("scl-processed")
-					));
-					
-				if (isOurOwnIcon) continue; // Ignorer egne mutasjoner for å unngå sirkelløkke!
+					);
+
+				if (hasSelfMutations) continue;
 
 				if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
 					relevantChangeDetected = true;
@@ -189,7 +193,16 @@ function watchContainer(
 		if (!relevantChangeDetected) return;
 
 		scheduleContainerUpdate(container, (): void => {
-			updateContainer(container, plugin, selector, filterCollapsible);
+			// Aktiver låsen RETT før vi muterer DOM-en
+			isMutationLockActive = true;
+			try {
+				updateContainer(container, plugin, selector, filterCollapsible);
+			} finally {
+				// Frigjør låsen i en microtask slik at MutationObserver-køen rekker å tømmes først
+				setTimeout(() => {
+					isMutationLockActive = false;
+				}, 0);
+			}
 		});
 	});
 
@@ -316,7 +329,7 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 				for (let k = 0; k < nodesCount; k++) {
 					const node: HTMLElement | null = nodes[k] ?? null;
 					if (node !== null && node.nodeType === 1) {
-						clearExtraAttributes(node);
+						clearExtraAttributes(node,plugin);
 					}
 				}
 			}

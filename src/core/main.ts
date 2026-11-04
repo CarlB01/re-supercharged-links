@@ -123,7 +123,7 @@ export default class ResuperchargedLinks extends Plugin {
 		removeStylingFromViews(this);
 
 		if (typeof purgeAndResetAllTabHeaders === "function") {
-			purgeAndResetAllTabHeaders(this.app);
+			purgeAndResetAllTabHeaders(this.app, this);
 		}
 		disconnectAllObservers(this);
 	}

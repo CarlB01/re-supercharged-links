@@ -28,8 +28,13 @@ export interface PresentationPayload {
 export class FlyweightEngine {
 	private app: App;
 	private plugin: ResuperchargedLinks;
+
 	public activeAttributesSet: Set<string> = new Set();
 	public activeAttributesArray: string[] = [];
+
+	public activeSemanticClassesSet: Set<string> = new Set();
+	public activePresentationAttributesSet: Set<string> = new Set();
+
 	public activeHyphenatedKeysArray: string[] = [];
 
 	// Et raskt O(1) tall-til-objekt kart for render-løkken
@@ -60,10 +65,10 @@ export class FlyweightEngine {
 		this.activeAttributesSet.clear();
 		this.activeAttributesArray = [];
 		
-		// 1. Nullstill og pre-populer den flate systemfelt-indeksen
+		this.activeSemanticClassesSet.clear();
+		this.activePresentationAttributesSet.clear();
+	
 		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
-		
-		// 2. Tøm det gamle Flyweight-registeret
 		this.ruleRegistry.clear();
 		
 		if (this.plugin.settings === null || this.plugin.settings.selectors === null) return;
@@ -72,18 +77,16 @@ export class FlyweightEngine {
 		if (!Array.isArray(selectorsProxy)) return;
 		
 		const len = selectorsProxy.length;
-		let ruleIdCounter = 1; // Unike numeriske ID-er for atomene
+		let ruleIdCounter = 1; 
 
 		for (let i = 0; i < len; i++) {
 			const selector: CSSLink | null = selectorsProxy[i] ?? null;
 			if (selector === null) continue;
 
-			// Registrer rå-attributter for filskanneren
 			if (selector.type === "attribute") {
 				const attrName: unknown = selector.name;
 				if (typeof attrName === "string" && attrName.length > 0) {
 					this.activeAttributesSet.add(attrName);
-					
 					const cleaned: string = cleanAttributeKey(attrName);
 					if (cleaned.length > 0 && !this.activeHyphenatedKeysArray.includes(cleaned)) {
 						this.activeHyphenatedKeysArray.push(cleaned);
@@ -91,7 +94,6 @@ export class FlyweightEngine {
 				}
 			}
 
-			// 3. Generer et vakkert, semantisk klassenavn for eksterne utviklere
 			let semanticName = "";
 			if (selector.type === "attribute" && typeof selector.name === "string") {
 				const cleanValue = typeof selector.value === "string" ? cleanAttributeKey(selector.value) : "value";
@@ -104,12 +106,25 @@ export class FlyweightEngine {
 				semanticName = `scl-rule-atom-${ruleIdCounter}`;
 			}
 
-			// Forbered eventuelle ekstra presentasjonsattributter (f.eks. ikoner til DOM)
-			const baseAttributes: Record<string, string> = Object.create(null);
-			if (selector.iconBefore && selector.iconBefore.length > 0) baseAttributes["data-link-icon-before"] = selector.iconBefore;
-			if (selector.iconAfter && selector.iconAfter.length > 0) baseAttributes["data-link-icon-after"] = selector.iconAfter;
+			this.activeSemanticClassesSet.add(semanticName);
 
-			// 4. 🔥 REGISTRER LIGHT MODE ATOM
+			const baseAttributes: Record<string, string> = Object.create(null);
+
+			if ((selector.lightColor && selector.lightColor.length > 0) || (selector.darkColor && selector.darkColor.length > 0)) {
+				this.activePresentationAttributesSet.add("data-link-color");
+			}
+			
+			if (selector.iconBefore && selector.iconBefore.length > 0) {
+				baseAttributes["data-link-icon-before"] = selector.iconBefore;
+				this.activePresentationAttributesSet.add("data-link-icon-before");
+				this.activePresentationAttributesSet.add("--scl-icon-before");
+			}
+			if (selector.iconAfter && selector.iconAfter.length > 0) {
+				baseAttributes["data-link-icon-after"] = selector.iconAfter;
+				this.activePresentationAttributesSet.add("data-link-icon-after");
+				this.activePresentationAttributesSet.add("--scl-icon-after");
+			}
+
 			const lightId = ruleIdCounter++;
 			selector._flyweightIdLight = lightId;
 			this.ruleRegistry.set(lightId, {
@@ -124,7 +139,6 @@ export class FlyweightEngine {
 				classes: [semanticName]
 			});
 
-			// 5. 🔥 REGISTRER DARK MODE ATOM
 			const darkId = ruleIdCounter++;
 			selector._flyweightIdDark = darkId;
 			this.ruleRegistry.set(darkId, {

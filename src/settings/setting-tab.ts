@@ -271,7 +271,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 	public _generateSnippet(): void {
 
 		if (typeof purgeAndResetAllTabHeaders === "function") {
-			purgeAndResetAllTabHeaders(this.app);
+			purgeAndResetAllTabHeaders(this.app, this.plugin);
 		}
 		
 		// Flush the lifecycle attribute caches clean to force a complete text regeneration
