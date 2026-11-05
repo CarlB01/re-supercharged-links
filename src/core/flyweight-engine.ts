@@ -46,7 +46,6 @@ export class FlyweightEngine {
 		fontStyle: string;
 		iconBefore: string;
 		iconAfter: string;
-		attributes: Record<string, string>; 
 		classes: string[]; 
 	}> = new Map();
 
@@ -108,19 +107,14 @@ export class FlyweightEngine {
 
 			this.activeSemanticClassesSet.add(semanticName);
 
-			const baseAttributes: Record<string, string> = Object.create(null);
-
 			if ((selector.lightColor && selector.lightColor.length > 0) || (selector.darkColor && selector.darkColor.length > 0)) {
 				this.activePresentationAttributesSet.add("data-link-color");
 			}
-			
 			if (selector.iconBefore && selector.iconBefore.length > 0) {
-				baseAttributes["data-link-icon-before"] = selector.iconBefore;
 				this.activePresentationAttributesSet.add("data-link-icon-before");
 				this.activePresentationAttributesSet.add("--scl-icon-before");
 			}
 			if (selector.iconAfter && selector.iconAfter.length > 0) {
-				baseAttributes["data-link-icon-after"] = selector.iconAfter;
 				this.activePresentationAttributesSet.add("data-link-icon-after");
 				this.activePresentationAttributesSet.add("--scl-icon-after");
 			}
@@ -135,7 +129,6 @@ export class FlyweightEngine {
 				fontStyle: selector.fontStyle || "normal",
 				iconBefore: selector.iconBefore || "",
 				iconAfter: selector.iconAfter || "",
-				attributes: baseAttributes,
 				classes: [semanticName]
 			});
 
@@ -149,7 +142,6 @@ export class FlyweightEngine {
 				fontStyle: selector.fontStyle || "normal",
 				iconBefore: selector.iconBefore || "",
 				iconAfter: selector.iconAfter || "",
-				attributes: baseAttributes,
 				classes: [semanticName]
 			});
 		}

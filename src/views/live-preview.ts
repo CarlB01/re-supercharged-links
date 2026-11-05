@@ -255,7 +255,7 @@ export class CMViewPlugin {
 		// Bevarer data-link-color kun for bakoverkompatibilitet med eldre eksterne temaer
 		if (resolution.styles.color.length > 0) {
 			attributes["data-link-color"] = resolution.styles.color;
-		}
+		} 
 
 		// 5. 🔥 ADDITIV INLINE-VARIABEL STRØM FOR CM6:
 		// Vi bygger en superlett, flat CSS-streng av stil-slotsene levert direkte fra poolen.
