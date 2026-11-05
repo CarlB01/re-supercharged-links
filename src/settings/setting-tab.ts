@@ -399,7 +399,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 		setting.settingEl.setAttribute("data-index", String(index));
 		setting.nameEl.empty();
 		
-		renderRuleSentence(setting.nameEl, selector, index);
+		renderRuleSentence(setting.nameEl, selector, index, this.plugin);
 
 		this.renderRuleBadges(setting, selector);
 		this.renderReorderGrip(setting, index, selectors);

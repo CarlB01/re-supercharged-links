@@ -252,11 +252,6 @@ export class CMViewPlugin {
 		const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 		attributes["data-link-path"] = file.path;
 
-		// Bevarer data-link-color kun for bakoverkompatibilitet med eldre eksterne temaer
-		if (resolution.styles.color.length > 0) {
-			attributes["data-link-color"] = resolution.styles.color;
-		} 
-
 		// 5. 🔥 ADDITIV INLINE-VARIABEL STRØM FOR CM6:
 		// Vi bygger en superlett, flat CSS-streng av stil-slotsene levert direkte fra poolen.
 		// Siden CM6 kaster toppnivå-styles, plasserer vi dette trygt i attributes.style som en streng!

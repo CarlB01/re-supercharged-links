@@ -1,4 +1,5 @@
 import ResuperchargedLinks from "../../core/main";
+import { populatePresentationPool } from "../../processors/presentation.engine";
 import { CSSLink } from "../../types/css-link";
 import { cleanRuleValue, cleanAttributeKey } from "../../utils/shared-utils";
 import { applyStylesAndAttributesToLink } from "../../views/dom-mutator";
@@ -7,38 +8,58 @@ import { applyStylesAndAttributesToLink } from "../../views/dom-mutator";
  * Renders the preview link node as an authentic framework link.
  * This allows the core observer and layout engines to catch and style it automatically.
  */
-export function renderPreviewNote(parent: HTMLElement, selector: CSSLink, index: number): void {
-  const val: string = cleanRuleValue(selector.value); 
+export function renderPreviewNote(parent: HTMLElement, selector: CSSLink, index: number, plugin: ResuperchargedLinks): void {
 
   const noteAnchor = parent.createEl("a", { 
-    cls: `internal-link data-link-text scl-rule-${index}`,
+    cls: `internal-link data-link-text`,
     text: "Note"
   });
 
   noteAnchor.setAttribute("href", "Note");
   noteAnchor.setAttribute("data-href", "Note");
 
-  if (selector.type === "tag") {
-    noteAnchor.setAttribute("data-link-tags", val.length > 0 ? `#${val}` : "");
-    noteAnchor.setAttribute("data-tag", val);
-  } else if (selector.type === "attribute") {
-    const key: string = cleanAttributeKey(selector.name);
-    if (key.length > 0) {
-      noteAnchor.setAttribute(`data-link-${key}`, val);
-    }
-  } else if (selector.type === "path") {
-    noteAnchor.setAttribute("data-link-path", val);
-  }
+  const virtualPath = `virtual://preview/${index}`;
+	const resolution = plugin.flyweightEngine.getResolution(virtualPath, "Note");
+
+	// 3. Populer poolen og påfør klasser/stiler på nøyaktig samme måte som i resten av appen
+	const presentation = populatePresentationPool(resolution);
+  
+	if (presentation.hasMatch) {
+		const inlineStyle = noteAnchor.style;
+		const stylesCount = presentation.stylesCount;
+		for (let i = 0; i < stylesCount; i++) {
+			const key = presentation.styleKeys[i];
+			const val = presentation.styleValues[i];
+			if (key && val) {
+				inlineStyle.setProperty(key, val);
+			}
+		}
+
+		const classesCount = presentation.classesCount;
+		for (let i = 0; i < classesCount; i++) {
+			const cls = presentation.classes[i];
+			if (cls) {
+				noteAnchor.classList.add(cls);
+			}
+		}
+	}
+  
 }
 
 /**
  * Assembles human-readable configuration descriptive strings alongside dynamic inline markup.
  */
-export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink, index: number): void {
+export function renderRuleSentence(
+  nameEl: HTMLElement, 
+  selector: CSSLink, 
+  index: number, 
+  plugin: ResuperchargedLinks
+): void {
   const valText: string = selector.value || "empty";
 
+  renderPreviewNote(nameEl, selector, index, plugin);
+
   if (selector.type === "tag") {
-    renderPreviewNote(nameEl, selector, index);
     nameEl.appendText(" has tag ");
     
     // Clean any legacy double hash artifacts during real-time visual assembly
@@ -49,7 +70,6 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink, index
 
   if (selector.type === "attribute") {
     const attrName: string = selector.name || "empty";
-    renderPreviewNote(nameEl, selector, index);
     nameEl.appendText(" has attribute ");
     nameEl.createEl("b", { text: attrName });
     nameEl.appendText(" with value ");
@@ -57,7 +77,6 @@ export function renderRuleSentence(nameEl: HTMLElement, selector: CSSLink, index
     return;
   }
 
-  renderPreviewNote(nameEl, selector, index);
   nameEl.appendText(" path matches ");
   nameEl.createEl("b", { text: valText });
 }

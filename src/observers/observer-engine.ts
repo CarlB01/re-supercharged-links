@@ -167,21 +167,43 @@ function watchContainer(
 	disconnectExistingObserver(container, observerKey);
 
 	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
-		if (isMutationLockActive) return;
-
 		const recordsCount = records.length;
 		let relevantChangeDetected = false;
 
 		for (let i = 0; i < recordsCount; i++) {
 			const m: MutationRecord | null = records[i] ?? null;
-			if (m !== null && m.type === "childList") {
-				
-				// Sjekk om mutasjonen inneholder våre egne prosesserte elementer
-				const hasSelfMutations = Array.from(m.addedNodes).concat(Array.from(m.removedNodes))
-					.some(node => node.instanceOf && node.instanceOf(HTMLElement) &&  
-						node.classList.contains("scl-processed")
-					);
+			if (m === null) continue;
 
+			if (m.type === "attributes" && m.attributeName?.startsWith("data-link-")) {
+				continue;
+			}
+
+			if (m.type === "childList") {
+				let hasSelfMutations = false;
+
+				// 1. Sjekk addedNodes lynraskt via ren indeks-aksess
+				const addedLen = m.addedNodes.length;
+				for (let j = 0; j < addedLen; j++) {
+					const node = m.addedNodes[j] ?? null;
+					if (node?.instanceOf(HTMLElement) && node.classList.contains("scl-processed")) {
+						hasSelfMutations = true;
+						break;
+					}
+				}
+
+				// 2. Hvis vi ikke fant noe i addedNodes, sjekk removedNodes på samme måte
+				if (!hasSelfMutations) {
+					const removedLen = m.removedNodes.length;
+					for (let j = 0; j < removedLen; j++) {
+						const node = m.removedNodes[j] ?? null;
+						if (node?.instanceOf(HTMLElement) && node.classList.contains("scl-processed")) {
+							hasSelfMutations = true;
+							break;
+						}
+					}
+				}
+
+				// Hvis endringen kun bestod av våre egne modifiserte elementer, ignorerer vi den
 				if (hasSelfMutations) continue;
 
 				if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
@@ -193,16 +215,7 @@ function watchContainer(
 		if (!relevantChangeDetected) return;
 
 		scheduleContainerUpdate(container, (): void => {
-			// Aktiver låsen RETT før vi muterer DOM-en
-			isMutationLockActive = true;
-			try {
-				updateContainer(container, plugin, selector, filterCollapsible);
-			} finally {
-				// Frigjør låsen i en microtask slik at MutationObserver-køen rekker å tømmes først
-				setTimeout(() => {
-					isMutationLockActive = false;
-				}, 0);
-			}
+			updateContainer(container, plugin, selector, filterCollapsible);
 		});
 	});
 

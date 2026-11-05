@@ -10,10 +10,10 @@ import { SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-uti
 export function clearExtraAttributes(link: HTMLElement, plugin: ResuperchargedLinks): void {
 	// 1. STATISK SYSTEM-RENS: Vask våre egne kjente signaturer
 	link.removeAttribute("data-scl-signature");
-	link.removeAttribute("data-link-color");
 	link.removeAttribute("data-link-tags");
 
 	const engine = plugin.flyweightEngine;
+	
 	if (engine) {
 		// 2. SENTRALISERT ATTRIBUTT-VASK: Slett alt som motoren har flagget som aktivt
 		const attrs: NamedNodeMap = link.attributes;
@@ -143,9 +143,6 @@ export function applyStylesAndAttributesToLink(
 			const val = presentation.styleValues[i];
 			if (key && val) {
 				inlineStyle.setProperty(key, val);
-				if (key === "color") {
-					link.setAttribute("data-link-color", val);
-				}
 			}
 		}
 

@@ -11,6 +11,9 @@ export function mapRawAttrsToDataAttrs(rawAttrs: Record<string, string>): Record
 		const key = keys[i];
 		
 		if (key !== undefined) {
+			if (key === "iconBefore" || key === "iconAfter" || key === "color") {
+				continue;
+			}
 			const val = rawAttrs[key]; 
 			
 			if (val !== undefined && val !== null && val.length > 0) {

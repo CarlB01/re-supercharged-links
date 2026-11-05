@@ -166,10 +166,6 @@ function createMatcher(
 	};
 }
 
-// 🔥 SIKKER EMOJI-DETEKSJON: Treffer piktogrammer og faktiske emojier, men ALDRI vanlige tall eller bokstaver!
-const EMOJI_START_REGEX = /^\p{Extended_Pictographic}/u;
-const EMOJI_END_REGEX = /\p{Extended_Pictographic}$/u;
-
 export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleResolution {
 	const compiledRules: readonly CompiledRule[] = input.compiledRules;
 	const resolvedAttrs: Readonly<Record<string, string>> = input.resolvedAttrs;
@@ -235,7 +231,6 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	}
 
 	const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
-	attributes["data-link-color"] = color;
 	attributes["data-link-bg"] = backgroundColor;
 	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";
 	attributes["data-link-style-decoration"] = decorations.length > 0 ? decorations.join(" ") : "";
@@ -245,8 +240,9 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	const hasBeforeConflict = /^\p{Extended_Pictographic}/u.test(targetText) || (iconBefore.length > 0 && targetText.startsWith(iconBefore));
 	const hasAfterConflict = /\p{Extended_Pictographic}$/u.test(targetText) || (iconAfter.length > 0 && targetText.endsWith(iconAfter));
 
-	attributes["data-scl-icon-before"] = (!input.skipIconBefore && !hasBeforeConflict && iconBefore.length > 0) ? iconBefore : "";
-	attributes["data-scl-icon-after"] = (!input.skipIconAfter && !hasAfterConflict && iconAfter.length > 0) ? iconAfter : "";
+	if (input.skipIconBefore || hasBeforeConflict) iconBefore = "";
+	if (input.skipIconAfter || hasAfterConflict) iconAfter = "";
+
 	attributes["data-link-tags"] = "";
 
 	if (includeTagMatchClasses) {
@@ -274,8 +270,8 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		matchedFlyweightIds: matchedIds,
 		classes: classList,
 		attributes,
-		iconBefore: attributes["data-scl-icon-before"],
-		iconAfter: attributes["data-scl-icon-after"],
+		iconBefore,
+		iconAfter, 
 		style: { color, backgroundColor, fontWeight, decorations }
 	};
 }
