@@ -1,11 +1,9 @@
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
-import { resolveRuleResolution } from "../processors/rule-engine";
 import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "../views/dom-mutator";
-import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue, SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
+import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
 import ResuperchargedLinks from "../core/main";
-import { populatePresentationPool } from "./presentation.engine";
 
 type RefreshScope = {
 	paths: Set<string>;

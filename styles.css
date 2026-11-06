@@ -346,10 +346,43 @@
 .data-link-text.scl-decor-underline { text-decoration: underline; }
 .data-link-text.scl-decor-linethrough { text-decoration: line-through; }
 
-.data-link-text {
-  --scl-color: inherit;
-  --scl-bg: transparent;
+
+/* =========================================================================
+   4b) UNIVERSAL CM6 & POPUP OVERSTYRING (UTEN !IMPORTANT)
+   ========================================================================= */
+
+/* 1. Live Preview (CodeMirror 6) – Fanger opp både .cm-link og .cm-hmd-internal-link */
+.cm-editor .cm-line .cm-link .data-link-text,
+.cm-editor .cm-line .cm-link .data-link-text .cm-underline,
+.cm-editor .cm-line .cm-hmd-internal-link .data-link-text,
+.cm-editor .cm-line .cm-hmd-internal-link .data-link-text .cm-underline,
+.cm-editor .cm-line .cm-url .data-link-text {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
 }
+
+/* 2. Lesemodus (Markdown Preview) */
+.markdown-rendered a.internal-link.data-link-text,
+.markdown-rendered a.external-link.data-link-text,
+.suggestion-item .data-link-text,
+.search-result-file-matches .data-link-text {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
+
+/* 3. Faner (Workspace Tabs) – Beholder den sterke stien vår her */
+body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner-title.data-link-text,
+.workspace-tab-header.is-active .workspace-tab-header-inner-title.data-link-text {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
+
+/* 4. Global uavhengig sikring for rå elementer (Flytende popovers/tooltips) */
+.data-link-text.scl-processed {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
+
 
 /* =========================================================================
    5) GPU-AKSELERERT IKON-PRESENTASJON

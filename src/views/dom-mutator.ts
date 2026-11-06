@@ -1,7 +1,7 @@
 import ResuperchargedLinks from "../core/main";
 import { populatePresentationPool } from "../processors/presentation.engine";
 import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
-import { SCL_CLEANUP_CLASSES, SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
+import { SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 
 /**
  * Kirurgisk, sentralisert sterilisering av et element.
@@ -12,39 +12,12 @@ export function clearExtraAttributes(link: HTMLElement, plugin: ResuperchargedLi
 	link.removeAttribute("data-scl-signature");
 	link.removeAttribute("data-link-tags");
 
-	const engine = plugin.flyweightEngine;
-	
-	if (engine) {
-		// 2. SENTRALISERT ATTRIBUTT-VASK: Slett alt som motoren har flagget som aktivt
-		const attrs: NamedNodeMap = link.attributes;
-		let i: number = attrs.length;
-		while (i--) {
-			const attr: Attr | null = attrs.item(i);
-			if (attr !== null) {
-				const name: string = attr.name;
-				if (engine.activePresentationAttributesSet && engine.activePresentationAttributesSet.has(name)) {
-					link.removeAttribute(name);
-				}
-			}
-		}
-
-		// 3. SENTRALISERT KLASSE-VASK: Slett KUN klasser som finnes i det sentrale lookup-et
-		const currentClasses: DOMTokenList = link.classList;
-		let k: number = currentClasses.length;
-		while (k--) {
-			const cls = currentClasses.item(k);
-			if (cls !== null && (
-				cls.startsWith("scl-composite-") || 
-				(engine.activeSemanticClassesSet && engine.activeSemanticClassesSet.has(cls))
-			)) {
-				link.classList.remove(cls);
-			}
-		}
-	}
-
-	// 4. STATISK STIL- OG VARIABEL-VASK (Fra sentrale konstanter)
-	for (const cls of SCL_CLEANUP_CLASSES) {
-		link.removeClass(cls);
+	let i = link.classList.length;
+	while (i--) {
+    const cls = link.classList.item(i);
+    if (cls !== null && cls.startsWith("scl-")) {
+        link.classList.remove(cls);
+    }
 	}
 
 	const style = link.style;
@@ -129,15 +102,13 @@ export function applyStylesAndAttributesToLink(
 	clearExtraAttributes(link, plugin);
 	link.setAttribute("data-scl-signature", resolution.signature);
 
-	if (!link.classList.contains("scl-processed")) {
-		link.classList.add("scl-processed");
-	}
-
+	link.classList.add("scl-processed");
+	
 	const presentation = populatePresentationPool(resolution);
-	const inlineStyle: CSSStyleDeclaration = link.style;
+	if (!presentation.hasMatch) return;
 
-	if (presentation.hasMatch) {
-		const stylesCount = presentation.stylesCount;
+	const inlineStyle = link.style;
+	const stylesCount = presentation.stylesCount;
 		for (let i = 0; i < stylesCount; i++) {
 			const key = presentation.styleKeys[i];
 			const val = presentation.styleValues[i];
@@ -146,12 +117,9 @@ export function applyStylesAndAttributesToLink(
 			}
 		}
 
-		const classesCount = presentation.classesCount;
-		for (let i = 0; i < classesCount; i++) {
-			const cls = presentation.classes[i];
-			if (cls && !link.classList.contains(cls)) {
-				link.classList.add(cls);
-			}
-		}
+	const classesCount = presentation.classesCount;
+	for (let i = 0; i < classesCount; i++) {
+		const cls = presentation.classes[i];
+		if (cls) link.classList.add(cls);
 	}
 }

@@ -48,14 +48,10 @@ export function populatePresentationPool(
 
 	const s = resolution.styles;
 	if (s.color.length > 0) {
-		pool.styleKeys[pool.stylesCount] = "color";
-		pool.styleValues[pool.stylesCount++] = s.color;
 		pool.styleKeys[pool.stylesCount] = "--scl-color";
 		pool.styleValues[pool.stylesCount++] = s.color;
 	}
 	if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
-		pool.styleKeys[pool.stylesCount] = "background-color";
-		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
 		pool.styleKeys[pool.stylesCount] = "--scl-bg";
 		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
 	}

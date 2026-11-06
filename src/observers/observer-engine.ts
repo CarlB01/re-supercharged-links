@@ -284,7 +284,6 @@ function watchContainerDynamic(
 	plugin.observers.push([observer, viewType, selector]);
 }
 
-
 export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	const activeObservers: [MutationObserver, string, string][] = plugin.observers || [];
 	const activeObserversCount = activeObservers.length;

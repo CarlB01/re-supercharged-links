@@ -1,20 +1,6 @@
 // utils/shared-utils
 
-export const SCL_CLEANUP_CLASSES: readonly string[] = [
-	"scl-weight-bold",
-	"scl-weight-lighter",
-	"scl-style-italic",
-	"scl-decor-underline",
-	"scl-decor-linethrough",
-	"scl-with-before",
-	"scl-with-after",
-	"scl-processed"
-];
-
 export const SCL_CLEANUP_PROPERTIES: readonly string[] = [
-	"color",
-	"background-color",
-	"background",
 	"--scl-color",
 	"--scl-bg",
 	"--scl-icon-before",
