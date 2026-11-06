@@ -484,7 +484,7 @@ function updateLeafInternalLinks(
 	if (linksCount === 0) return 0;
 
 	// 1. A single broad DOM sweep targeting all internal links and pills within this container
-	const rawNodes: NodeListOf<Element> = containerEl.querySelectorAll("a.internal-link, .multi-select-pill-content");
+	const rawNodes: NodeListOf<Element> = containerEl.querySelectorAll("a.internal-link");
 	const rawNodesLen = rawNodes.length;
 	if (rawNodesLen === 0) return 0;
 
