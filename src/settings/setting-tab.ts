@@ -4,12 +4,12 @@ import { clearColorHistory, createColorCapsule } from "./components/color-row-fa
 import { getRuleDetailItems } from "./components/detail-rows-factory";
 import { renderRuleSentence } from "./components/rule-renderer";
 import { moveRule } from "./components/rule-order-engine";
-import { cleanAttributeKey, cleanRuleValue, cleanSearchQuery, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
-import { sanitizeRule } from "../processors/rule-engine";
-import { purgeAndResetAllTabHeaders, updateVisibleLinks } from "../processors/dom-reconciler";
+import { cleanRuleValue, cleanSearchQuery, isPureAlphanumeric, parseControlValueKey } from "../metadata/shared-utils";
+import { sanitizeRule } from "../engine/selector-compiler";
+import { purgeAndResetAllTabHeaders, updateVisibleLinks } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "../core/main";
 import { EDITABLE_PROPERTIES } from "./settings-constants";
-import { applyStylesAndAttributesToLink } from "../views/dom-mutator";
+import { applyStylesAndAttributesToLink } from "../rendering/dom-writer";
 
 type MyGroupItems = SettingDefinitionItem | { render: (setting: Setting) => void };
 

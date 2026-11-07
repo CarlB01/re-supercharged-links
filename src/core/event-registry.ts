@@ -1,6 +1,8 @@
+// src/core/event-registry.ts
+
 import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext } from "obsidian";
 import { initModalObservers, initViewObservers } from "../observers/observer-engine";
-import { updateElLinks, updateVisibleLinks } from "../processors/dom-reconciler";
+import { updateElLinks, updateVisibleLinks } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "./main";
 
 interface ObsidianWindowInternal { getContainer(): { doc: Document; } | null; }

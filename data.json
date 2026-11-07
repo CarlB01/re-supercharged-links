@@ -172,7 +172,8 @@
       "darkColor": "#a48cf2",
       "lightBgColor": "#ddf90b",
       "_flyweightIdLight": 29,
-      "_flyweightIdDark": 30
+      "_flyweightIdDark": 30,
+      "darkBgColor": "#008009"
     }
   ],
   "scl_value_10": "haha",

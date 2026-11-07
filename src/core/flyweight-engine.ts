@@ -1,9 +1,11 @@
+// src/engine/flyweight-engine.ts
+
 import { App, getLinkpath, TFile } from "obsidian";
 import ResuperchargedLinks from "./main";
-import { fetchTargetAttributesCached } from "../processors/attribute-fetcher";
-import { resolveRuleResolution } from "../processors/rule-engine";
-import { cleanAttributeKey, extractCleanLinkPath } from "../utils/shared-utils";
-import { resolveVirtualPreviewResolution } from "../processors/presentation.engine";
+import { fetchTargetAttributesCached } from "../metadata/metadata-extractor";
+import { resolveRuleResolution } from "../engine/selector-compiler";
+import { cleanAttributeKey, extractCleanLinkPath } from "../metadata/shared-utils";
+import { resolveVirtualPreviewResolution } from "../engine/flyweight-style-pool";
 import { CSSLink } from "../types/css-link";
 
 export interface FlyweightResponse {
@@ -37,7 +39,7 @@ export class FlyweightEngine {
 
 	public activeHyphenatedKeysArray: string[] = [];
 
-	// Et raskt O(1) tall-til-objekt kart for render-løkken
+	// O(1) tall-til-objekt kart for render-løkken
 	public ruleRegistry: Map<number, { 
 		semanticClass: string; 
 		color: string; 

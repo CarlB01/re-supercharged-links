@@ -1,4 +1,4 @@
-// utils/shared-utils
+// src/utils/shared-utils.ts
 
 export const SCL_CLEANUP_PROPERTIES: readonly string[] = [
 	"--scl-color",
@@ -13,25 +13,6 @@ export const SCL_CLEANUP_PROPERTIES: readonly string[] = [
 export function cloneSettingsObject<T>(obj: T): T {
 	return JSON.parse(JSON.stringify(obj)) as T;
 }
-
-/**
- * Super-robust normalization for emojis and text strings.
- * Strips emoji variation selectors (U+FE0F) and standardizes formatting.
- * Performance: Checks if normalization is actually required before invoking heavy operations.
- */
-export const norm = (s: string | null): string => {
-	if (s === null || s.length === 0) return "";
-	
-	if (!s.includes(" ") && !/[\uFE00-\uFE0F]/.test(s)) {
-		return s.trim().normalize("NFC");
-	}
-
-	return s
-		.normalize("NFC")
-		.replace(/[\uFE00-\uFE0F]/g, "")
-		.replace(/\s+/g, " ")
-		.trim();
-};
 
 /**
  * Normalizes metadata keys by swapping internal whitespaces with unified hyphen delimiters.

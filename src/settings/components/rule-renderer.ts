@@ -1,8 +1,8 @@
 import ResuperchargedLinks from "../../core/main";
-import { populatePresentationPool } from "../../processors/presentation.engine";
+import { populatePresentationPool } from "../../engine/flyweight-style-pool";
 import { CSSLink } from "../../types/css-link";
-import { cleanRuleValue, cleanAttributeKey } from "../../utils/shared-utils";
-import { applyStylesAndAttributesToLink } from "../../views/dom-mutator";
+import { cleanRuleValue, cleanAttributeKey } from "../../metadata/shared-utils";
+import { applyStylesAndAttributesToLink } from "../../rendering/dom-writer";
 
 /**
  * Renders the preview link node as an authentic framework link.

@@ -1,7 +1,9 @@
+// src/rendering/dom-writer.ts
+
 import ResuperchargedLinks from "../core/main";
-import { populatePresentationPool } from "../processors/presentation.engine";
-import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
-import { SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
+import { populatePresentationPool } from "../engine/flyweight-style-pool";
+import { parseSpaceSeparatedTokens } from "../metadata/shared-utils";
+import { SCL_CLEANUP_PROPERTIES } from "../metadata/shared-utils";
 
 /**
  * Kirurgisk, sentralisert sterilisering av et element.

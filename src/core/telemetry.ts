@@ -1,3 +1,5 @@
+// src/core/telemetry.ts
+
 /**
  * Typesafe performance monitor tracking cache efficiency, structural barriers, and lifecycle overhead.
  * Stripped of legacy fallback overhead for pure canonical production rendering.

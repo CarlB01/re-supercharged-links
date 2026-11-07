@@ -1,8 +1,10 @@
+// src/rendering/workspace-renderer.ts
+
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
-import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "../views/dom-mutator";
-import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
-import { AttrCache, fetchTargetAttributesCached } from "./attribute-fetcher";
-import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../utils/obsidian-adapters";
+import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "./dom-writer";
+import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../metadata/shared-utils";
+import { AttrCache, fetchTargetAttributesCached } from "../metadata/metadata-extractor";
+import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../metadata/obsidian-framework-bridge";
 import ResuperchargedLinks from "../core/main";
 
 type RefreshScope = {
@@ -11,8 +13,8 @@ type RefreshScope = {
 };
 
 export class DOMMutationBatcher {
-	// MÅ være en potens av 2 (f.eks. 65536) for å tillate lynrask bitwise modulo-maskering (&)
-	private readonly BUFFER_SIZE = 65536;
+	// Ringbuffer-størrelsen MÅ være en potens av 2 (f.eks. 65536) 
+	// for å tillate lynrask bitwise modulo-maskering (&) med BIT_MASK (BUFFER_SIZE - 1)
 	private readonly BIT_MASK = 65535; // BUFFER_SIZE - 1
 
 	private readonly elements: (HTMLElement | null)[] = new Array<HTMLElement | null>(65536).fill(null);
@@ -146,7 +148,7 @@ export function processPopupContextNode(
 	
 	if (!plugin.flyweightEngine) return false;
 
-	const visibleText: string = (node.textContent || "").trim();
+	const visibleText: string = (node.textContent || "");
 	const resolution = plugin.flyweightEngine.getResolutionFromAttrs(dest, rawProps, visibleText, false);
 
 	if (node.getAttribute("data-scl-signature") === resolution.signature && node.classList.contains("scl-processed")) {

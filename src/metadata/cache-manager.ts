@@ -1,8 +1,10 @@
+// src/metadata/cache-manager.ts
+
 import { App, debounce } from "obsidian";
 import ResuperchargedLinks from "../core/main";
-import { compactPrefixes, extractPathFromCacheKey, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
-import { updateVisibleLinks } from "./dom-reconciler";
-import { CompiledRule, compileSelectors } from "./rule-engine";
+import { compactPrefixes, extractPathFromCacheKey, normalizeCachePath, normalizePathForQueue } from "./shared-utils";
+import { updateVisibleLinks } from "../rendering/workspace-renderer";
+import { CompiledRule, compileSelectors } from "../engine/selector-compiler";
 
 /**
  * Encapsulates all metadata cache lifecycles, entry caps, and inverted path index logic.

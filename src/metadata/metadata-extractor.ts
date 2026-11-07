@@ -1,7 +1,9 @@
+// src/metadata/metadata-extractor.ts
+
 import { App, getAllTags, TFile } from "obsidian";
-import { cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "./shared-utils";
 import ResuperchargedLinks from "../core/main";
-import { DataviewAPI, getDataviewApiInstance } from "../utils/obsidian-adapters";
+import { DataviewAPI, getDataviewApiInstance } from "./obsidian-framework-bridge";
 
 export type AttrCache = Map<string, Record<string, string>>;
 
@@ -197,4 +199,31 @@ export function fetchTargetAttributesCached(
 	}
 
 	return resolved;
+}
+
+/**
+ * HIGH-PERFORMANCE FLATTENING: Transforms raw file metadata records into normalized data attributes.
+ * Consolidated into the metadata module to eliminate standalone file noise while keeping V8 engine optimal.
+ */
+export function mapRawAttrsToDataAttrs(rawAttrs: Record<string, string>): Record<string, string> {
+	const domAttributes: Record<string, string> = Object.create(null) as Record<string, string>;
+	
+	const keys = Object.keys(rawAttrs);
+	const keysLen = keys.length;
+	
+	for (let i = 0; i < keysLen; i++) {
+		const key = keys[i];
+		
+		if (key !== undefined) {
+			if (key === "iconBefore" || key === "iconAfter" || key === "color") {
+				continue;
+			}
+			const val = rawAttrs[key]; 
+			
+			if (val !== undefined && val !== null && val.length > 0) {
+				domAttributes[`data-link-${key}`] = val;
+			}
+		}
+	}
+	return domAttributes;
 }

@@ -1,4 +1,6 @@
-import { App, MarkdownView, WorkspaceLeaf } from "obsidian";
+// src/metadata/obsidian-framework-bridge.ts
+
+import { App, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 
 interface LegacyStyleSystemApp {
 	customCss?: {
@@ -90,4 +92,22 @@ export function getMetadataPaneElement(view: MarkdownView): HTMLElement | null {
 export function getTabHeaderElement(leaf: WorkspaceLeaf): HTMLElement | null {
 	const internalLeaf = leaf as unknown as ObsidianLeafHeaderInternal;
 	return internalLeaf.tabHeaderInnerTitleEl ?? null;
+}
+
+export function resolveLinkFile(app: App, linkText: string, activeFileBasename: string, isExternalType: boolean): TFile | null {
+	const firstTry: TFile | null = app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
+	if (firstTry !== null) return firstTry;
+	if (!isExternalType) return null;
+
+	let decoded = "";
+	try {
+		decoded = decodeURIComponent(linkText);
+	} catch {
+		decoded = "";
+	}
+	if (decoded.length === 0) return null;
+
+	const abstractFile = app.vault.getAbstractFileByPath(decoded);
+	if (abstractFile instanceof TFile) return abstractFile;
+	return null;
 }

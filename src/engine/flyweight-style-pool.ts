@@ -1,7 +1,9 @@
+// src/engine/flyweight-style-pool.ts
+
 import { FlyweightResponse } from "../core/flyweight-engine";
 import ResuperchargedLinks from "../core/main";
-import { cleanAttributeKey, cleanRuleValue } from "../utils/shared-utils";
-import { resolveRuleResolution } from "./rule-engine";
+import { cleanAttributeKey, cleanRuleValue } from "../metadata/shared-utils";
+import { resolveRuleResolution } from "./selector-compiler";
 
 export interface PreAllocatedPresentation {
 	hasMatch: boolean;

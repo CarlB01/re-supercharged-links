@@ -1,7 +1,9 @@
+// src/observers/observer-engine.ts
+
 import { App, WorkspaceLeaf } from "obsidian";
-import { clearExtraAttributes } from "../views/dom-mutator";
-import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
-import { updateContainer } from "../processors/dom-reconciler";
+import { clearExtraAttributes } from "../rendering/dom-writer";
+import { buildObserverKey, isHtmlElement } from "../metadata/shared-utils";
+import { updateContainer } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "../core/main";
 
 interface ObsidianAppInternalRegistry {
@@ -13,9 +15,6 @@ interface ObsidianAppInternalRegistry {
 const scheduledContainerUpdates: WeakMap<HTMLElement, number> = new WeakMap<HTMLElement, number>();
 const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = new WeakMap<HTMLElement, Map<string, MutationObserver>>();
 const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
-
-// Legg til en global trådlås øverst i view-observer.ts
-let isMutationLockActive = false;
 
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
 	const prev: number | null = scheduledContainerUpdates.get(container) ?? null;

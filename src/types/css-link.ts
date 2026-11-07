@@ -1,3 +1,5 @@
+// src/types/css-link.ts
+
 export type MatchTypes = 'exact' | 'contains' | 'startswith' | 'endswith' | 'whiteSpace';
 export type SelectorTypes = 'attribute' | 'tag' | 'path';
 

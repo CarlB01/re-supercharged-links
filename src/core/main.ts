@@ -1,18 +1,20 @@
-import { WorkspaceLeaf, View, Plugin, Notice, App } from 'obsidian';
+// src/core/main.ts
+
+import { WorkspaceLeaf, Plugin, Notice, App } from 'obsidian';
 import { Prec } from "@codemirror/state";
 
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
-import { buildCMViewPlugin } from '../views/live-preview';
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
-import { compileSelectors } from '../processors/rule-engine';
-import { purgeAndResetAllTabHeaders, updateVisibleLinks } from '../processors/dom-reconciler';
+import { compileSelectors } from '../engine/selector-compiler';
+import { purgeAndResetAllTabHeaders, updateVisibleLinks } from '../rendering/workspace-renderer';
 import SCLSettingTab from '../settings/setting-tab';
-import { AttributeCacheManager } from '../processors/cache-manager';
+import { AttributeCacheManager } from '../metadata/cache-manager';
 import { registerPluginEvents } from './event-registry';
-import { safeReloadCustomCss } from '../utils/obsidian-adapters';
+import { safeReloadCustomCss } from '../metadata/obsidian-framework-bridge';
 import { SCLSettings } from '../settings/settings-constants';
 import { FlyweightEngine } from "./flyweight-engine";
+import { buildLivePreviewDecorator } from '../rendering/live-preview-decorator';
 
 interface ObsidianPluginRegistry {
 	plugins?: {
@@ -83,7 +85,7 @@ export default class ResuperchargedLinks extends Plugin {
 
 		registerPluginEvents(this.app, this);
 
-		const viewPluginInstance = buildCMViewPlugin(this.app, this);
+		const viewPluginInstance = buildLivePreviewDecorator(this.app, this);
 		
 		this.registerEditorExtension([
 			Prec.lowest(viewPluginInstance)

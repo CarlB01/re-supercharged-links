@@ -1,10 +1,13 @@
+// src/rendering/live-preview-decorator.ts
+
 import { syntaxTree } from "@codemirror/language";
 import { Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
-import { extractCleanLinkPath } from "../utils/shared-utils";
-import { populatePresentationPool } from "../processors/presentation.engine";
+import { extractCleanLinkPath } from "../metadata/shared-utils";
+import { populatePresentationPool } from "../engine/flyweight-style-pool";
+import { resolveLinkFile } from "../metadata/obsidian-framework-bridge";
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -23,7 +26,7 @@ interface IterationState {
 	skipUntilPosition: number;
 }
 
-export class CMViewPlugin {
+export class LivePreviewDecorator {
 	public decorations: DecorationSet;
 	public app: App;
 	public plugin: ResuperchargedLinks;
@@ -228,7 +231,7 @@ export class CMViewPlugin {
 		this.decorations = currentDecorations;
 	}
 
-	public processLinkDecoration(
+	public generateFlyweightDecoration(
 		file: TFile, 
 		visibleLabel: string, 
 		skipIconBefore = false, 
@@ -245,16 +248,11 @@ export class CMViewPlugin {
 			return Decoration.mark({});
 		}
 
-		// 3. Populer den globale, uforanderlige minne-poolen (0 allokeringer under scroll!)
 		const presentation = populatePresentationPool(resolution, skipIconBefore, skipIconAfter);
 
-		// 4. Opprett et uforanderlig attributtkart for CodeMirror-elementet
 		const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 		attributes["data-link-path"] = file.path;
 
-		// 5. 🔥 ADDITIV INLINE-VARIABEL STRØM FOR CM6:
-		// Vi bygger en superlett, flat CSS-streng av stil-slotsene levert direkte fra poolen.
-		// Siden CM6 kaster toppnivå-styles, plasserer vi dette trygt i attributes.style som en streng!
 		let inlineStyleString = "";
 		const stylesCount = presentation.stylesCount;
 		
@@ -270,7 +268,6 @@ export class CMViewPlugin {
 			attributes["style"] = inlineStyleString; // 🌟 Godtas 100% av CodeMirror 6!
 		}
 
-		// 6. Samle klassene fra poolen til en flat, ren streng levert til editoren
 		const classesCount = presentation.classesCount;
 		const activeClasses: string[] = [];
 		
@@ -416,24 +413,24 @@ export class CMViewPlugin {
 					if (isTargetFormatting || isAliasText || isUrlText) {
 						if (isTargetFormatting) {
 							// Formateringstegn ([, ], (, )): Ingen ikoner overhodet
-							const formatDeco: Decoration = this.processLinkDecoration(targetFile, "", true, true);
+							const formatDeco: Decoration = this.generateFlyweightDecoration(targetFile, "", true, true);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, formatDeco);
 						} else if (isAliasText) {
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 							
 							if (!isLinkOpen) {
 								// Lukket kapsel: Full pakke (både prepend og append natively)
-								const closedDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, false);
+								const closedDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, false);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
 							} else {
 								// Åpen modus (Alias-teksten): Vis prepend, slukk append-ikonet i midten!
-								const aliasDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, false, true);
+								const aliasDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, true);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
 							}
 						} else if (isUrlText) {
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 							// Åpen modus (URL-strengen): Slukk prepend-ikonet i midten, vis kun append på terminalgrensen!
-							const urlDeco: Decoration = this.processLinkDecoration(targetFile, specificTokenLabel, true, false);
+							const urlDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, true, false);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, urlDeco);
 						}
 						
@@ -529,7 +526,7 @@ export class CMViewPlugin {
 				const isPathNode = (sName.includes("hmd-internal-link") || sName.includes("link-has-alias")) && !isPipeNode && !isAliasNode;
 
 				if (isPipeNode) {
-					const pipeDeco: Decoration = this.processLinkDecoration(file, "", true, true);
+					const pipeDeco: Decoration = this.generateFlyweightDecoration(file, "", true, true);
 					this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
 				} 
 				else if (isPathNode) {
@@ -538,7 +535,7 @@ export class CMViewPlugin {
 					// Stien slukker append-ikonet kun hvis lenken faktisk redigeres OG har et alias
 					const shouldSkipAfter = isLinkOpenUnderCursor && hasAliasStructure;
 					
-					const pathDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, false, shouldSkipAfter);
+					const pathDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, false, shouldSkipAfter);
 					this.decorateRangeOnce(state, sibling.from, sibling.to, pathDeco);
 				} 
 				else if (isAliasNode) {
@@ -547,7 +544,7 @@ export class CMViewPlugin {
 					// Aliaset slukker prepend-ikonet sitt hvis lenken redigeres
 					const shouldSkipBefore = isLinkOpenUnderCursor;
 					
-					const aliasDeco: Decoration = this.processLinkDecoration(file, specificTokenLabel, shouldSkipBefore, false);
+					const aliasDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, shouldSkipBefore, false);
 					this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
 				}
 				
@@ -578,31 +575,13 @@ export class CMViewPlugin {
 	private getVisibleLabel(view: EditorView, from: number, to: number): string {
 		const raw: string = view.state.doc.sliceString(from, to);
 		const clean: string = extractCleanLinkPath(raw);
-		return clean.length > 0 ? clean : raw.trim();
+		return clean.length > 0 ? clean : raw;
 	}
 }
 
-export function resolveLinkFile(app: App, linkText: string, activeFileBasename: string, isExternalType: boolean): TFile | null {
-	const firstTry: TFile | null = app.metadataCache.getFirstLinkpathDest(linkText, activeFileBasename);
-	if (firstTry !== null) return firstTry;
-	if (!isExternalType) return null;
-
-	let decoded = "";
-	try {
-		decoded = decodeURIComponent(linkText);
-	} catch {
-		decoded = "";
-	}
-	if (decoded.length === 0) return null;
-
-	const abstractFile = app.vault.getAbstractFileByPath(decoded);
-	if (abstractFile instanceof TFile) return abstractFile;
-	return null;
-}
-
-export function buildCMViewPlugin(app: App, plugin: ResuperchargedLinks): Extension {
+export function buildLivePreviewDecorator(app: App, plugin: ResuperchargedLinks): Extension {
 	return ViewPlugin.fromClass(
-		class extends CMViewPlugin {
+		class extends LivePreviewDecorator {
 			constructor(view: EditorView) {
 				super(view, app, plugin);
 			}
