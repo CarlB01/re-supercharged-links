@@ -2,8 +2,8 @@
 
 import ResuperchargedLinks from "../core/main";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
-import { parseSpaceSeparatedTokens } from "../metadata/shared-utils";
-import { SCL_CLEANUP_PROPERTIES } from "../metadata/shared-utils";
+import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
+import { SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 
 /**
  * Kirurgisk, sentralisert sterilisering av et element.

@@ -2,7 +2,7 @@
 
 import { FlyweightResponse } from "../core/flyweight-engine";
 import ResuperchargedLinks from "../core/main";
-import { cleanAttributeKey, cleanRuleValue } from "../metadata/shared-utils";
+import { cleanAttributeKey, cleanRuleValue } from "../utils/shared-utils";
 import { resolveRuleResolution } from "./selector-compiler";
 
 export interface PreAllocatedPresentation {

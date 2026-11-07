@@ -2,7 +2,7 @@
 
 import { Plugin } from "obsidian";
 import { CSSLink } from "../types/css-link";
-import { cloneSettingsObject } from "../metadata/shared-utils";
+import { cloneSettingsObject } from "../utils/shared-utils";
 import { sanitizeRuleset } from "../engine/selector-compiler";
 import { DEFAULT_SETTINGS, SCLSettings } from "./settings-constants";
 

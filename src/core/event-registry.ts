@@ -2,7 +2,7 @@
 
 import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext } from "obsidian";
 import { initModalObservers, initViewObservers } from "../observers/observer-engine";
-import { updateElLinks, updateVisibleLinks } from "../rendering/workspace-renderer";
+import { forceLivePreviewRefresh, updateElLinks, updateVisibleLinks } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "./main";
 
 interface ObsidianWindowInternal { getContainer(): { doc: Document; } | null; }
@@ -73,5 +73,12 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		if (plugin.cacheManager.wasPathTouchedRecently(file.path)) return;
 		plugin.cacheManager.enqueuePath(file.path);
 		plugin.cacheManager.triggerScheduleRefresh();
+	}));
+
+	// handle light/dark mode changes
+	plugin.registerEvent(app.workspace.on("css-change", (): void => {
+		plugin.flyweightEngine.compileActiveAttributes(); // Flipp Light/Dark-atomene i Flyweight-motoren
+		updateLinksDebounced(null);    
+		forceLivePreviewRefresh(app); 
 	}));
 }

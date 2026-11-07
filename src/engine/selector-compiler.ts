@@ -1,7 +1,7 @@
 // src/engine/selector-compiler.ts
 
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens, stringifyTags } from "../metadata/shared-utils";
+import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens, stringifyTags } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 export type DecorationToken = "italic" | "underline" | "line-through";

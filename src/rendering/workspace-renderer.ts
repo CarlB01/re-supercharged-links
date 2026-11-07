@@ -2,15 +2,20 @@
 
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
 import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "./dom-writer";
-import { extractCleanLinkPath, extractWikiLinkFromLine, normalizeCachePath, normalizePathForQueue } from "../metadata/shared-utils";
+import { extractCleanLinkPath, extractWikiLinkFromLine, forceStyleUpdateEffect, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "../metadata/metadata-extractor";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../metadata/obsidian-framework-bridge";
 import ResuperchargedLinks from "../core/main";
+import { EditorView } from "@codemirror/view";
 
 type RefreshScope = {
 	paths: Set<string>;
 	prefixes: Set<string>;
 };
+
+interface ObsidianInternalMarkdownEditor {
+  cm?: unknown;
+}
 
 export class DOMMutationBatcher {
 	// Ringbuffer-størrelsen MÅ være en potens av 2 (f.eks. 65536) 
@@ -671,3 +676,37 @@ export function purgeAndResetAllTabHeaders(app: App, plugin: ResuperchargedLinks
 	}
 }
 
+/**
+ * Arkitektonisk trygg re-rendring av CodeMirror-editorene ved stilendringer.
+ * Tvinger CM6 til å tegne opp DOM-en på nytt for å fange opp nye CSS-variabler.
+ */
+export function forceLivePreviewRefresh(app: App): void {
+  app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+    if (leaf.view instanceof MarkdownView) {
+      const mdView = leaf.view;
+      const editorInstance = mdView.editor;
+
+      if (editorInstance && typeof editorInstance === "object") {
+        const internalEditor = editorInstance as ObsidianInternalMarkdownEditor;
+        const rawCm = internalEditor.cm;
+
+        if (rawCm && typeof rawCm === "object") {
+          // Finn den faktiske klassen/prototypen fra objektet selv, 
+          // eller fall tilbake til den importerte EditorView.
+          // Dette løser pop-out vindu-problemet uten globals-feil.
+          const CurrentEditorView = (rawCm.constructor as typeof EditorView) || EditorView;
+
+          if (rawCm instanceof CurrentEditorView) {
+            const cm6View = rawCm as EditorView;
+
+            cm6View.dispatch({
+              effects: forceStyleUpdateEffect.of(null)
+            });
+            
+            cm6View.requestMeasure();
+          }
+        }
+      }
+    }
+  });
+}

@@ -2,7 +2,7 @@
 
 import { App, debounce } from "obsidian";
 import ResuperchargedLinks from "../core/main";
-import { compactPrefixes, extractPathFromCacheKey, normalizeCachePath, normalizePathForQueue } from "./shared-utils";
+import { compactPrefixes, extractPathFromCacheKey, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { updateVisibleLinks } from "../rendering/workspace-renderer";
 import { CompiledRule, compileSelectors } from "../engine/selector-compiler";
 

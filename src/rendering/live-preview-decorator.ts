@@ -5,7 +5,7 @@ import { Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
 import { App, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
-import { extractCleanLinkPath } from "../metadata/shared-utils";
+import { extractCleanLinkPath, forceStyleUpdateEffect } from "../utils/shared-utils";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
 import { resolveLinkFile } from "../metadata/obsidian-framework-bridge";
 
@@ -56,9 +56,33 @@ export class LivePreviewDecorator {
 	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
 	 */
 	public update(update: ViewUpdate): void {
+
+		let hasStyleChanged = false;
+		const trs = update.transactions;
+		const trsLen = trs.length;
+
+		for (let i = 0; i < trsLen; i++) {
+			const tr = trs[i];
+			if (tr !== undefined) {
+				const effects = tr.effects;
+				const effectsLen = effects.length;
+				
+				for (let j = 0; j < effectsLen; j++) {
+					const effect = effects[j];
+					if (effect !== undefined && effect.is(forceStyleUpdateEffect)) {
+						hasStyleChanged = true;
+						break;
+					}
+				}
+			}
+			if (hasStyleChanged) break;
+		}
+
 		// 1. Document Content & Viewport Changes
-		// Always recalculate decorations immediately if the text is edited or the view scrolls.
-		if (update.docChanged || update.viewportChanged) {
+		if (update.docChanged || update.viewportChanged || hasStyleChanged) {
+			if (hasStyleChanged) {
+				this.plugin.cacheManager.clearAttrCycleCache();
+			}
 			this.decorations = this.buildDecorationsForRange(update.view);
 			try {
 				const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
@@ -71,7 +95,6 @@ export class LivePreviewDecorator {
 		}
 
 		// 2. Pure Selection/Cursor Movements
-		// Optimize performance during cursor movement to prevent redundant syntax tree traversal.
 		if (update.selectionSet) {
 			try {
 				const state = update.view.state;

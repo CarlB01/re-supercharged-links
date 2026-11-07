@@ -1,7 +1,7 @@
 import ResuperchargedLinks from "../../core/main";
 import { populatePresentationPool } from "../../engine/flyweight-style-pool";
 import { CSSLink } from "../../types/css-link";
-import { cleanRuleValue, cleanAttributeKey } from "../../metadata/shared-utils";
+import { cleanRuleValue, cleanAttributeKey } from "../../utils/shared-utils";
 import { applyStylesAndAttributesToLink } from "../../rendering/dom-writer";
 
 /**

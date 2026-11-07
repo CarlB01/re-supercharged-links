@@ -1,7 +1,7 @@
 // src/metadata/metadata-extractor.ts
 
 import { App, getAllTags, TFile } from "obsidian";
-import { cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "./shared-utils";
+import { cleanAttributeKey, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 import ResuperchargedLinks from "../core/main";
 import { DataviewAPI, getDataviewApiInstance } from "./obsidian-framework-bridge";
 

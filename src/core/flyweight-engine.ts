@@ -4,7 +4,7 @@ import { App, getLinkpath, TFile } from "obsidian";
 import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../metadata/metadata-extractor";
 import { resolveRuleResolution } from "../engine/selector-compiler";
-import { cleanAttributeKey, extractCleanLinkPath } from "../metadata/shared-utils";
+import { cleanAttributeKey, extractCleanLinkPath } from "../utils/shared-utils";
 import { resolveVirtualPreviewResolution } from "../engine/flyweight-style-pool";
 import { CSSLink } from "../types/css-link";
 

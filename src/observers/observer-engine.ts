@@ -2,7 +2,7 @@
 
 import { App, WorkspaceLeaf } from "obsidian";
 import { clearExtraAttributes } from "../rendering/dom-writer";
-import { buildObserverKey, isHtmlElement } from "../metadata/shared-utils";
+import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
 import { updateContainer } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "../core/main";
 

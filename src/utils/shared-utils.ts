@@ -1,5 +1,12 @@
 // src/utils/shared-utils.ts
 
+import { StateEffect } from "@codemirror/state";
+/**
+ * Global CM6-effekt som tvinger dekoratører til å regenerere visuelle elementer
+ * uten å endre på selve dokumentteksten eller ødelegge angrehistorikk (undo-stack).
+ */
+export const forceStyleUpdateEffect = StateEffect.define<null>();
+
 export const SCL_CLEANUP_PROPERTIES: readonly string[] = [
 	"--scl-color",
 	"--scl-bg",
