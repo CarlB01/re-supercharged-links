@@ -80,5 +80,10 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		plugin.flyweightEngine.compileActiveAttributes(); // Flipp Light/Dark-atomene i Flyweight-motoren
 		updateLinksDebounced(null);    
 		forceLivePreviewRefresh(app); 
+
+		// Piggy-back for innstillingspanelet hvis det er åpent
+		if (plugin.settingTab?.containerEl?.isShown()) {
+			plugin.settingTab.compilePaneStyles();
+		}
 	}));
 }

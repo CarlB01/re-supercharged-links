@@ -7,13 +7,6 @@ import { StateEffect } from "@codemirror/state";
  */
 export const forceStyleUpdateEffect = StateEffect.define<null>();
 
-export const SCL_CLEANUP_PROPERTIES: readonly string[] = [
-	"--scl-color",
-	"--scl-bg",
-	"--scl-icon-before",
-	"--scl-icon-after"
-];
-
 /**
  * Performs a typesafe structural clone of settings blocks.
  */

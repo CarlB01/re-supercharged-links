@@ -48,11 +48,11 @@ export default class ResuperchargedLinks extends Plugin {
 		
 		await this.loadSettings();
 		
+		this.flyweightEngine = new FlyweightEngine(this.app, this);
+		
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
-		this.flyweightEngine = new FlyweightEngine(this.app, this);
-		
 		this.addCommand({
 			id: "scl-telemetry-report",
 			name: "Print styling performance telemetry report",

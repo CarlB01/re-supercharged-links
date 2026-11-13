@@ -182,6 +182,8 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 	public compilePaneStyles(): void {
 
+		this.plugin.cacheManager.clearAttrCycleCache();
+
 		const selectors: CSSLink[] = this.plugin.settings?.selectors ?? [];
 		const filteredSelectors = this.getFilteredSelectors(selectors);
 		const filteredCount = filteredSelectors.length;
@@ -201,16 +203,12 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 			const rawValue: string = cleanRuleValue(rule.value);
 
-			// 2. KALL DET OFFISIELLE FLYWEIGHT-API-ET:
-			// Vi sender inn den virtuelle stihandleren vår. DOM-mutatoren og poolen 
-			// vil automatisk behandle "Note"-noden med 100% nøyaktig samme additive logikk!
 			const mockProps: Record<string, string> = {
 				path: `virtual://preview/${masterIndex}`
 			};
 
 			applyStylesAndAttributesToLink(noteEl, mockProps, this.plugin);
 
-			// 3. Oppdater beskrivende tekst-elementer dynamisk i denne raden
 			if (rule.type === "tag") {
 				const tagAnchor = rowEl.querySelector<HTMLElement>("a.tag");
 				if (tagAnchor !== null) {
@@ -399,7 +397,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 		setting.settingEl.setAttribute("data-index", String(index));
 		setting.nameEl.empty();
 		
-		renderRuleSentence(setting.nameEl, selector, index, this.plugin);
+		renderRuleSentence(setting.nameEl, selector);
 
 		this.renderRuleBadges(setting, selector);
 		this.renderReorderGrip(setting, index, selectors);

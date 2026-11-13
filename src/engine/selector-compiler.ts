@@ -35,7 +35,6 @@ export interface RuleResolution {
 	readonly hasMatch: boolean;
 	readonly matchedFlyweightIds: number[];
 	readonly classes: string[]; 
-	readonly attributes: Record<string, string>;
 	readonly iconBefore: string;
 	readonly iconAfter: string;
 	readonly style: {
@@ -225,18 +224,13 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if ((decorationBits & DECOR_UNDERLINE) !== 0) decorations.push("underline");
 	if ((decorationBits & DECOR_LINE_THROUGH) !== 0) decorations.push("line-through");
 
-	const classList: string[] = ["data-link-text"];
+	const classList: string[] = [];
 	
 	// Lag den unike sammensatte klassen for det globale stilarket
 	if (matchedRuleIndexes.length > 0) {
 		classList.push(`scl-composite-${matchedRuleIndexes.join("-")}`);
 	}
-
-	const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
-	attributes["data-link-bg"] = backgroundColor;
-	attributes["data-link-weight"] = (fontWeight !== "normal") ? fontWeight : "";
-	attributes["data-link-style-decoration"] = decorations.length > 0 ? decorations.join(" ") : "";
-
+	
 	// Sjekk for emoji-konflikter i lenketeksten for de-duplisering via Extended_Pictographic
 	const targetText: string = (input.visibleText ?? "").trim();
 	const hasBeforeConflict = /^\p{Extended_Pictographic}/u.test(targetText) || (iconBefore.length > 0 && targetText.startsWith(iconBefore));
@@ -245,15 +239,9 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if (input.skipIconBefore || hasBeforeConflict) iconBefore = "";
 	if (input.skipIconAfter || hasAfterConflict) iconAfter = "";
 
-	attributes["data-link-tags"] = "";
-
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);
-
-		if (tagsArray.length > 0) {
-			attributes["data-link-tags"] = stringifyTags(tagsArray);
-		}
 
 		const tagsLen = tagsArray.length;
 		for (let j = 0; j < tagsLen; j++) {
@@ -264,14 +252,10 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		}
 	}
 
-	if (hasBeforeConflict && iconBefore.length > 0) classList.push("scl-hide-before");
-	if (hasAfterConflict && iconAfter.length > 0) classList.push("scl-hide-after");
-
 	return {
 		hasMatch,
 		matchedFlyweightIds: matchedIds,
 		classes: classList,
-		attributes,
 		iconBefore,
 		iconAfter, 
 		style: { color, backgroundColor, fontWeight, decorations }

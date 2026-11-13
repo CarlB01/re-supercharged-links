@@ -1,7 +1,7 @@
 // src/rendering/workspace-renderer.ts
 
 import { App, getLinkpath, MarkdownPostProcessorContext, MarkdownView, TFile, WorkspaceLeaf } from "obsidian";
-import { applyStylesAndAttributesToLink, clearExtraAttributes, tagChipStyles } from "./dom-writer";
+import { applyStylesAndAttributesToLink, clearExtraDOMAttributes, tagChipStyles } from "./dom-writer";
 import { extractCleanLinkPath, extractWikiLinkFromLine, forceStyleUpdateEffect, normalizeCachePath, normalizePathForQueue } from "../utils/shared-utils";
 import { AttrCache, fetchTargetAttributesCached } from "../metadata/metadata-extractor";
 import { getAsMarkdownView, getMetadataPaneElement, getTabHeaderElement } from "../metadata/obsidian-framework-bridge";
@@ -462,7 +462,7 @@ function updateLeafTabHeader(app: App, plugin: ResuperchargedLinks, file: TFile 
 	}
 
 	if (resolvedFile !== null) {
-		clearExtraAttributes(titleNode, plugin);
+		clearExtraDOMAttributes(titleNode, plugin);
 		updateDivExtraAttributes(app, plugin, titleNode, "", resolvedFile.path);
 		return 1;
 	}
@@ -664,12 +664,12 @@ export function purgeAndResetAllTabHeaders(app: App, plugin: ResuperchargedLinks
 				: tabEl.querySelector<HTMLElement>(".workspace-tab-header-inner-title") ?? tabEl;
 
 			// Vask den ekte tittel-noden ren!
-			clearExtraAttributes(titleNode, plugin);			
+			clearExtraDOMAttributes(titleNode, plugin);			
 			titleNode.classList.remove("scl-processed");
 			
 			// For sikkerhets skyld, vask også selve tabEl i tilfelle eldre regler traff den
 			if (titleNode !== tabEl) {
-				clearExtraAttributes(tabEl, plugin);
+				clearExtraDOMAttributes(tabEl, plugin);
 				tabEl.classList.remove("scl-processed");
 			}
 		}
@@ -697,7 +697,7 @@ export function forceLivePreviewRefresh(app: App): void {
           const CurrentEditorView = (rawCm.constructor as typeof EditorView) || EditorView;
 
           if (rawCm instanceof CurrentEditorView) {
-            const cm6View = rawCm as EditorView;
+            const cm6View = rawCm;
 
             cm6View.dispatch({
               effects: forceStyleUpdateEffect.of(null)

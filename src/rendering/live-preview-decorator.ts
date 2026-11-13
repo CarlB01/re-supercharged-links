@@ -8,6 +8,7 @@ import ResuperchargedLinks from "../core/main";
 import { extractCleanLinkPath, forceStyleUpdateEffect } from "../utils/shared-utils";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
 import { resolveLinkFile } from "../metadata/obsidian-framework-bridge";
+import { getEngineEditorTheme } from "./editor-theme";
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -258,7 +259,9 @@ export class LivePreviewDecorator {
 		file: TFile, 
 		visibleLabel: string, 
 		skipIconBefore = false, 
-		skipIconAfter = false
+		skipIconAfter = false,
+		isFirst = false,
+    isLast = false  
 	): Decoration {
 		
 		if (!this.plugin.flyweightEngine) {
@@ -296,10 +299,11 @@ export class LivePreviewDecorator {
 		
 		for (let i = 0; i < classesCount; i++) {
 			const cls = presentation.classes[i];
-			if (cls) {
-				activeClasses.push(cls);
-			}
+			if (cls) activeClasses.push(cls);
 		}
+
+		if (isFirst) activeClasses.push("scl-first");
+    if (isLast) activeClasses.push("scl-last");
 
 		// 7. Generer og returner den uforanderlige mark-dekorasjonen
 		return Decoration.mark({
@@ -401,7 +405,7 @@ export class LivePreviewDecorator {
 			testCleanPath = view.state.doc.sliceString(node.from, node.to);
 		}
 
-				try {
+		try {
 			testCleanPath = decodeURIComponent(testCleanPath).trim();
 		} catch {
 			// Fallback containment
@@ -410,21 +414,18 @@ export class LivePreviewDecorator {
 		if (testCleanPath.toLowerCase().endsWith(".md")) {
 			testCleanPath = testCleanPath.substring(0, testCleanPath.length - 3);
 		}
-		// 🌟 GJENINNFØRT: Sikrer at markdown-stien er barbert ren før resolveLinkFile
 		testCleanPath = extractCleanLinkPath(testCleanPath); 
 
 		const targetFile = resolveLinkFile(this.app, testCleanPath, state.activeFileBasename, false);
 
 		if (targetFile !== null) {
 			
-			// 🌟 SKUDDSIKKER SYNKRONISERING AV MARKØR-MATRISEN (- 1):
-			// Ved å trekke fra 1, slår vi på åpen-tilstand akkurat i det CodeMirror splitter nodene.
-			// Dette utrydder de overflødige ikonene når du står helt til venstre for '[' permanent!
 			const cursorHead = view.state.selection.main.head;
 			const isLinkOpen = cursorHead >= (node.from - 1) && cursorHead <= linkEndPosition;
+			const scanFrom = isLinkOpen ? node.from - 1 : node.from;
 
 			syntaxTree(view.state).iterate({
-				from: node.from,
+				from: scanFrom,
 				to: linkEndPosition,
 				enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 					const sName = sibling.name.toLowerCase();
@@ -434,26 +435,30 @@ export class LivePreviewDecorator {
 					const isUrlText = sName.includes("string_url");
 
 					if (isTargetFormatting || isAliasText || isUrlText) {
+
+						const isFirst = !isLinkOpen ? isAliasText : (isTargetFormatting && sibling.from === scanFrom);
+						const isLast = !isLinkOpen ? isAliasText : (isTargetFormatting && sibling.to === linkEndPosition);
+
 						if (isTargetFormatting) {
 							// Formateringstegn ([, ], (, )): Ingen ikoner overhodet
-							const formatDeco: Decoration = this.generateFlyweightDecoration(targetFile, "", true, true);
+							const formatDeco: Decoration = this.generateFlyweightDecoration(targetFile, "", true, true, isFirst, isLast);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, formatDeco);
 						} else if (isAliasText) {
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 							
 							if (!isLinkOpen) {
 								// Lukket kapsel: Full pakke (både prepend og append natively)
-								const closedDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, false);
+								const closedDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, false, isFirst, isLast);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, closedDeco);
 							} else {
 								// Åpen modus (Alias-teksten): Vis prepend, slukk append-ikonet i midten!
-								const aliasDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, true);
+								const aliasDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, false, true, isFirst, isLast);
 								this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
 							}
 						} else if (isUrlText) {
 							const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
 							// Åpen modus (URL-strengen): Slukk prepend-ikonet i midten, vis kun append på terminalgrensen!
-							const urlDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, true, false);
+							const urlDeco: Decoration = this.generateFlyweightDecoration(targetFile, specificTokenLabel, true, false, isFirst, isLast);
 							this.decorateRangeOnce(state, sibling.from, sibling.to, urlDeco);
 						}
 						
@@ -533,45 +538,47 @@ export class LivePreviewDecorator {
 			return true;
 		}
 
-		// Cursor-trackingen din som er verifisert 100% stabil
+		// Cursor-tracking
 		const cursorHead = view.state.selection.main.head;
 		const isLinkOpenUnderCursor = cursorHead >= node.from -2 && cursorHead <= wikiEndPosition;
+		const scanFrom = isLinkOpenUnderCursor ? node.from - 2 : node.from;
 
 		syntaxTree(view.state).iterate({
-			from: node.from,
+			from: scanFrom,
 			to: wikiEndPosition,
 			enter: (sibling: CodeMirrorNodeRef): boolean | void => {
 				const sName = sibling.name.toLowerCase();
-				const sText = view.state.doc.sliceString(sibling.from, sibling.to);
-				
-				const isPipeNode = sName.includes("alias-pipe") || sText === "|";
+
+				const isBracketNode = sName.includes("formatting-link");
+				const isPipeNode = sName.includes("alias-pipe") || (!isBracketNode && sibling.to - sibling.from === 1 && view.state.doc.sliceString(sibling.from, sibling.to) === "|");
 				const isAliasNode = sName.includes("link-alias") && !sName.includes("pipe");
 				const isPathNode = (sName.includes("hmd-internal-link") || sName.includes("link-has-alias")) && !isPipeNode && !isAliasNode;
 
-				if (isPipeNode) {
-					const pipeDeco: Decoration = this.generateFlyweightDecoration(file, "", true, true);
-					this.decorateRangeOnce(state, sibling.from, sibling.to, pipeDeco);
-				} 
-				else if (isPathNode) {
-					const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+				if (isBracketNode || isPipeNode || isPathNode || isAliasNode) {
+					// 🌟 DETERMINISTISK GRENSEUTLEDNING (O(1) heltallssjekk):
+					// I åpen modus er '[[' (på scanFrom) første ledd, og ']]' (på wikiEndPosition) siste ledd.
+					const isFirst = !isLinkOpenUnderCursor ? true : (isBracketNode && sibling.from === scanFrom);
+					const isLast = !isLinkOpenUnderCursor ? true : (isBracketNode && sibling.to === wikiEndPosition);
+
+					if (isBracketNode || isPipeNode) {
+						const deco: Decoration = this.generateFlyweightDecoration(file, "", true, true, isFirst, isLast);
+						this.decorateRangeOnce(state, sibling.from, sibling.to, deco);
+					} 
+					else if (isPathNode) {
+						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+						const shouldSkipAfter = isLinkOpenUnderCursor && hasAliasStructure;
+						
+						const pathDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, false, shouldSkipAfter, isFirst, isLast);
+						this.decorateRangeOnce(state, sibling.from, sibling.to, pathDeco);
+					} 
+					else if (isAliasNode) {
+						const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
+						const shouldSkipBefore = isLinkOpenUnderCursor;
+						
+						const aliasDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, shouldSkipBefore, false, isFirst, isLast);
+						this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
+					}
 					
-					// Stien slukker append-ikonet kun hvis lenken faktisk redigeres OG har et alias
-					const shouldSkipAfter = isLinkOpenUnderCursor && hasAliasStructure;
-					
-					const pathDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, false, shouldSkipAfter);
-					this.decorateRangeOnce(state, sibling.from, sibling.to, pathDeco);
-				} 
-				else if (isAliasNode) {
-					const specificTokenLabel: string = this.getVisibleLabel(view, sibling.from, sibling.to);
-					
-					// Aliaset slukker prepend-ikonet sitt hvis lenken redigeres
-					const shouldSkipBefore = isLinkOpenUnderCursor;
-					
-					const aliasDeco: Decoration = this.generateFlyweightDecoration(file, specificTokenLabel, shouldSkipBefore, false);
-					this.decorateRangeOnce(state, sibling.from, sibling.to, aliasDeco);
-				}
-				
-				if (isPipeNode || isPathNode || isAliasNode) {
 					const siblingKey = sibling.from + "-" + sibling.to;
 					state.processedRanges.add(siblingKey);
 				}
@@ -602,15 +609,20 @@ export class LivePreviewDecorator {
 	}
 }
 
-export function buildLivePreviewDecorator(app: App, plugin: ResuperchargedLinks): Extension {
-	return ViewPlugin.fromClass(
-		class extends LivePreviewDecorator {
-			constructor(view: EditorView) {
-				super(view, app, plugin);
-			}
-		},
-		{ decorations: (v) => v.decorations }
-	);
+export function buildLivePreviewDecorator(app: App, plugin: ResuperchargedLinks): Extension[] {
+    const livePreviewPlugin = ViewPlugin.fromClass(
+        class extends LivePreviewDecorator {
+            constructor(view: EditorView) {
+                super(view, app, plugin);
+            }
+        },
+        { decorations: (v) => v.decorations }
+    );
+
+    return [
+        getEngineEditorTheme(),
+        livePreviewPlugin
+    ];
 }
 
 function isOwnerNode(nodeName: string): boolean {

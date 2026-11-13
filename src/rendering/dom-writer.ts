@@ -3,31 +3,28 @@
 import ResuperchargedLinks from "../core/main";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
 import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
-import { SCL_CLEANUP_PROPERTIES } from "../utils/shared-utils";
 
-/**
- * Kirurgisk, sentralisert sterilisering av et element.
- * Sletter KUN attributter og klasser generert av de aktive regel-atomene.
- */
-export function clearExtraAttributes(link: HTMLElement, plugin: ResuperchargedLinks): void {
-	// 1. STATISK SYSTEM-RENS: Vask våre egne kjente signaturer
+export function clearExtraDOMAttributes(link: HTMLElement, plugin: ResuperchargedLinks): void {
 	link.removeAttribute("data-scl-signature");
-	link.removeAttribute("data-link-tags");
 
 	let i = link.classList.length;
 	while (i--) {
-    const cls = link.classList.item(i);
-    if (cls !== null && cls.startsWith("scl-")) {
-        link.classList.remove(cls);
-    }
+		const cls = link.classList.item(i);
+		if (cls !== null) {
+			if (cls === "scl-processed" || cls.startsWith("scl-")) {
+				link.classList.remove(cls);
+			}
+		}
 	}
 
+	// 3. UNROLLED INLINE-STYLE CLEANING
+	// Hardkodet lineært for 0% iterator-overhead (Beskytter V8-inlining).
 	const style = link.style;
-	for (const prop of SCL_CLEANUP_PROPERTIES) {
-		style.removeProperty(prop);
-	}
-	
 	if (style.length > 0) {
+		style.removeProperty("--scl-color");
+		style.removeProperty("--scl-bg");
+		style.removeProperty("--scl-icon-before");
+		style.removeProperty("--scl-icon-after");
 		style.removeProperty("font-weight");
 		style.removeProperty("font-style");
 		style.removeProperty("text-decoration");
@@ -101,7 +98,7 @@ export function applyStylesAndAttributesToLink(
 		return; 
 	}
 
-	clearExtraAttributes(link, plugin);
+	clearExtraDOMAttributes(link, plugin);
 	link.setAttribute("data-scl-signature", resolution.signature);
 
 	link.classList.add("scl-processed");

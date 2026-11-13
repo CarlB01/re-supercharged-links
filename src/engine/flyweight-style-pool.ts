@@ -41,18 +41,16 @@ export function populatePresentationPool(
 	pool.hasMatch = resolution.hasMatch;
 	pool.classesCount = 0;
 	pool.stylesCount = 0;
-	pool.classes[pool.classesCount++] = "data-link-text";
 
-	if (!resolution.hasMatch) {
-		pool.classes[pool.classesCount++] = "data-link-text";
-		return pool;
-	}
+	if (!resolution.hasMatch) return pool;
 
 	const s = resolution.styles;
+
 	if (s.color.length > 0) {
 		pool.styleKeys[pool.stylesCount] = "--scl-color";
 		pool.styleValues[pool.stylesCount++] = s.color;
 	}
+
 	if (s.backgroundColor.length > 0 && s.backgroundColor !== "transparent") {
 		pool.styleKeys[pool.stylesCount] = "--scl-bg";
 		pool.styleValues[pool.stylesCount++] = s.backgroundColor;
@@ -82,9 +80,11 @@ export function populatePresentationPool(
 	}
 
 	const resClassesLen = resolution.classes.length;
+	const maxCapacity = pool.classes.length; // Sikrer oss mot out-of-bounds (64)
+	
 	for (let i = 0; i < resClassesLen; i++) {
 		const cls = resolution.classes[i];
-		if (cls && cls !== "data-link-text") {
+		if (cls && pool.classesCount < maxCapacity) {
 			pool.classes[pool.classesCount++] = cls;
 		}
 	}
@@ -106,7 +106,7 @@ export function resolveVirtualPreviewResolution(
 	const ruleIndexStr = cleanPath.replace("virtual://preview/", "");
 	const ruleIndex = parseInt(ruleIndexStr, 10);
 	const rawProps: Record<string, string> = Object.create(null) as Record<string, string>;
-	const classesList: string[] = ["data-link-text"];
+	const classesList: string[] = [];
 
 	const selectors = plugin.settings?.selectors ?? [];
 	const rule = selectors[ruleIndex];

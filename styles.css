@@ -1,18 +1,148 @@
 :root {
   --scl-padding: 0.20em; 
-  --scl-curve: .015em;
+  --scl-curve: 0.15em;
+  --scl-border: 0.0625em;
 }
 
 /* =========================================================================
-   1) MAIN RULE ROWS 
+   1) UNIFIED DUAL-ENGINE LINK & UTILITY DEFINITIONS
+   ========================================================================= */
+
+[class*='scl-']:not(.cm-line [class*='scl-']) {
+
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1.15;
+  
+  border: var(--scl-border) solid var(--scl-color);
+  border-radius: var(--scl-curve);
+  padding-left: var(--scl-padding);
+  padding-right: var(--scl-padding);
+  
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
+
+.cm-line [class*='scl-'] {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1.15;
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+  
+  /*Standard: Kun ramme oppe og nede for de midterste leddene */
+  border-top: var(--scl-border) solid var(--scl-color);
+  border-bottom: var(--scl-border) solid var(--scl-color);
+  border-left: 0 solid transparent;
+  border-right: 0 solid transparent;
+  border-radius: 0;
+}
+
+.cm-line [class*='scl-'].scl-first {
+  border-top-left-radius: var(--scl-curve);
+  border-bottom-left-radius: var(--scl-curve);
+  border-left: var(--scl-border) solid var(--scl-color);
+  padding-left: var(--scl-padding);
+}
+
+.cm-line [class*='scl-'].scl-last {
+  border-top-right-radius: var(--scl-curve);
+  border-bottom-right-radius: var(--scl-curve);
+  border-right: var(--scl-border) solid var(--scl-color);
+  padding-right: var(--scl-padding);
+}
+
+.scl-first.scl-last,
+.markdown-rendered [class*='scl-'],
+.suggestion-item [class*='scl-'],
+.search-result-file-matches [class*='scl-'],
+.nav-file-title-content[class*='scl-'] {
+  border-radius: var(--scl-curve);
+  border-left: var(--scl-border) solid var(--scl-color);
+  border-right: var(--scl-border) solid var(--scl-color);
+  padding-left: var(--scl-padding);
+  padding-right: var(--scl-padding);
+}
+
+/* Typography and decorations */
+.scl-weight-bold { font-weight: bold; }
+.scl-weight-lighter { font-weight: lighter; }
+.scl-style-italic { font-style: italic; }
+.scl-decor-underline { text-decoration: underline; }
+.scl-decor-linethrough, 
+.internal-link.scl-decor-linethrough {
+  color: var(--scl-color, inherit);
+  text-decoration: line-through; 
+}
+
+/* Color on links */ 
+.markdown-rendered a.internal-link,
+.markdown-rendered a.external-link,
+.suggestion-item.scl-processed,
+.suggestion-item [class*="scl-"],
+.search-result-file-matches [class*="scl-"],
+.workspace-tab-header-inner-title.scl-processed,
+body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner-title,
+.internal-link.scl-processed {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
+
+/* Icon safe inline-flex */
+.scl-with-before,
+.scl-with-after,
+.cm-line .scl-with-before,
+.cm-line .scl-with-after {
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+/* Icon presentation */
+.scl-with-after::after,
+.scl-with-before::before {
+  display: inline-block;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.scl-with-before::before {
+  content: var(--scl-icon-before, ""); 
+}
+.scl-with-after::after { 
+  content: var(--scl-icon-after, ""); 
+}
+
+/* =========================================================================
+   2) SETTINGS PANEL: MAIN RULE ROWS 
    ========================================================================= */
 
 .vertical-tab-content-container {
+  /* Søkefeltet ("Search style rules...") høyrejustert på én linje */
+  .setting-item:has(input[type="search"]) {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+
+    .setting-item-control {
+      flex: 0 0 auto;
+      width: auto;
+      justify-content: flex-end;
+    }
+
+    input[type="search"] {
+      width: 14em;
+      max-width: 100%;
+    }
+  }
+
   .setting-item.scl-clickable-row.scl-main-rule-row {
     cursor: pointer;
     display: flex;
     flex-wrap: nowrap;
-    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     width: 100%;
@@ -25,7 +155,6 @@
     .setting-item-control {
       display: flex;
       flex-wrap: nowrap;
-      flex-direction: row;
       align-items: center;
       justify-content: flex-end;
       flex: 0 0 auto;
@@ -34,18 +163,19 @@
 
     .scl-badge-container {
       display: flex;
-      flex-direction: row;
       align-items: center;
       margin-right: 0.75em;
     }
 
-    /* Elegant color layout capsule with structural padding spacing */
+    /* Elegant color layout capsule (beskyttet mot lenke-padding) */
     .scl-bg-capsule {
       display: flex;
       align-items: center;
       justify-content: center;
       width: 2em;
       height: 1.25em;
+      padding: 0;
+      line-height: 1;
       margin-right: 0.375em; 
       border-radius: 0.25em;
       border: 0.0625em solid var(--background-modifier-border);
@@ -68,43 +198,40 @@
       }
     }
 
-    /* Distinct interior Lucide icon container matrix */
+    /* Distinct interior Lucide icon container matrix (beskyttet mot krymping) */
     .scl-color-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 0.875em;
       height: 0.875em;
-      min-width: 0.875em;
-      min-height: 0.875em;
+      padding: 0;
+      line-height: 1;
+      border: none;
+      background-color: transparent;
       box-sizing: border-box;
       flex-shrink: 0;
 
       svg {
         width: 100%;
         height: 100%;
+        min-width: 0.875em;
+        min-height: 0.875em;
         stroke-width: 0.16em;
         color: var(--scl-capsule-color, var(--text-normal));
       }
     }
 
-    /* Primary link node preview layout context - Cleaned up to support native links */
-    .data-link-text {
-      white-space: nowrap;
-      margin: 0;      
-    }
-
     button {
       -webkit-appearance: none;
       appearance: none;
-      width: 1.75em;
-      height: 1.75em;
-      min-width: 1.75em;
-      max-width: 1.75em;
-      border-radius: 0.25em;
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 1.75em;
+      height: 1.75em;
+      flex-shrink: 0;
+      border-radius: 0.25em;
       box-sizing: border-box;
 
       svg {
@@ -113,24 +240,23 @@
         flex-shrink: 0;
       }
     }
-
-    .scl-order-btn {
-      padding: 1em;
-    }
   }
 }
 
 /* =========================================================================
-   2) DETAILS 
+   3) SETTINGS PANEL: DETAILS 
    ========================================================================= */
 
 .vertical-tab-content-container {
-  .setting-item.scl-detail-row {
+  .setting-item.scl-detail-row,
+  .setting-item.scl-color-row {
     padding-top: 0.4em;
     padding-bottom: 0.4em;
     border-top: none;
     min-height: 0;
+  }
 
+  .setting-item.scl-detail-row {
     .setting-item-info {
       padding-top: 0;
       padding-bottom: 0;
@@ -152,16 +278,15 @@
       width: fit-content;
       min-width: 0;
       margin-left: auto;
+      margin-top: 0;
+      align-self: center;
       justify-content: flex-end;
       align-items: center;
       gap: 2em;
       flex-wrap: nowrap;
       white-space: nowrap;
-      margin-top: 0;
-      align-self: center;
       
-      .dropdown,
-      input[type="text"] {
+      .dropdown {
         width: auto;
         min-width: 0;
         max-width: 100%;
@@ -169,39 +294,32 @@
 
       input[type="text"] {
         width: 8.75em;
+        min-width: 0;
+        max-width: 100%;
         text-align: right;
       }
     }
 
-    &.scl-row-iconbefore, &.scl-row-iconafter {
-      .setting-item-control input[type="text"] {
-        width: 6ch;
-        min-width: 6ch;
-        max-width: 8ch;
-        text-align: center;
-      }
+    &.scl-row-iconbefore .setting-item-control input[type="text"],
+    &.scl-row-iconafter .setting-item-control input[type="text"] {
+      width: 6ch;
+      text-align: center;
     }
 
-    &.scl-row-value {
-      .setting-item-control input[type="text"] {
-        width: 18ch;
-        max-width: 32ch;
-        text-align: right;
-      }
+    &.scl-row-value .setting-item-control input[type="text"] {
+      width: 18ch;
+      max-width: 32ch;
     }
 
-    &.scl-row-attrname {
-      .setting-item-control input[type="text"] {
-        width: 14ch;
-        max-width: 24ch;
-      }
+    &.scl-row-attrname .setting-item-control input[type="text"] {
+      width: 14ch;
+      max-width: 24ch;
     }
 
-    &.scl-row-weight, &.scl-row-style, &.scl-row-type {
-      .setting-item-control .dropdown {
-        width: auto;
-        min-width: fit-content;
-      }
+    &.scl-row-weight .setting-item-control .dropdown,
+    &.scl-row-style .setting-item-control .dropdown,
+    &.scl-row-type .setting-item-control .dropdown {
+      min-width: fit-content;
     }
   }
 
@@ -213,24 +331,29 @@
 
     .dropdown.is-measuring {
       display: none;
-      width: 0;
-      height: 0;
-      opacity: 0;
-      pointer-events: none;
     }
   }
 
+  /* Alle 4 fargefeltene låst horisontalt på hver sin linje */
   .setting-item.scl-color-row {
-    padding-top: 0.4em;
-    padding-bottom: 0.4em;
-    border-top: none;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+
+    .setting-item-info {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
 
     .setting-item-control {
       display: flex;
       flex-wrap: nowrap;
-      flex-direction: row;
       align-items: center;
       justify-content: flex-end;
+      flex: 0 0 auto;
+      width: auto;
       gap: 0.5em;
     }
 
@@ -238,13 +361,10 @@
     .clickable-icon,
     input[type="color"] {
       margin: 0;
-    }
-
-    .clickable-icon {
       flex-shrink: 0;
     }
 
-    .setting-item-control input[type="color"] {
+    input[type="color"] {
       -webkit-appearance: none;
       appearance: none;
       padding: 0;
@@ -263,155 +383,21 @@
       }
     }
 
-    &.scl-text-picker-row .setting-item-control input[type="color"] {
+    &.scl-text-picker-row input[type="color"] {
       width: 1.25em;
       height: 1.25em;
-      min-width: 1.25em;
-      max-width: 1.25em;
       border-radius: 50%;
     }
 
-    &.scl-bg-picker-row .setting-item-control input[type="color"] {
+    &.scl-bg-picker-row input[type="color"] {
       width: 2em;
       height: 1.375em;
-      min-width: 2em;
-      max-width: 2em;
       border-radius: 0.25em;
     }
   }
 }
 
-/* =========================================================================
-   3) GLOBAL COMPONENT INTERREACTIONS & RUNTIME UTILITY CLASSES
-   ========================================================================= */
-
-.scl-undo-btn, .scl-redo-btn {
+.scl-undo-btn,
+.scl-redo-btn {
   transition: opacity 0.15s ease-in-out;
-}
-
-/* =========================================================================
-   4) UNIFIED DUAL-ENGINE UTILITY & LAYER DEFINITIONS
-   ========================================================================= */
-
-.cm-line .data-link-text,
-.suggestion-item .data-link-text,
-.search-result-file-matches .data-link-text,
-.data-link-text {
-  display: inline; /* Endret fra inline-block for å bevare klikk-matrisen */
-  vertical-align: baseline;
-  border-radius: var(--scl-curve); 
-  padding-left: var(--scl-padding);
-  padding-right: var(--scl-padding);
-}
-
-/* Aktiver et trygt flex-miljø KUN når lenken faktisk har ikoner */
-.data-link-text.scl-with-before,
-.data-link-text.scl-with-after {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-
-/* Nullstill padding for åpne/delte segmenter i CodeMirror for silkemyk tekstflyt */
-.cm-editor .cm-formatting-link .data-link-text,
-.cm-editor .cm-formatting-link-string .data-link-text,
-.cm-editor .cm-link-alias-pipe .data-link-text,
-.cm-editor .cm-link-has-alias .data-link-text,
-.cm-editor .cm-link-alias .data-link-text,
-.cm-editor .cm-string.cm-url .data-link-text {
-  display: inline;
-  padding-left: 0;
-  padding-right: 0;
-  border-radius: 0;
-}
-
-/* Kant-avrundinger for åpne lenker under editering */
-.cm-active .cm-link-has-alias .data-link-text {
-  display: inline-block; /* Bevar inline-block lokalt under redigering om nødvendig */
-  padding-left: var(--scl-padding);
-  border-top-left-radius: var(--scl-curve);
-  border-bottom-left-radius: var(--scl-curve);
-}
-.cm-active .cm-link-alias .data-link-text {
-  display: inline-block;
-  padding-right: var(--scl-padding);
-  border-top-right-radius: var(--scl-curve);
-  border-bottom-right-radius: var(--scl-curve);
-}
-
-/* Typografi og dekorasjons-klasser levert deterministisk fra motoren */
-.data-link-text.scl-weight-bold { font-weight: bold; }
-.data-link-text.scl-weight-lighter { font-weight: lighter; }
-.data-link-text.scl-style-italic { font-style: italic; }
-.data-link-text.scl-decor-underline { text-decoration: underline; }
-.data-link-text.scl-decor-linethrough { text-decoration: line-through; }
-
-
-/* =========================================================================
-   4b) UNIVERSAL CM6 & POPUP OVERSTYRING (UTEN !IMPORTANT)
-   ========================================================================= */
-
-/* 1. Live Preview (CodeMirror 6) – Fanger opp både .cm-link og .cm-hmd-internal-link */
-.cm-editor .cm-line .cm-link .data-link-text,
-.cm-editor .cm-line .cm-link .data-link-text .cm-underline,
-.cm-editor .cm-line .cm-hmd-internal-link .data-link-text,
-.cm-editor .cm-line .cm-hmd-internal-link .data-link-text .cm-underline,
-.cm-editor .cm-line .cm-url .data-link-text {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
-}
-
-/* 2. Lesemodus (Markdown Preview) */
-.markdown-rendered a.internal-link.data-link-text,
-.markdown-rendered a.external-link.data-link-text,
-.suggestion-item .data-link-text,
-.search-result-file-matches .data-link-text {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
-}
-
-/* 3. Faner (Workspace Tabs) – Beholder den sterke stien vår her */
-body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner-title.data-link-text,
-.workspace-tab-header.is-active .workspace-tab-header-inner-title.data-link-text {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
-}
-
-/* 4. Global uavhengig sikring for rå elementer (Flytende popovers/tooltips) */
-.data-link-text.scl-processed {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
-}
-
-
-/* =========================================================================
-   5) GPU-AKSELERERT IKON-PRESENTASJON
-   ========================================================================= */
-.data-link-text.scl-with-after::after,
-.data-link-text.scl-with-before::before {
-  display: inline-block;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.data-link-text.scl-with-before::before {
-  content: var(--scl-icon-before, "");
-}
-
-.data-link-text.scl-with-after::after {
-  content: var(--scl-icon-after, "");
-}
-
-/* =========================================================================
-   6) DEFINTIV OVERSTYRING AV OBSIDIAN INTERN LENKE-SPESIFISITET
-   ========================================================================= */
-.cm-editor .cm-link .data-link-text {
-  color: inherit;
-}
-
-/* =========================================================================
-   7) ABSOLUTT OVERSTYRING AV INNERST CM-UNDERLINE SPESIFISITET
-   ========================================================================= */
-.cm-editor .cm-link .data-link-text .cm-underline {
-  color: inherit;
 }

@@ -201,7 +201,7 @@ export class FlyweightEngine {
 			return { 
 				hasMatch: false, 
 				signature: `v${ruleVersion}||empty`, 
-				classes: ["data-link-text"],
+				classes: [""],
 				styles: { color: "", backgroundColor: "", fontWeight: "", iconBefore: "", iconAfter: "", decorations: [] }
 			};
 		}
@@ -216,7 +216,7 @@ export class FlyweightEngine {
 			return { 
 				hasMatch: false, 
 				signature: `v${ruleVersion}||${cleanPath}`, 
-				classes: ["data-link-text"],
+				classes: [""],
 				styles: { color: "", backgroundColor: "", fontWeight: "", iconBefore: "", iconAfter: "", decorations: [] }
 			};
 		}
@@ -231,4 +231,5 @@ export class FlyweightEngine {
 		
 	}
 }
+
 

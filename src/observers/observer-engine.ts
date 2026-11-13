@@ -1,7 +1,7 @@
 // src/observers/observer-engine.ts
 
 import { App, WorkspaceLeaf } from "obsidian";
-import { clearExtraAttributes } from "../rendering/dom-writer";
+import { clearExtraDOMAttributes } from "../rendering/dom-writer";
 import { buildObserverKey, isHtmlElement } from "../utils/shared-utils";
 import { updateContainer } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "../core/main";
@@ -340,7 +340,7 @@ export function removeStylingFromViews(plugin: ResuperchargedLinks): void {
 				for (let k = 0; k < nodesCount; k++) {
 					const node: HTMLElement | null = nodes[k] ?? null;
 					if (node !== null && node.nodeType === 1) {
-						clearExtraAttributes(node,plugin);
+						clearExtraDOMAttributes(node,plugin);
 					}
 				}
 			}
