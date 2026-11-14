@@ -1,7 +1,7 @@
 // src/engine/selector-compiler.ts
 
 import { CSSLink } from "../types/css-link";
-import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens, stringifyTags } from "../utils/shared-utils";
+import { cleanAttributeKey, cleanRuleValue, normalizeCachePath, parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export type CompiledRuleType = "tag" | "path" | "attribute";
 export type DecorationToken = "italic" | "underline" | "line-through";
@@ -29,6 +29,7 @@ export interface CompiledRule {
 	readonly fontStyle: "normal" | "italic" | "underline" | "line-through";
 	readonly iconBefore: string;
 	readonly iconAfter: string;
+	readonly hasBorder: boolean;
 }
 
 export interface RuleResolution {
@@ -131,7 +132,8 @@ export function compileSelectors(selectors: readonly CSSLink[]): CompiledRule[] 
 			fontWeight: (s.fontWeight === "lighter" || s.fontWeight === "bold") ? s.fontWeight : "normal",
 			fontStyle: (s.fontStyle === "italic" || s.fontStyle === "underline" || s.fontStyle === "line-through") ? s.fontStyle : "normal",
 			iconBefore: (s.iconBefore ?? "").trim(),
-			iconAfter: (s.iconAfter ?? "").trim()
+			iconAfter: (s.iconAfter ?? "").trim(),
+			hasBorder: Boolean(s.hasBorder)
 		});
 	}
 
@@ -183,6 +185,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	let decorationBits = 0; 
 	let iconBefore = "";
 	let iconAfter = "";
+	let hasBorder = false;
 
 	const rulesLen = compiledRules.length;
 	for (let i = 0; i < rulesLen; i++) {
@@ -217,6 +220,7 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 		// 🐕 Siste regel erstatter forrige ikon fullstendig
 		if (rule.iconBefore.length > 0) iconBefore = rule.iconBefore;
 		if (rule.iconAfter.length > 0) iconAfter = rule.iconAfter;
+		if (rule.hasBorder) hasBorder = true;
 	}
 
 	const decorations: DecorationToken[] = [];
@@ -239,6 +243,10 @@ export function resolveRuleResolution(input: ResolveRuleResolutionInput): RuleRe
 	if (input.skipIconBefore || hasBeforeConflict) iconBefore = "";
 	if (input.skipIconAfter || hasAfterConflict) iconAfter = "";
 
+	if (hasBorder) {
+		classList.push("scl-has-border");
+	}
+	
 	if (includeTagMatchClasses) {
 		const rawTagsField: string = resolvedAttrs["tags"] ?? "";
 		const tagsArray: string[] = parseSpaceSeparatedTokens(rawTagsField);

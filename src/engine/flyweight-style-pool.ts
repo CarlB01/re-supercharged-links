@@ -106,7 +106,6 @@ export function resolveVirtualPreviewResolution(
 	const ruleIndexStr = cleanPath.replace("virtual://preview/", "");
 	const ruleIndex = parseInt(ruleIndexStr, 10);
 	const rawProps: Record<string, string> = Object.create(null) as Record<string, string>;
-	const classesList: string[] = [];
 
 	const selectors = plugin.settings?.selectors ?? [];
 	const rule = selectors[ruleIndex];
@@ -119,7 +118,6 @@ export function resolveVirtualPreviewResolution(
 			const attrKey = cleanAttributeKey(rule.name);
 			if (attrKey.length > 0) rawProps[attrKey] = rawValue;
 		}
-		classesList.push(`scl-composite-${ruleIndex}`);
 	}
 	
 	const resolution = resolveRuleResolution({
@@ -132,8 +130,8 @@ export function resolveVirtualPreviewResolution(
 
 	return {
 		hasMatch: resolution.hasMatch,
-		signature: `preview|${ruleVersion}|${ruleIndex}`,
-		classes: classesList,
+		signature: `preview|${ruleVersion}|${ruleIndex}|${isDark ? "dark" : "light"}|${resolution.matchedFlyweightIds.join(",")}`,
+		classes: resolution.classes,
 		styles: {
 			color: resolution.style.color,
 			backgroundColor: resolution.style.backgroundColor,

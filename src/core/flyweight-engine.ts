@@ -3,7 +3,7 @@
 import { App, getLinkpath, TFile } from "obsidian";
 import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../metadata/metadata-extractor";
-import { resolveRuleResolution } from "../engine/selector-compiler";
+import { compileSelectors, resolveRuleResolution } from "../engine/selector-compiler";
 import { cleanAttributeKey, extractCleanLinkPath } from "../utils/shared-utils";
 import { resolveVirtualPreviewResolution } from "../engine/flyweight-style-pool";
 import { CSSLink } from "../types/css-link";
@@ -39,7 +39,6 @@ export class FlyweightEngine {
 
 	public activeHyphenatedKeysArray: string[] = [];
 
-	// O(1) tall-til-objekt kart for render-løkken
 	public ruleRegistry: Map<number, { 
 		semanticClass: string; 
 		color: string; 
@@ -72,9 +71,7 @@ export class FlyweightEngine {
 		this.activeHyphenatedKeysArray = ["tags", "path", "data-href"];
 		this.ruleRegistry.clear();
 		
-		if (this.plugin.settings === null || this.plugin.settings.selectors === null) return;
-
-		const selectorsProxy: CSSLink[] = this.plugin.settings.selectors;
+		const selectorsProxy = this.plugin.settings?.selectors;
 		if (!Array.isArray(selectorsProxy)) return;
 		
 		const len = selectorsProxy.length;
@@ -144,6 +141,12 @@ export class FlyweightEngine {
 		}
 
 		this.activeAttributesArray = Array.from(this.activeAttributesSet);
+	}
+
+	public rebuildRuleEngine(): void {
+		this.plugin.cacheManager.bumpRuleConfigVersion();
+		this.compileActiveAttributes();
+		this.plugin.cacheManager.compiledRules = compileSelectors(this.plugin.settings?.selectors ?? []);
 	}
 
 	/**
@@ -227,8 +230,11 @@ export class FlyweightEngine {
 
 	public destroy(): void {
 		this.activeAttributesSet.clear();
+		this.activeSemanticClassesSet.clear();
+		this.activePresentationAttributesSet.clear();
+		this.ruleRegistry.clear();
 		this.activeAttributesArray = [];
-		
+		this.activeHyphenatedKeysArray = [];
 	}
 }
 

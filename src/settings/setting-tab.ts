@@ -5,7 +5,7 @@ import { getRuleDetailItems } from "./components/detail-rows-factory";
 import { renderRuleSentence } from "./components/rule-renderer";
 import { moveRule } from "./components/rule-order-engine";
 import { cleanRuleValue, cleanSearchQuery, isPureAlphanumeric, parseControlValueKey } from "../utils/shared-utils";
-import { sanitizeRule } from "../engine/selector-compiler";
+import { compileSelectors, sanitizeRule } from "../engine/selector-compiler";
 import { purgeAndResetAllTabHeaders, updateVisibleLinks } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "../core/main";
 import { EDITABLE_PROPERTIES } from "./settings-constants";
@@ -18,7 +18,8 @@ export default class SCLSettingTab extends PluginSettingTab {
 	private readonly debouncedGenerate: () => void;
 	private readonly debouncedSaveSettings: () => void;
 	private rulesSearchQuery = "";
-	
+	private styleCompileScheduled = false;
+
 	public activeEditIndex: number | null = null;
 	private paneStyleEl: HTMLStyleElement | null = null;
 
@@ -36,16 +37,22 @@ export default class SCLSettingTab extends PluginSettingTab {
 		clearColorHistory();
 		void this.plugin.saveSettings();
 
-		const styleEl: HTMLStyleElement | null = this.paneStyleEl;
-		if (styleEl !== null) {
-			styleEl.remove();
-			this.paneStyleEl = null;
-		}
 		super.hide();
 	}
 
 	public refreshUI(): void { 
 		this.update(); 
+		this.schedulePaneStylesCompile();
+	}
+
+	private schedulePaneStylesCompile(): void {
+		if (this.styleCompileScheduled) return;
+		this.styleCompileScheduled = true;
+
+		window.requestAnimationFrame((): void => {
+			this.styleCompileScheduled = false;
+			this.compilePaneStyles();
+		});
 	}
 
 	override getControlValue(key: string): unknown {
@@ -75,7 +82,6 @@ export default class SCLSettingTab extends PluginSettingTab {
 			this.handleSearchQuery(value);
 		} else if (key.startsWith("scl_")) {
 			this.handleRuleFieldUpdate(key, value);
-			this.plugin.cacheManager.bumpRuleConfigVersion();
 		} else {
 			this.handleGlobalSettingUpdate(key, value);
 			if (key === "enableTagChips" || key === "getFromInlineField") {
@@ -139,13 +145,10 @@ export default class SCLSettingTab extends PluginSettingTab {
 							newSelector.lightBgColor = "transparent";
 							newSelector.darkBgColor = "transparent";
 							
-							// ⚡ RINGVIRKNING-FIX: Nullstill søkefeltet helt ved opprettelse.
-							// Dette garanterer at den nye regelen ikke blir kvalt av et aktivt søkefilter!
 							this.rulesSearchQuery = "";
 							
 							selectors.push(newSelector);
-							this.plugin.cacheManager.bumpRuleConfigVersion();
-							this.plugin.flyweightEngine.compileActiveAttributes();
+							this.plugin.flyweightEngine.rebuildRuleEngine();
 							void this.plugin.saveSettings();
 							void this._generateSnippet();
 							
@@ -210,7 +213,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 			applyStylesAndAttributesToLink(noteEl, mockProps, this.plugin);
 
 			if (rule.type === "tag") {
-				const tagAnchor = rowEl.querySelector<HTMLElement>("a.tag");
+				const tagAnchor = rowEl.querySelector<HTMLElement>(".tag");
 				if (tagAnchor !== null) {
 					tagAnchor.setText(rawValue.length > 0 ? `#${rawValue}` : "#");
 				}
@@ -391,20 +394,17 @@ export default class SCLSettingTab extends PluginSettingTab {
 
 	private renderRuleRow(setting: Setting, selector: CSSLink, index: number, selectors: CSSLink[], isEditing: boolean): void {
 		setting.settingEl.className = "setting-item scl-clickable-row scl-main-rule-row";
-		setting.settingEl.addClass("markdown-rendered");
 		if (isEditing) setting.settingEl.addClass("is-active");
 		
 		setting.settingEl.setAttribute("data-index", String(index));
 		setting.nameEl.empty();
+		setting.nameEl.addClass("markdown-rendered");
 		
 		renderRuleSentence(setting.nameEl, selector);
 
 		this.renderRuleBadges(setting, selector);
 		this.renderReorderGrip(setting, index, selectors);
-
-		window.requestAnimationFrame((): void => {
-			this.compilePaneStyles();
-		});
+		this.schedulePaneStylesCompile();
 	}
 
 	private generateUniqueColors(): { light: string; dark: string } {
@@ -469,26 +469,20 @@ export default class SCLSettingTab extends PluginSettingTab {
 	 * Decouples state compilation, storage I/O lanes, and graphical layout updates safely.
 	 */
 	private async applyRuleMutationRefresh(silent: boolean): Promise<void> {
-		// Step 1: Re-evaluate and compile the active attribute set across selectors
-		this.plugin.flyweightEngine.compileActiveAttributes();
+		this.plugin.flyweightEngine.rebuildRuleEngine();
+		this.plugin.cacheManager.compiledRules = compileSelectors(this.plugin.settings.selectors ?? []);
 
-		// Step 2: Route storage commands through the appropriate asynchronous I/O channel
 		if (silent) {
 			this.debouncedSaveSettings();
 		} else {
 			await this.plugin.saveSettings();
 		}
 
-		// Step 3: Trigger active stylesheet compilation maps directly over preview text nodes
 		this.compilePaneStyles();
 
-		// Step 4: Fire off the debounced generation pipeline to synchronize vault anchors
 		this.debouncedGenerate();
 
-		// Step 5: Execute full interactive view updates only during noisy updates
-		if (!silent) {
-			this.refreshUI();
-		}
+		if (!silent) this.refreshUI();
 	}
 
 }

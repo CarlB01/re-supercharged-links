@@ -1,11 +1,9 @@
 // src/core/event-registry.ts
 
-import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext } from "obsidian";
+import { App, debounce, TFile, TAbstractFile, MarkdownPostProcessorContext, WorkspaceWindow } from "obsidian";
 import { initModalObservers, initViewObservers } from "../observers/observer-engine";
 import { forceLivePreviewRefresh, updateElLinks, updateVisibleLinks } from "../rendering/workspace-renderer";
 import ResuperchargedLinks from "./main";
-
-interface ObsidianWindowInternal { getContainer(): { doc: Document; } | null; }
 
 /**
  * Registers all upstream Obsidian core event hooks under a strict single-channel architecture.
@@ -35,13 +33,16 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 		updateElLinks(app, plugin, el, ctx);
 	});
 
-	plugin.registerEvent(app.workspace.on("window-open", (win) => {
-		const internalWin = win as unknown as ObsidianWindowInternal;
-		if (internalWin !== null) {
-			const container = internalWin.getContainer();
-			if (container !== null && container.doc !== null) {
-				initModalObservers(plugin, container.doc);
-			}
+	plugin.registerEvent(app.workspace.on("window-open", (win: WorkspaceWindow, windowObj: Window) => {
+		const targetDoc: Document | null = win.doc ?? windowObj.document ?? null;
+		if (targetDoc === null) return;
+
+		if (targetDoc.body !== null) {
+			initModalObservers(plugin, targetDoc);
+		} else {
+			targetDoc.addEventListener("DOMContentLoaded", () => {
+				initModalObservers(plugin, targetDoc);
+			}, { once: true });
 		}
 	}));
 
@@ -77,13 +78,13 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 
 	// handle light/dark mode changes
 	plugin.registerEvent(app.workspace.on("css-change", (): void => {
-		plugin.flyweightEngine.compileActiveAttributes(); // Flipp Light/Dark-atomene i Flyweight-motoren
-		updateLinksDebounced(null);    
-		forceLivePreviewRefresh(app); 
-
-		// Piggy-back for innstillingspanelet hvis det er åpent
-		if (plugin.settingTab?.containerEl?.isShown()) {
-			plugin.settingTab.compilePaneStyles();
-		}
+		window.requestAnimationFrame((): void => {
+			plugin.flyweightEngine.compileActiveAttributes();
+			updateLinksDebounced(null);
+			forceLivePreviewRefresh(app);
+			if (plugin.settingTab?.containerEl?.isShown()) {
+				plugin.settingTab.compilePaneStyles();
+			}
+		});
 	}));
 }

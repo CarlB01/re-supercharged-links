@@ -6,7 +6,6 @@ import { Prec } from "@codemirror/state";
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
-import { compileSelectors } from '../engine/selector-compiler';
 import { purgeAndResetAllTabHeaders, updateVisibleLinks } from '../rendering/workspace-renderer';
 import SCLSettingTab from '../settings/setting-tab';
 import { AttributeCacheManager } from '../metadata/cache-manager';
@@ -46,9 +45,8 @@ export default class ResuperchargedLinks extends Plugin {
 		await this.cleanupLegacySnippetFile();
 		this.detectPluginCollisions();
 		
-		await this.loadSettings();
-		
 		this.flyweightEngine = new FlyweightEngine(this.app, this);
+		await this.loadSettings();
 		
 		this.settingTab = new SCLSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
@@ -95,23 +93,37 @@ export default class ResuperchargedLinks extends Plugin {
 			this.cacheManager.clearAttrCycleCache();
 			initViewObservers(this);
 
-			const currentDoc: Document | null = document ?? null;
-			if (currentDoc !== null) {
-				initModalObservers(this, currentDoc);
+			const seenDocs = new Set<Document>();
+
+			// Sikre hovedvinduet først (i tilfelle workspace starter helt uten åpne leaves)
+			const rootDoc: Document | null = document ?? null;
+			if (rootDoc !== null) {
+				seenDocs.add(rootDoc);
+				initModalObservers(this, rootDoc);
 			}
 
 			this.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
 				const container: HTMLElement | null = leaf.view?.containerEl ?? null;
 				if (container !== null && container.isConnected) {
-					updateVisibleLinks(this.app, this);
-					
+					// 1. Registrer modal-observer én gang per unikt vindu (pop-out støtte)
+					const ownerDoc: Document | null = container.ownerDocument ?? null;
+					if (ownerDoc !== null && !seenDocs.has(ownerDoc)) {
+						seenDocs.add(ownerDoc);
+						initModalObservers(this, ownerDoc);
+					}
+
+					// 2. Registrer view-observer for denne fanetypen
 					const viewType = leaf.view?.getViewType() ?? "";
 					if (viewType.length > 0) {
 						registerViewType(viewType, this, ".tree-item-inner, .nav-file-title-content, .tab-header-inner-title", true);
 					}
 				}
 			});
+
+			// Kjør én samlet stiloppdatering etter at alle observers er på plass
+			updateVisibleLinks(this.app, this);
 		});
+
 	}
 	
 	public override onunload(): void {	
@@ -134,8 +146,7 @@ export default class ResuperchargedLinks extends Plugin {
 		const { settings, dataRepaired } = await loadAndSanitizeSettings(this);
 		this.settings = settings;
 
-		const selectorsArray = this.settings?.selectors ?? [];
-		this.cacheManager.compiledRules = compileSelectors(selectorsArray);
+		this.flyweightEngine.rebuildRuleEngine();
 
 		if (dataRepaired) {
 			await this.saveSettings();

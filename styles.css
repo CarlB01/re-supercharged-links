@@ -1,5 +1,5 @@
 :root {
-  --scl-padding: 0.20em; 
+  --scl-padding: 0.15em; 
   --scl-curve: 0.15em;
   --scl-border: 0.0625em;
 }
@@ -8,31 +8,38 @@
    1) UNIFIED DUAL-ENGINE LINK & UTILITY DEFINITIONS
    ========================================================================= */
 
-[class*='scl-']:not(.cm-line [class*='scl-']) {
-
+.scl-processed:not(.cm-line .scl-processed),
+.internal-link[class*='scl-']:not(.cm-line [class*='scl-']) {
   display: inline-block;
   vertical-align: baseline;
   line-height: 1.15;
-  
-  border: var(--scl-border) solid var(--scl-color);
+
+  /* Blank (transparent) ramme som standard for stabil layout uten hopp */
+  border: var(--scl-border) solid transparent;
   border-radius: var(--scl-curve);
   padding-left: var(--scl-padding);
   padding-right: var(--scl-padding);
-  
+
   color: var(--scl-color, inherit);
   background-color: var(--scl-bg, transparent);
 }
 
+/* Når bryteren er PÅ: Rammen får samme farge som forgrunnsfargen */
+.scl-processed.scl-has-border:not(.cm-line .scl-processed),
+.internal-link.scl-has-border[class*='scl-']:not(.cm-line [class*='scl-']) {
+  border-color: var(--scl-color, currentColor);
+}
+
+/* Live Preview (CodeMirror): Blank ramme som standard */
 .cm-line [class*='scl-'] {
   display: inline-block;
   vertical-align: baseline;
   line-height: 1.15;
   color: var(--scl-color, inherit);
   background-color: var(--scl-bg, transparent);
-  
-  /*Standard: Kun ramme oppe og nede for de midterste leddene */
-  border-top: var(--scl-border) solid var(--scl-color);
-  border-bottom: var(--scl-border) solid var(--scl-color);
+
+  border-top: var(--scl-border) solid transparent;
+  border-bottom: var(--scl-border) solid transparent;
   border-left: 0 solid transparent;
   border-right: 0 solid transparent;
   border-radius: 0;
@@ -41,25 +48,41 @@
 .cm-line [class*='scl-'].scl-first {
   border-top-left-radius: var(--scl-curve);
   border-bottom-left-radius: var(--scl-curve);
-  border-left: var(--scl-border) solid var(--scl-color);
+  border-left: var(--scl-border) solid transparent;
   padding-left: var(--scl-padding);
 }
 
 .cm-line [class*='scl-'].scl-last {
   border-top-right-radius: var(--scl-curve);
   border-bottom-right-radius: var(--scl-curve);
-  border-right: var(--scl-border) solid var(--scl-color);
+  border-right: var(--scl-border) solid transparent;
   padding-right: var(--scl-padding);
 }
 
+/* Live Preview når bryteren er PÅ */
+.cm-line [class*='scl-'].scl-has-border {
+  border-top-color: var(--scl-color, currentColor);
+  border-bottom-color: var(--scl-color, currentColor);
+}
+
+.cm-line [class*='scl-'].scl-has-border.scl-first {
+  border-left-color: var(--scl-color, currentColor);
+}
+
+.cm-line [class*='scl-'].scl-has-border.scl-last {
+  border-right-color: var(--scl-color, currentColor);
+}
+
 .scl-first.scl-last,
-.markdown-rendered [class*='scl-'],
-.suggestion-item [class*='scl-'],
-.search-result-file-matches [class*='scl-'],
-.nav-file-title-content[class*='scl-'] {
+.markdown-rendered .scl-processed,
+.suggestion-item .scl-processed,
+.search-result-file-matches .scl-processed,
+.nav-file-title-content.scl-processed {
   border-radius: var(--scl-curve);
-  border-left: var(--scl-border) solid var(--scl-color);
-  border-right: var(--scl-border) solid var(--scl-color);
+  border-left-width: var(--scl-border);
+  border-left-style: solid;
+  border-right-width: var(--scl-border);
+  border-right-style: solid;
   padding-left: var(--scl-padding);
   padding-right: var(--scl-padding);
 }
@@ -119,34 +142,55 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
    ========================================================================= */
 
 .vertical-tab-content-container {
-  /* Søkefeltet ("Search style rules...") høyrejustert på én linje */
-  .setting-item:has(input[type="search"]) {
-    display: flex;
-    flex-wrap: nowrap;
+  .setting-item.scl-search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.75em;
     width: 100%;
 
-    .setting-item-control {
-      flex: 0 0 auto;
+    .setting-item-info {
       width: auto;
+      min-width: 0;
+      margin-right: 0;
+      padding-right: 0;
+    }
+
+    .setting-item-control {
+      display: flex;
+      align-items: center;
       justify-content: flex-end;
+      width: auto;
+      margin-top: 0;
+      padding-left: 0;
+    }
+
+    .search-input-container {
+      width: 11em;
+      max-width: 100%;
     }
 
     input[type="search"] {
-      width: 14em;
-      max-width: 100%;
+      width: 100%;
+      font-size: inherit;
     }
   }
 
   .setting-item.scl-clickable-row.scl-main-rule-row {
     cursor: pointer;
-    display: flex;
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.5em;
     width: 100%;
     padding: 0.6em;
+
+    .setting-item-info {
+      width: auto;
+      min-width: 0;
+      margin-right: 0;
+      padding-right: 0;
+    }
 
     &:hover {
       background-color: var(--background-modifier-hover);
@@ -157,8 +201,10 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
       flex-wrap: nowrap;
       align-items: center;
       justify-content: flex-end;
-      flex: 0 0 auto;
-      width: max-content;
+      width: auto;
+      margin-top: 0;
+      padding-left: 0;
+      gap: 0.4em;
     }
 
     .scl-badge-container {
@@ -217,7 +263,7 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
         height: 100%;
         min-width: 0.875em;
         min-height: 0.875em;
-        stroke-width: 0.16em;
+        stroke-width: 0.25em;
         color: var(--scl-capsule-color, var(--text-normal));
       }
     }
@@ -367,7 +413,11 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
     input[type="color"] {
       -webkit-appearance: none;
       appearance: none;
+      display: block;
+      flex: 0 0 auto;
+      font-size: inherit;
       padding: 0;
+      margin: 0;
       border: 0.0625em solid var(--background-modifier-border);
       box-sizing: border-box;
       cursor: pointer;
@@ -375,25 +425,38 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
 
       &::-webkit-color-swatch-wrapper {
         padding: 0;
+        width: 100%;
+        height: 100%;
       }
 
       &::-webkit-color-swatch {
         border: none;
         border-radius: inherit;
+        width: 100%;
+        height: 100%;
       }
     }
 
-    &.scl-text-picker-row input[type="color"] {
-      width: 1.25em;
-      height: 1.25em;
+    &.scl-text-picker-row.scl-text-picker-row input[type="color"] {
+      width: 1.375em;
+      min-width: 1.375em;
+      max-width: 1.375em;
+      height: 1.375em;
+      min-height: 1.375em;
+      max-height: 1.375em;
       border-radius: 50%;
     }
 
-    &.scl-bg-picker-row input[type="color"] {
-      width: 2em;
+    &.scl-bg-picker-row.scl-bg-picker-row input[type="color"] {
+      width: 2.25em;
+      min-width: 2.25em;
+      max-width: 2.25em;
       height: 1.375em;
+      min-height: 1.375em;
+      max-height: 1.375em;
       border-radius: 0.25em;
     }
+
   }
 }
 

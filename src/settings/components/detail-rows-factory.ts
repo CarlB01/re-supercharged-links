@@ -49,13 +49,10 @@ export function getRuleDetailItems(
 
 	const applySilent = async (propName: string, value: string): Promise<void> => {
 		await tab.setControlValue(`scl_${propName}_${index}`, value, true);
-		tab.plugin.flyweightEngine.compileActiveAttributes();
-		triggerStylesUpdate();
 	};
 	
 	const applyLoud = async (propName: string, value: string): Promise<void> => {
 		await tab.setControlValue(`scl_${propName}_${index}`, value, false);
-		tab.update(); // Enforces full structural UI redraws for layout-shifting keys like 'type'
 	};
 
 
@@ -156,6 +153,16 @@ export function getRuleDetailItems(
 		});
 	}));
 
+	// 8. Border Toggle Row
+	rows.push(createDetailRow("scl-detail-row scl-row-border", "Show border", "Draw a border around the link using the text color.", (setting) => {
+		setting.addToggle((t) => {
+			t.setValue(Boolean(selector.hasBorder));
+			t.onChange(async (v: boolean) => {
+				await tab.setControlValue(`scl_hasBorder_${index}`, v, true);
+			});
+		});
+	}));
+
 	for (const c of COLOR_ROW_CONFIGS) {
 		const pickerClass = c.isBg ? "scl-bg-picker-row" : "scl-text-picker-row";
 		rows.push(createDetailRow(`mod-toggle scl-color-row ${pickerClass} ${c.cls}`, c.name, c.desc, (setting) => {
@@ -187,11 +194,9 @@ export function getRuleDetailItems(
 
 				tab.activeEditIndex = null;
 
-				tab.plugin.cacheManager.bumpRuleConfigVersion();
-				tab.plugin.flyweightEngine.compileActiveAttributes();
+				tab.plugin.flyweightEngine.rebuildRuleEngine();
 				await tab.plugin.saveSettings();
 
-				// ⚡ Nå kan vi kalle den direkte og trygt, helt uten proxy eller fallback-imports!
 				tab._generateSnippet();
 				tab.update();
 			}); 

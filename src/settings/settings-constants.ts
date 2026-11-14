@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: SCLSettings = {
 export const EDITABLE_PROPERTIES: readonly string[] = [
 	"type", "name", "value", "iconBefore", "iconAfter", 
 	"lightColor", "darkColor", "lightBgColor", "darkBgColor", 
-	"fontWeight", "fontStyle"
+	"fontWeight", "fontStyle", "hasBorder"
 ];
 
 /**

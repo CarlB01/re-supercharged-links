@@ -17,9 +17,10 @@ const observerRegistry: WeakMap<HTMLElement, Map<string, MutationObserver>> = ne
 const modalObserverRegistry: WeakMap<Document, MutationObserver> = new WeakMap<Document, MutationObserver>();
 
 function scheduleContainerUpdate(container: HTMLElement, fn: () => void): void {
+	const win: Window = container.ownerDocument.defaultView ?? window;
 	const prev: number | null = scheduledContainerUpdates.get(container) ?? null;
 	if (prev !== null) {
-		cancelAnimationFrame(prev);
+		win.cancelAnimationFrame(prev);
 	}
 
 	const id: number = window.requestAnimationFrame((): void => {
@@ -104,6 +105,8 @@ export function registerViewType(
  * Handles popup switchers, suggestion layers, and native property panel layout injections.
  */
 export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): void {
+	if (doc.body === null) return;
+
 	const existing: MutationObserver | null = modalObserverRegistry.get(doc) ?? null;
 	if (existing !== null) {
 		existing.disconnect();
@@ -118,7 +121,9 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 	// Catch frontmatter pill alterations instantly
 	const config: MutationObserverInit = { subtree: true, childList: true, attributes: true, attributeFilter: ["data-href", "class"] };
 
-	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+	const ObserverCtor = doc.defaultView?.MutationObserver ?? window.MutationObserver;
+	const observer: MutationObserver = new ObserverCtor((records: MutationRecord[]): void => {
+
 		const recordsCount = records.length;
 		let shouldTriggerSweep = false;
 
@@ -165,7 +170,8 @@ function watchContainer(
 ): void {
 	disconnectExistingObserver(container, observerKey);
 
-	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+	const ObserverCtor = container.ownerDocument.defaultView?.MutationObserver ?? window.MutationObserver;
+	const observer: MutationObserver = new ObserverCtor((records: MutationRecord[]): void => {
 		const recordsCount = records.length;
 		let relevantChangeDetected = false;
 
@@ -239,7 +245,8 @@ function watchContainerDynamic(
 ): void {
 	disconnectExistingObserver(container, observerKey);
 
-	const observer: MutationObserver = new window.MutationObserver((records: MutationRecord[]): void => {
+	const ObserverCtor = container.ownerDocument.defaultView?.MutationObserver ?? window.MutationObserver;
+	const observer: MutationObserver = new ObserverCtor((records: MutationRecord[]): void => {
 		const recordsCount = records.length;
 		const deltaElements: HTMLElement[] = [];
 
@@ -295,7 +302,6 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 				observer.disconnect();
 			}
 		}
-			plugin.observers = [];
 	}
 
 	const modalObservers: MutationObserver[] = plugin.modalObservers || [];
@@ -311,6 +317,13 @@ export function disconnectAllObservers(plugin: ResuperchargedLinks): void {
 	const rootDoc: Document = document;
 	modalObserverRegistry.delete(rootDoc);
 
+	plugin.app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+		const ownerDoc: Document | null = leaf.view?.containerEl?.ownerDocument ?? null;
+		if (ownerDoc !== null) {
+			modalObserverRegistry.delete(ownerDoc);
+		}
+	});
+	
 	plugin.observers = [];
 	plugin.modalObservers = [];
 }

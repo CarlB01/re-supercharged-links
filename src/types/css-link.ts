@@ -25,6 +25,7 @@ export class CSSLink {
   public darkColor: string;
   public lightBgColor: string;
   public darkBgColor: string;
+  public hasBorder: boolean;
 
   // 🔥 FLYWEIGHT RUNTIME IDENTIFIERS:
   // Pre-allocated structural slots to bypass dynamic string mappings in layout sweeps.
@@ -50,6 +51,7 @@ export class CSSLink {
       
       this.lightBgColor = "transparent";
       this.darkBgColor = "transparent";
+      this.hasBorder = false;
   }
 
   private generateId(): string {

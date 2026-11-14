@@ -114,8 +114,6 @@ function updateHistoryButtonStates(setting: Setting, historyKey: string, past: s
     if (isHistoryActive) {
       uEl.show();
       uEl.toggleClass("is-disabled", past.length <= 1);
-      uEl.style.opacity = past.length <= 1 ? "0.3" : "1";
-      uEl.style.pointerEvents = past.length <= 1 ? "none" : "auto";
     } else {
       uEl.hide();
     }
@@ -125,8 +123,6 @@ function updateHistoryButtonStates(setting: Setting, historyKey: string, past: s
     if (isHistoryActive) {
       rEl.show();
       rEl.toggleClass("is-disabled", future.length === 0);
-      rEl.style.opacity = future.length === 0 ? "0.3" : "1";
-      rEl.style.pointerEvents = future.length === 0 ? "none" : "auto";
     } else {
       rEl.hide();
     }

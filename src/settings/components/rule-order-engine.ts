@@ -27,7 +27,6 @@ export async function moveRule(
 
 	selectors[targetIndex] = currentSelector;
 	selectors[index] = targetSelector;
-	plugin.cacheManager.bumpRuleConfigVersion();
 
 	const active: number | null = options.activeEditIndex === undefined ? null : options.activeEditIndex;
 	
@@ -36,8 +35,7 @@ export async function moveRule(
 	} else if (active === targetIndex) {
 		options.setActiveEditIndex(index);
 	}
-	
-	plugin.flyweightEngine.compileActiveAttributes();
+	plugin.flyweightEngine.rebuildRuleEngine();
 	await plugin.saveSettings();
 
 	options.onAfterMove();

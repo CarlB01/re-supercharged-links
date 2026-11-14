@@ -180,6 +180,10 @@ export async function saveStrippedSettings(plugin: Plugin, settings: SCLSettings
 			delete cleanRule["matchCaseSensitive"];
 		}
 
+		if (!cleanRule["hasBorder"]) {
+			delete cleanRule["hasBorder"];
+		}
+
 		// 🔑 THE ATOMIC PURGE: Ensure no legacy active rule UIDs leak onto the hard drive configuration files
 		if ("uid" in cleanRule) {
 			delete cleanRule["uid"];
