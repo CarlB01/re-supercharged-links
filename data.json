@@ -15,7 +15,7 @@
     },
     {
       "type": "tag",
-      "value": "tekst",
+      "value": "done",
       "iconBefore": "📄",
       "lightColor": "#8826c9",
       "darkColor": "#dbdc79",
@@ -32,11 +32,12 @@
       "value": "@",
       "fontWeight": "lighter",
       "fontStyle": "italic",
-      "lightColor": "#c27abc",
+      "lightColor": "#710468",
       "darkColor": "#e5c8f4",
       "lightBgColor": "#f29191",
       "_flyweightIdLight": 5,
-      "_flyweightIdDark": 6
+      "_flyweightIdDark": 6,
+      "hasBorder": true
     },
     {
       "type": "tag",
@@ -64,24 +65,14 @@
     },
     {
       "type": "tag",
-      "value": "lege",
-      "iconAfter": "🪄",
-      "lightColor": "#bb80d0",
-      "fontStyle": "line-through",
-      "fontWeight": "bold",
-      "_flyweightIdLight": 11,
-      "_flyweightIdDark": 12
-    },
-    {
-      "type": "tag",
       "value": "👥gruppe",
       "iconBefore": "👥",
       "fontWeight": "lighter",
       "lightColor": "#fa2983",
       "darkColor": "#8431aa",
       "lightBgColor": "#cbfbeb",
-      "_flyweightIdLight": 13,
-      "_flyweightIdDark": 14
+      "_flyweightIdLight": 11,
+      "_flyweightIdDark": 12
     },
     {
       "type": "tag",
@@ -93,8 +84,8 @@
       "darkBgColor": "#5a4861",
       "fontWeight": "bold",
       "fontStyle": "line-through",
-      "_flyweightIdLight": 15,
-      "_flyweightIdDark": 16
+      "_flyweightIdLight": 13,
+      "_flyweightIdDark": 14
     },
     {
       "type": "tag",
@@ -103,8 +94,8 @@
       "darkColor": "#f28cb8",
       "iconAfter": "🀄️",
       "lightBgColor": "#e0d23e",
-      "_flyweightIdLight": 17,
-      "_flyweightIdDark": 18,
+      "_flyweightIdLight": 15,
+      "_flyweightIdDark": 16,
       "iconBefore": "🦄"
     },
     {
@@ -115,28 +106,29 @@
       "lightBgColor": "#d0f0f0",
       "fontWeight": "bold",
       "iconBefore": "🐕‍🦺",
-      "_flyweightIdLight": 19,
-      "_flyweightIdDark": 20
+      "_flyweightIdLight": 17,
+      "_flyweightIdDark": 18,
+      "hasBorder": true
     },
     {
       "type": "tag",
-      "value": "klinikk",
-      "iconBefore": "🏥",
+      "value": "locked",
       "lightBgColor": "#dad8d8",
       "lightColor": "#1a8c18",
-      "_flyweightIdLight": 21,
-      "_flyweightIdDark": 22
+      "_flyweightIdLight": 19,
+      "_flyweightIdDark": 20,
+      "iconAfter": "🔓"
     },
     {
       "type": "tag",
-      "value": "new2n",
+      "value": "idea",
       "lightColor": "#fb4632",
-      "darkColor": "#8c90f2",
-      "iconBefore": "❤️",
+      "darkColor": "#f9c976",
       "fontWeight": "lighter",
-      "iconAfter": "🦋",
-      "_flyweightIdLight": 23,
-      "_flyweightIdDark": 24
+      "iconAfter": "💡",
+      "_flyweightIdLight": 21,
+      "_flyweightIdDark": 22,
+      "darkBgColor": "#637d08"
     },
     {
       "type": "tag",
@@ -146,22 +138,13 @@
       "lightColor": "#3a1f93",
       "darkColor": "#a48cf2",
       "lightBgColor": "#fbddd5",
-      "_flyweightIdLight": 25,
-      "_flyweightIdDark": 26,
+      "_flyweightIdLight": 23,
+      "_flyweightIdDark": 24,
       "darkBgColor": "#008009"
     },
     {
       "type": "tag",
-      "value": "signalstoff",
-      "iconBefore": "⚖️",
-      "lightColor": "#93291f",
-      "darkColor": "#f2958c",
-      "_flyweightIdLight": 27,
-      "_flyweightIdDark": 28
-    },
-    {
-      "type": "tag",
-      "value": "tøffe",
+      "value": "tough",
       "iconBefore": "🦋",
       "iconAfter": "🚂",
       "fontWeight": "bold",
@@ -169,8 +152,8 @@
       "lightColor": "#7a1f93",
       "darkColor": "#dc8cf2",
       "lightBgColor": "#bdc5e5",
-      "_flyweightIdLight": 29,
-      "_flyweightIdDark": 30
+      "_flyweightIdLight": 25,
+      "_flyweightIdDark": 26
     }
   ],
   "scl_value_10": "haha",
