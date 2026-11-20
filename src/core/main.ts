@@ -6,7 +6,7 @@ import { Prec } from "@codemirror/state";
 import { loadAndSanitizeSettings, saveStrippedSettings } from "../settings/settings-manager";
 import { disconnectAllObservers, initModalObservers, initViewObservers, registerViewType, removeStylingFromViews } from '../observers/observer-engine';
 import { PluginPerformanceTracker } from './telemetry';
-import { purgeAndResetAllTabHeaders, updateVisibleLinks } from '../rendering/workspace-renderer';
+import { forceLivePreviewRefresh, purgeAndResetAllTabHeaders, updateVisibleLinks } from '../rendering/workspace-renderer';
 import SCLSettingTab from '../settings/setting-tab';
 import { AttributeCacheManager } from '../metadata/cache-manager';
 import { registerPluginEvents } from './event-registry';
@@ -42,10 +42,11 @@ export default class ResuperchargedLinks extends Plugin {
 		
 		this.telemetry = new PluginPerformanceTracker(this.doTelemetry);
 		this.cacheManager = new AttributeCacheManager(this.app, this, this.attrCycleCache);
+		this.flyweightEngine = new FlyweightEngine(this.app, this);
+		
 		await this.cleanupLegacySnippetFile();
 		this.detectPluginCollisions();
 		
-		this.flyweightEngine = new FlyweightEngine(this.app, this);
 		await this.loadSettings();
 		
 		this.settingTab = new SCLSettingTab(this.app, this);
@@ -147,7 +148,7 @@ export default class ResuperchargedLinks extends Plugin {
 		this.settings = settings;
 
 		this.flyweightEngine.rebuildRuleEngine();
-
+		forceLivePreviewRefresh(this.app);
 		if (dataRepaired) {
 			await this.saveSettings();
 		}

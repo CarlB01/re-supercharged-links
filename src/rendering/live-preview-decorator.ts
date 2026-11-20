@@ -3,7 +3,7 @@
 import { syntaxTree } from "@codemirror/language";
 import { Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { App, MarkdownView, TFile } from "obsidian";
+import { App, editorInfoField, MarkdownView, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
 import { extractCleanLinkPath, forceStyleUpdateEffect } from "../utils/shared-utils";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
@@ -149,15 +149,16 @@ export class LivePreviewDecorator {
 	 * Keeps object shapes strictly stable for V8 optimization.
 	 */
 	private buildRawDecos(view: EditorView, updateFrom: number = -1, updateTo: number = -1): { from: number; to: number; value: Decoration }[] {
-		const mdView: MarkdownView | null = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (mdView === null || mdView.file === null) return [];
-
+		const editorInfo = view.state.field(editorInfoField, false);
+		const file: TFile | null = editorInfo?.file ?? null;
+		if (file === null) return [];
+		
 		this.processedRangesPool.clear();
 		this.decoratedRangesPool.clear();
 
 		const state: IterationState = {
 			builder: new RangeSetBuilder<Decoration>(), // Dummy for å tilfredsstille grensesnittet ditt
-			activeFileBasename: mdView.file.basename,
+			activeFileBasename: file.basename,
 			from: 0,
 			to: 0,
 			collectedDecos: [],

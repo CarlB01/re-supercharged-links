@@ -80,6 +80,7 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 	plugin.registerEvent(app.workspace.on("css-change", (): void => {
 		window.requestAnimationFrame((): void => {
 			plugin.flyweightEngine.compileActiveAttributes();
+			app.workspace.trigger("resupercharged-links:rules-changed");
 			updateLinksDebounced(null);
 			forceLivePreviewRefresh(app);
 			if (plugin.settingTab?.containerEl?.isShown()) {
@@ -87,4 +88,16 @@ export function registerPluginEvents(app: App, plugin: ResuperchargedLinks): voi
 			}
 		});
 	}));
+
+	plugin.registerDomEvent(document, "visibilitychange", (): void => {
+		if (document.visibilityState !== "visible") return;
+		if (!app.workspace.layoutReady) return;
+
+		window.requestAnimationFrame((): void => {
+			plugin.cacheManager.clearAttrCycleCache();
+			updateVisibleLinks(app, plugin);
+			forceLivePreviewRefresh(app);
+		});
+	});
+
 }
