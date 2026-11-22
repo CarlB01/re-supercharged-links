@@ -309,7 +309,10 @@ export class FlyweightEngine {
 					continue;
 				}
 
-				const ruleKey: string = resolution.matchedFlyweightIds.join(",");
+				const hasBefore = resolution.iconBefore.length > 0 ? "1" : "0";
+				const hasAfter = resolution.iconAfter.length > 0 ? "1" : "0";
+				const ruleKey = `${resolution.matchedFlyweightIds.join(",")}|${hasBefore}${hasAfter}`;
+
 				let sharedClasses: readonly string[] | undefined = sharedClassArrays.get(ruleKey);
 
 				if (sharedClasses === undefined) {
@@ -328,8 +331,8 @@ export class FlyweightEngine {
 						else if (dec === "line-through") combined.push("scl-decor-linethrough");
 					}
 
-					if (resolution.iconBefore.length > 0) combined.push("scl-with-before");
-					if (resolution.iconAfter.length > 0) combined.push("scl-with-after");
+					if (hasBefore) combined.push("scl-with-before");
+					if (hasAfter) combined.push("scl-with-after");
 
 					const baseClasses = resolution.classes;
 					for (let c = 0; c < baseClasses.length; c++) {

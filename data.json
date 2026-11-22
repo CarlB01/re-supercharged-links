@@ -154,6 +154,15 @@
       "lightBgColor": "#bdc5e5",
       "_flyweightIdLight": 25,
       "_flyweightIdDark": 26
+    },
+    {
+      "type": "tag",
+      "value": "her",
+      "iconBefore": "🦄",
+      "lightColor": "#f73653",
+      "darkColor": "#f28c9c",
+      "_flyweightIdLight": 27,
+      "_flyweightIdDark": 28
     }
   ],
   "scl_value_10": "haha",
