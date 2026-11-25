@@ -29,6 +29,7 @@ export class AttributeCacheManager {
 	private readonly PATH_TOUCH_COOLDOWN_MS: number = 400;
 
 	public compiledRules: CompiledRule[] = [];
+	public compiledTagRules: CompiledRule[] = [];
 	private ruleConfigVersion = 0;
 
 	private readonly scheduleVisibleRefresh = debounce((): void => {
@@ -45,6 +46,7 @@ export class AttributeCacheManager {
 		this.pendingChangedPaths.clear();
 		this.pendingChangedPrefixes.clear();	
 		this.compiledRules = [];
+		this.compiledTagRules = [];
 	}
 
 	public triggerScheduleRefresh(): void {
@@ -55,6 +57,7 @@ export class AttributeCacheManager {
 		this.ruleConfigVersion += 1;
 		const selectorsArray = this.plugin.settings?.selectors ?? [];
 		this.compiledRules = compileSelectors(selectorsArray);
+		this.compiledTagRules = this.compiledRules.filter((r) => r.type === "tag");
 		this.clearAttrCycleCache();
 	}
 

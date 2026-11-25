@@ -147,12 +147,13 @@ export function initModalObservers(plugin: ResuperchargedLinks, doc: Document): 
 		}
 
 		if (shouldTriggerSweep) {
-			const propertySelector = "div.multi-select-pill-content, div.metadata-link-inner, .suggestion-title, .suggestion-note";
+			const propertySelector = "div.multi-select-pill-content.internal-link, div.multi-select-pill-content[data-href], div.metadata-link-inner, .suggestion-title, .suggestion-note";
 			
-			// Execute a frame-bound update over the active active document layer
+			// Execute a frame-bound update over the active document layer
 			const activeDoc = doc.body;
 			updateContainer(activeDoc, plugin, propertySelector);
 		}
+
 	});
 
 	observer.observe(doc.body, config);

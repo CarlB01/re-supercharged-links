@@ -33,6 +33,7 @@ export class FlyweightEngine {
 	public activePresentationAttributesSet: Set<string> = new Set();
 
 	public activeHyphenatedKeysArray: string[] = [];
+	private readonly reusableTagProps: Record<string, string> = Object.create(null) as Record<string, string>;
 
 	public ruleRegistry: Map<number, { 
 		semanticClass: string; 
@@ -141,7 +142,9 @@ export class FlyweightEngine {
 	public rebuildRuleEngine(): void {
 		this.plugin.cacheManager.bumpRuleConfigVersion();
 		this.compileActiveAttributes();
-		this.plugin.cacheManager.compiledRules = compileSelectors(this.plugin.settings?.selectors ?? []);
+		const compiled = compileSelectors(this.plugin.settings?.selectors ?? []);
+		this.plugin.cacheManager.compiledRules = compiled;
+		this.plugin.cacheManager.compiledTagRules = compiled.filter((r) => r.type === "tag");
 	}
 
 	/**
@@ -170,6 +173,36 @@ export class FlyweightEngine {
 		return {
 			hasMatch: resolution.hasMatch,
 			signature: targetSignature,
+			classes: resolution.classes,
+			styles: {
+				color: resolution.style.color,
+				backgroundColor: resolution.style.backgroundColor,
+				fontWeight: resolution.style.fontWeight !== "normal" ? resolution.style.fontWeight : "",
+				iconBefore: resolution.iconBefore,
+				iconAfter: resolution.iconAfter,
+				decorations: resolution.style.decorations
+			}
+		};
+	}
+
+	public getTagResolution(rawTag: string, visibleText: string): FlyweightResponse {
+		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
+		const isDark: boolean = document.body.classList.contains("theme-dark");
+
+		const cleanTag = rawTag.startsWith("#") ? rawTag : `#${rawTag}`;
+		this.reusableTagProps["tags"] = cleanTag;
+
+		const resolution = resolveRuleResolution({
+			compiledRules: this.plugin.cacheManager.compiledTagRules,
+			resolvedAttrs: this.reusableTagProps,
+			isDark,
+			includeTagMatchClasses: true,
+			visibleText
+		});
+
+		return {
+			hasMatch: resolution.hasMatch,
+			signature: `tag|${ruleVersion}|${isDark ? "dark" : "light"}|${resolution.matchedFlyweightIds.join(",")}|${cleanTag}`,
 			classes: resolution.classes,
 			styles: {
 				color: resolution.style.color,

@@ -62,25 +62,42 @@ export function extractTagTokensFromElement(el: HTMLElement): string[] {
 }
 
 export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLinks): void {
-	if (!plugin.settings.enableTagChips) return;
-
-	const tagNodes: NodeListOf<Element> = container.querySelectorAll("a.tag");
-	const tagNodesCount: number = tagNodes.length;
-
-	for (let i = 0; i < tagNodesCount; i++) {
-		const n: Element | null = tagNodes[i] ?? null;
-		if (n !== null && n.nodeType === 1) {
-			const htmlEl: HTMLElement = n as HTMLElement;
-			const tokens: string[] = extractTagTokensFromElement(htmlEl);
-			const tokensLen = tokens.length;
-			if (tokensLen === 0) continue;
-			
-			const tagString: string = tokensLen > 0 ? "#" + tokens.join(" #") : "";
-
-			if (htmlEl.getAttribute("data-link-tags") !== tagString) {
-				htmlEl.setAttribute("data-link-tags", tagString);
+	if (!plugin.settings.enableTagChips) {
+		const existingTags = container.querySelectorAll<HTMLElement>(".scl-tag-chip");
+		for (let i = 0; i < existingTags.length; i++) {
+			const el = existingTags[i];
+			if (el) {
+				clearExtraDOMAttributes(el, plugin);
+				el.classList.remove("scl-tag-chip");
 			}
 		}
+		return;
+	}
+
+	if (plugin.cacheManager.compiledTagRules.length === 0) return;
+
+	const tagNodes = container.querySelectorAll<HTMLElement>(
+		'a.tag, .metadata-property[data-property-key="tags"] .multi-select-pill-content'
+	);
+	const tagNodesCount = tagNodes.length;
+
+for (let i = 0; i < tagNodesCount; i++) {
+		const htmlEl = tagNodes[i];
+		if (!htmlEl || htmlEl.nodeType !== 1 || !htmlEl.isConnected) continue;
+
+		const rawText = (htmlEl.getAttribute("href") || htmlEl.textContent || "").trim();
+		if (rawText.length === 0) continue;
+
+		const visibleText = (htmlEl.textContent || "").trim();
+		const resolution = plugin.flyweightEngine.getTagResolution(rawText, visibleText);
+
+		if (htmlEl.getAttribute("data-scl-signature") === resolution.signature && htmlEl.classList.contains("scl-processed")) {
+			continue;
+		}
+
+		const presentation = populatePresentationPool(resolution);
+		applyPoolToLinkElement(htmlEl, presentation, plugin);
+		htmlEl.classList.add("scl-tag-chip");
 	}
 }
 

@@ -110,6 +110,11 @@ body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-heade
   color: var(--scl-color, inherit);
   background-color: var(--scl-bg, transparent);
 }
+a.tag.scl-processed,
+.scl-tag-chip.scl-processed {
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+}
 
 /* Icon safe inline-flex */
 .scl-with-before,

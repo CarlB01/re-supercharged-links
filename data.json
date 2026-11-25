@@ -171,6 +171,13 @@
       "darkColor": "#b78cf2",
       "_flyweightIdLight": 29,
       "_flyweightIdDark": 30
+    },
+    {
+      "type": "tag",
+      "value": "død",
+      "iconAfter": "✝️",
+      "_flyweightIdLight": 31,
+      "_flyweightIdDark": 32
     }
   ],
   "scl_value_10": "haha",

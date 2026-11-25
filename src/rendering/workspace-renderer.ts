@@ -192,11 +192,9 @@ export function updateContainer(
 ): number { 
 	if (!container.isConnected) return 0;
 
-	let styledCount = 0;
-	if (plugin.settings.enableTagChips) {
-		tagChipStyles(container, plugin);
-	}
+	tagChipStyles(container, plugin);
 
+	let styledCount = 0;
 	const nodes: HTMLElement[] = directNodes !== null ? directNodes : (typeof container.findAll === "function" ? container.findAll(selector) ?? [] : []);
 	const nodesCount = nodes.length;
 	if (nodesCount === 0) return 0;
@@ -368,10 +366,10 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 
 	let count = 0;
 
-	// Combined selector eliminates double loop overhead over the property panel layout
 	const propertyNodes: NodeListOf<Element> = propertiesEl.querySelectorAll(
-		"div.multi-select-pill-content, div.metadata-link-inner"
+		"div.multi-select-pill-content.internal-link, div.multi-select-pill-content[data-href], div.metadata-link-inner"
 	);
+
 	const nodesCount = propertyNodes.length;
 	if (nodesCount === 0) return 0;
 
@@ -405,6 +403,9 @@ export function updatePropertiesPane(propertiesEl: HTMLElement, file: TFile, app
 		}
 
 		if (hasCachedInput) {
+			const lowerKey = cachedInputValue.trim().toLowerCase();
+			if (lowerKey === "tags" || lowerKey === "tag") continue;
+
 			const resolvedTarget: string | null = resolvePropertyTarget(frontmatter, cachedInputValue, text);
 			
 			if (resolvedTarget !== null) {
@@ -489,7 +490,7 @@ function updateLeafInternalLinks(
 	if (linksCount === 0) return 0;
 
 	// 1. A single broad DOM sweep targeting all internal links and pills within this container
-	const rawNodes: NodeListOf<Element> = containerEl.querySelectorAll("a.internal-link, .multi-select-pill-content");
+	const rawNodes: NodeListOf<Element> = containerEl.querySelectorAll("a.internal-link, .multi-select-pill-content.internal-link");
 	const rawNodesLen = rawNodes.length;
 	if (rawNodesLen === 0) return 0;
 
@@ -638,7 +639,8 @@ export function updateVisibleLinks(
 		
 		// Frontmatter panel components belong strictly to the layout file context
 		totalNodesStyled += updateLeafPropertiesPane(app, plugin, activeFileFallback, markdownLeaf);
-		
+		tagChipStyles(markdownLeaf.view.containerEl, plugin);
+
 		// Internal links inside the body should still only be swept via DOM if in preview mode,
 		// as CodeMirror 6 handles the active Live Preview editor body natively.
 		if (mdView.getMode() === "preview") {

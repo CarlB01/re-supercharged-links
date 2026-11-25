@@ -8,7 +8,7 @@ export interface SCLSettings {
 
 export const DEFAULT_SETTINGS: SCLSettings = {
 	getFromInlineField: false,
-	enableTagChips: true,
+	enableTagChips: false,
 	selectors: []
 };
 
