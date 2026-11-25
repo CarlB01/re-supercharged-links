@@ -17,11 +17,11 @@ Whether you want to color-code project notes, prepend status icons to people and
 
 Links are styled consistently across almost every surface in Obsidian, including **pop-out windows**:
 
-<img src="media/light.png" alt="light mode" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;"> <img src="media/dark.png" alt="styling details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
+<img src="media/light.png" alt="light mode" style="max-width: 100%; width: 200px; height: auto; border-radius: 8px;"> <img src="media/dark.png" alt="styling details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
 
 * **Editors & Views:** Live Preview styling of wiki- or markdown-style links (via CodeMirror 6 ViewPlugins) and Reading View.
 
-<img src="media/editing.png" alt="styling details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
+<img src="media/editing.png" alt="styling details" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;"> <img src="media/pills.png" alt="'tag pills'" style="max-width: 100%; width: 250px; height: auto; border-radius: 8px;">
 
 * **Navigation & Sidebars:** File Explorer, Bookmarks, Starred, Search results, Backlinks, Outgoing Links, and Recent Files.
 * **Popups & Switchers:** Quick Switcher (`Cmd/Ctrl + O`), `[[` link suggestion modals, and frontmatter property pills.
