@@ -143,6 +143,147 @@ a.tag.scl-processed,
 }
 
 /* =========================================================================
+   1B) TAG CHIPS (Reading Mode a.tag & Properties .multi-select-pill)
+   ========================================================================= */
+
+/* 1. Nullstill den indre firkantede boksen på selve tekst-elementet inne i Properties-pillen */
+.multi-select-pill > .multi-select-pill-content.scl-tag-chip.scl-processed {
+  display: inline-flex;
+  align-items: baseline;
+  border: 0;
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+  background-color: transparent;
+  color: var(--scl-color, inherit);
+}
+
+/* 2. Stil hele Obsidians ytre pille-container (.multi-select-pill.scl-pill-wrapper) */
+.multi-select-pill.scl-pill-wrapper {
+  background-color: var(--scl-bg, var(--tag-background, var(--pill-background)));
+  color: var(--scl-color, var(--tag-color, var(--pill-color)));
+  border-color: transparent;
+}
+
+.multi-select-pill.scl-pill-wrapper.scl-has-border {
+  --tag-border-color: var(--scl-color, currentColor);
+  --tag-border-width: var(--scl-border);
+  --pill-border-color: var(--scl-color, currentColor);
+  --pill-border-width: var(--scl-border);
+  border-style: solid;
+  border-width: var(--scl-border);
+  border-color: var(--scl-color, currentColor);
+}
+
+.multi-select-pill.scl-pill-wrapper .multi-select-pill-remove-button {
+  color: var(--scl-color, inherit);
+}
+
+/* 3. Reading Mode tags (a.tag): Behold Obsidians egen pille-form og padding */
+a.tag.scl-tag-chip.scl-processed {
+  border-radius: var(--tag-radius, 2em);
+  padding-left: var(--tag-padding-x, 0.65em);
+  padding-right: var(--tag-padding-x, 0.65em);
+  border-width: var(--tag-border-width, var(--scl-border));
+  border-style: solid;
+  border-color: transparent;
+  color: var(--scl-color, var(--tag-color));
+  background-color: var(--scl-bg, var(--tag-background));
+}
+
+a.tag.scl-tag-chip.scl-has-border {
+  --tag-border-color: var(--scl-color, currentColor);
+  --tag-border-width: var(--scl-border);
+  border-style: solid;
+  border-width: var(--scl-border);
+  border-color: var(--scl-color, currentColor);
+}
+
+/* 4. Live Preview tags (CM6 .cm-hashtag-begin + .cm-hashtag-end) */
+.cm-line .cm-hashtag[class*='scl-'] {
+  color: var(--scl-color, var(--tag-color));
+  background-color: var(--scl-bg, var(--tag-background));
+  padding-top: var(--tag-padding-y, 0.15em);
+  padding-bottom: var(--tag-padding-y, 0.15em);
+  border-top-width: var(--tag-border-width, var(--scl-border));
+  border-bottom-width: var(--tag-border-width, var(--scl-border));
+}
+
+.cm-line .cm-hashtag[class*='scl-'].scl-first {
+  border-top-left-radius: var(--tag-radius, 2em);
+  border-bottom-left-radius: var(--tag-radius, 2em);
+  border-left-width: var(--tag-border-width, var(--scl-border));
+  padding-left: var(--tag-padding-x, 0.65em);
+}
+
+.cm-line .cm-hashtag[class*='scl-'].scl-last {
+  border-top-right-radius: var(--tag-radius, 2em);
+  border-bottom-right-radius: var(--tag-radius, 2em);
+  border-right-width: var(--tag-border-width, var(--scl-border));
+  padding-right: var(--tag-padding-x, 0.65em);
+}
+
+.cm-line .cm-hashtag[class*='scl-'].scl-has-border {
+  border-top-color: var(--scl-color, currentColor);
+  border-bottom-color: var(--scl-color, currentColor);
+}
+
+.cm-line .cm-hashtag[class*='scl-'].scl-has-border.scl-first {
+  border-left-color: var(--scl-color, currentColor);
+}
+
+.cm-line .cm-hashtag[class*='scl-'].scl-has-border.scl-last {
+  border-right-color: var(--scl-color, currentColor);
+}
+/* 4. Live Preview tags (CM6: indre span med .scl-* inne i .cm-hashtag-begin / .cm-hashtag-end) */
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag > span[class*='scl-'] {
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: baseline;
+  color: var(--scl-color, inherit);
+  background-color: var(--scl-bg, transparent);
+  padding-top: var(--tag-padding-y, 0.15em);
+  padding-bottom: var(--tag-padding-y, 0.15em);
+  margin-top: calc(var(--tag-padding-y, 0.15em) * -1);
+  margin-bottom: calc(var(--tag-padding-y, 0.15em) * -1);
+  border-top: var(--scl-border) solid transparent;
+  border-bottom: var(--scl-border) solid transparent;
+  border-left: 0 solid transparent;
+  border-right: 0 solid transparent;
+  border-radius: 0;
+}
+
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag-begin > span[class*='scl-'].scl-first {
+  border-top-left-radius: var(--tag-radius, 2em);
+  border-bottom-left-radius: var(--tag-radius, 2em);
+  border-left-width: var(--scl-border);
+  padding-left: var(--tag-padding-x, 0.65em);
+  margin-left: calc(var(--tag-padding-x, 0.65em) * -1);
+}
+
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag-end > span[class*='scl-'].scl-last {
+  border-top-right-radius: var(--tag-radius, 2em);
+  border-bottom-right-radius: var(--tag-radius, 2em);
+  border-right-width: var(--scl-border);
+  padding-right: var(--tag-padding-x, 0.65em);
+  margin-right: calc(var(--tag-padding-x, 0.65em) * -1);
+}
+
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag > span[class*='scl-'].scl-has-border {
+  border-top-color: var(--scl-color, currentColor);
+  border-bottom-color: var(--scl-color, currentColor);
+}
+
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag-begin > span[class*='scl-'].scl-has-border.scl-first {
+  border-left-color: var(--scl-color, currentColor);
+}
+
+.markdown-source-view.mod-cm6 .cm-line .cm-hashtag-end > span[class*='scl-'].scl-has-border.scl-last {
+  border-right-color: var(--scl-color, currentColor);
+}
+
+
+/* =========================================================================
    2) SETTINGS PANEL: MAIN RULE ROWS 
    ========================================================================= */
 

@@ -288,7 +288,7 @@ export class FlyweightEngine {
 			onItemPrepared(item, pool);
 
 			if (performance.now() - sliceStart >= budgetMs) {
-				await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+				await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 				sliceStart = performance.now();
 			}
 		}

@@ -9,6 +9,7 @@ import { extractCleanLinkPath, forceStyleUpdateEffect } from "../utils/shared-ut
 import { populatePresentationPool } from "../engine/flyweight-style-pool";
 import { resolveLinkFile } from "../metadata/obsidian-framework-bridge";
 import { getEngineEditorTheme } from "./editor-theme";
+import { FlyweightResponse } from "../core/flyweight-engine";
 
 interface CodeMirrorNodeRef {
 	name: string;
@@ -46,16 +47,10 @@ export class LivePreviewDecorator {
 	}
 	
 	public destroy(): void {
-		// Clean up pool memory structures on view plugin destruction lifecycle
 		this.processedRangesPool.clear();
 		this.decoratedRangesPool.clear();
 	}
 
-	/**
-	 * Handles lifecycle update cycles dispatched by the CodeMirror editor engine.
-	 * Evaluates document, viewport, and selection state changes to selectively recalculate link decorations.
-	 * @param update - The structural ViewUpdate state container provided by CodeMirror.
-	 */
 	public update(update: ViewUpdate): void {
 
 		let hasStyleChanged = false;
@@ -88,7 +83,7 @@ export class LivePreviewDecorator {
 			try {
 				const currentLine = update.view.state.doc.lineAt(update.view.state.selection.main.head);
 				this.lastLineNumber = currentLine.number;
-				this.lastLineHadLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
+				this.lastLineHadLinks = this.lineHasTargetSyntax(currentLine.text);
 			} catch {
 				// Safe fallback containment
 			}
@@ -113,7 +108,7 @@ export class LivePreviewDecorator {
 				}
 
 				// PERFORMANCE BARRIER 2: Vertical navigation jumping to a completely new line
-				const currentLineHasLinks = currentLine.text.includes("[[") || currentLine.text.includes("](");
+				const currentLineHasLinks = this.lineHasTargetSyntax(currentLine.text);
 
 				// Bypass execution entirely if neither the departed line nor the arrived line contains link nodes
 				if (!this.lastLineHadLinks && !currentLineHasLinks) {
@@ -142,6 +137,11 @@ export class LivePreviewDecorator {
 				this.decorations = this.buildDecorationsForRange(update.view);
 			}
 		}
+	}
+
+	private lineHasTargetSyntax(text: string): boolean {
+		if (text.includes("[[") || text.includes("](")) return true;
+		return this.plugin.settings.enableTagChips && text.includes("#");
 	}
 
 	/**
@@ -262,55 +262,28 @@ export class LivePreviewDecorator {
 		skipIconBefore = false, 
 		skipIconAfter = false,
 		isFirst = false,
-    isLast = false  
+		isLast = false  
 	): Decoration {
-		
 		if (!this.plugin.flyweightEngine) {
 			return Decoration.mark({});
 		}
 
 		const resolution = this.plugin.flyweightEngine.getResolution(file, visibleLabel);
-
 		if (!resolution.hasMatch) {
 			return Decoration.mark({});
 		}
 
-		const presentation = populatePresentationPool(resolution, skipIconBefore, skipIconAfter);
-
 		const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
 		attributes["data-link-path"] = file.path;
 
-		let inlineStyleString = "";
-		const stylesCount = presentation.stylesCount;
-		
-		for (let i = 0; i < stylesCount; i++) {
-			const key = presentation.styleKeys[i];
-			const val = presentation.styleValues[i];
-			if (key && val) {
-				inlineStyleString += `${key}: ${val}; `;
-			}
-		}
-
-		if (inlineStyleString.length > 0) {
-			attributes["style"] = inlineStyleString; // 🌟 Godtas 100% av CodeMirror 6!
-		}
-
-		const classesCount = presentation.classesCount;
-		const activeClasses: string[] = [];
-		
-		for (let i = 0; i < classesCount; i++) {
-			const cls = presentation.classes[i];
-			if (cls) activeClasses.push(cls);
-		}
-
-		if (isFirst) activeClasses.push("scl-first");
-    if (isLast) activeClasses.push("scl-last");
-
-		// 7. Generer og returner den uforanderlige mark-dekorasjonen
-		return Decoration.mark({
+		return this.buildDecorationFromResolution(
+			resolution,
 			attributes,
-			class: activeClasses.join(" ")
-		});
+			skipIconBefore,
+			skipIconAfter,
+			isFirst,
+			isLast
+		);
 	}
 
 	public buildDecorationsForRange(view: EditorView, updateFrom: number = -1, updateTo: number = -1): DecorationSet {
@@ -325,6 +298,51 @@ export class LivePreviewDecorator {
 			}
 		}
 		return builder.finish();
+	}
+
+	private buildDecorationFromResolution(
+		resolution: FlyweightResponse,
+		extraAttributes: Record<string, string> | null,
+		skipIconBefore = false,
+		skipIconAfter = false,
+		isFirst = false,
+		isLast = false
+	): Decoration {
+		if (!resolution.hasMatch) {
+			return Decoration.mark({});
+		}
+
+		const presentation = populatePresentationPool(resolution, skipIconBefore, skipIconAfter);
+		const attributes: Record<string, string> = extraAttributes ?? (Object.create(null) as Record<string, string>);
+
+		let inlineStyleString = "";
+		const stylesCount = presentation.stylesCount;
+		for (let i = 0; i < stylesCount; i++) {
+			const key = presentation.styleKeys[i];
+			const val = presentation.styleValues[i];
+			if (key && val) {
+				inlineStyleString += `${key}: ${val}; `;
+			}
+		}
+
+		if (inlineStyleString.length > 0) {
+			attributes["style"] = inlineStyleString;
+		}
+
+		const classesCount = presentation.classesCount;
+		const activeClasses: string[] = [];
+		for (let i = 0; i < classesCount; i++) {
+			const cls = presentation.classes[i];
+			if (cls) activeClasses.push(cls);
+		}
+
+		if (isFirst) activeClasses.push("scl-first");
+		if (isLast) activeClasses.push("scl-last");
+
+		return Decoration.mark({
+			attributes,
+			class: activeClasses.join(" ")
+		});
 	}
 
 	/**
@@ -364,6 +382,12 @@ export class LivePreviewDecorator {
 			const handled = this.processWikiLinkPipeline(view, node, state, nodeNameLower, nodeRangeKey);
 			if (handled) return;
 		}
+
+		if (this.plugin.settings.enableTagChips && nodeNameLower.includes("hashtag")) {
+			const handled = this.processHashtagPipeline(view, node, state, nodeNameLower, nodeRangeKey);
+			if (handled) return;
+		}
+
 	}
 
 	private processMarkdownLinkPipeline(
@@ -587,6 +611,62 @@ export class LivePreviewDecorator {
 			}
 		});
 		state.skipUntilPosition = wikiEndPosition;
+		return true;
+	}
+
+	private processHashtagPipeline(
+		view: EditorView,
+		node: CodeMirrorNodeRef,
+		state: IterationState,
+		nodeNameLower: string,
+		nodeRangeKey: string
+	): boolean {
+		if (!nodeNameLower.includes("hashtag-begin")) {
+			state.processedRanges.add(nodeRangeKey);
+			return true;
+		}
+
+		const currentLine = view.state.doc.lineAt(node.from);
+		const lineText = currentLine.text;
+		const startOffsetInLine = node.to - currentLine.from;
+		const lineLen = lineText.length;
+
+		// Skann direkte frem til første whitespace på linjen (0 tree-traversal overhead!)
+		let endOffsetInLine = startOffsetInLine;
+		while (endOffsetInLine < lineLen) {
+			const ch = lineText.charCodeAt(endOffsetInLine);
+			// Stopp ved mellomrom (32), tab (9), eller typiske skilletegn som avslutter en tag
+			if (ch === 32 || ch === 9 || ch === 44 || ch === 46 || ch === 59 || ch === 33 || ch === 63 || ch === 41 || ch === 93) {
+				break;
+			}
+			endOffsetInLine++;
+		}
+
+		const tagEndPosition = currentLine.from + endOffsetInLine;
+		if (tagEndPosition <= node.to) {
+			state.processedRanges.add(nodeRangeKey);
+			return true;
+		}
+
+		const fullTagText = view.state.doc.sliceString(node.from, tagEndPosition); // f.eks. "#fri"
+		const resolution = this.plugin.flyweightEngine.getTagResolution(fullTagText, fullTagText);
+
+		if (!resolution.hasMatch) {
+			state.processedRanges.add(nodeRangeKey);
+			return true;
+		}
+
+		// '#' får prepend-ikon og venstre kant (scl-first)
+		const beginDeco = this.buildDecorationFromResolution(resolution, null, false, true, true, false);
+		this.decorateRangeOnce(state, node.from, node.to, beginDeco);
+
+		// Tag-navnet får append-ikon og høyre kant (scl-last)
+		const endDeco = this.buildDecorationFromResolution(resolution, null, true, false, false, true);
+		this.decorateRangeOnce(state, node.to, tagEndPosition, endDeco);
+
+		state.processedRanges.add(nodeRangeKey);
+		state.processedRanges.add(`${node.to}-${tagEndPosition}`);
+		state.skipUntilPosition = tagEndPosition;
 		return true;
 	}
 

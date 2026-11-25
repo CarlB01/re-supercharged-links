@@ -67,8 +67,13 @@ export function tagChipStyles(container: HTMLElement, plugin: ResuperchargedLink
 		for (let i = 0; i < existingTags.length; i++) {
 			const el = existingTags[i];
 			if (el) {
+				const pillParent = el.parentElement;
+				if (pillParent && pillParent.hasClass("scl-pill-wrapper")) {
+					clearExtraDOMAttributes(pillParent, plugin);
+					pillParent.removeClass("scl-pill-wrapper");
+				}
 				clearExtraDOMAttributes(el, plugin);
-				el.classList.remove("scl-tag-chip");
+				el.removeClass("scl-tag-chip");
 			}
 		}
 		return;
@@ -98,6 +103,24 @@ for (let i = 0; i < tagNodesCount; i++) {
 		const presentation = populatePresentationPool(resolution);
 		applyPoolToLinkElement(htmlEl, presentation, plugin);
 		htmlEl.classList.add("scl-tag-chip");
+
+		// Løft bakgrunn, farge og ramme direkte ut på .multi-select-pill (uten CSS :has())
+		const pillParent = htmlEl.parentElement;
+		if (pillParent && pillParent.hasClass("multi-select-pill")) {
+			clearExtraDOMAttributes(pillParent, plugin);
+			if (presentation.hasMatch) {
+				pillParent.addClass("scl-pill-wrapper");
+				if (presentation.color) {
+					pillParent.style.setProperty("--scl-color", presentation.color);
+				}
+				if (presentation.backgroundColor && presentation.backgroundColor !== "transparent") {
+					pillParent.style.setProperty("--scl-bg", presentation.backgroundColor);
+				}
+				if (htmlEl.hasClass("scl-has-border")) {
+					pillParent.addClass("scl-has-border");
+				}
+			}
+		}
 	}
 }
 
