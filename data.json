@@ -163,6 +163,14 @@
       "darkColor": "#f28c9c",
       "_flyweightIdLight": 27,
       "_flyweightIdDark": 28
+    },
+    {
+      "type": "tag",
+      "value": "tof",
+      "lightColor": "#1f9327",
+      "darkColor": "#b78cf2",
+      "_flyweightIdLight": 29,
+      "_flyweightIdDark": 30
     }
   ],
   "scl_value_10": "haha",

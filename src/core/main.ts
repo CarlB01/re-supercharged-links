@@ -14,6 +14,8 @@ import { safeReloadCustomCss } from '../metadata/obsidian-framework-bridge';
 import { SCLSettings } from '../settings/settings-constants';
 import { FlyweightEngine } from "./flyweight-engine";
 import { buildLivePreviewDecorator } from '../rendering/live-preview-decorator';
+import { PreAllocatedPresentation } from '../engine/flyweight-style-pool';
+import { applyPoolToLinkElement } from "../rendering/dom-writer";
 
 interface ObsidianPluginRegistry {
 	plugins?: {
@@ -34,6 +36,10 @@ export default class ResuperchargedLinks extends Plugin {
 	public cacheManager!: AttributeCacheManager;
 	
 	private doTelemetry = true;
+
+	public applyPoolToLink(link: HTMLElement, pool: PreAllocatedPresentation): void {
+		applyPoolToLinkElement(link, pool, this);
+	}
 
 	public override async onload(): Promise<void> {
 		this.observers = [];

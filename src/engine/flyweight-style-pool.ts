@@ -7,6 +7,9 @@ import { resolveRuleResolution } from "./selector-compiler";
 
 export interface PreAllocatedPresentation {
 	hasMatch: boolean;
+	signature: string;
+	color: string;
+	backgroundColor: string;
 	classesCount: number;
 	stylesCount: number;
 	readonly classes: string[];
@@ -16,6 +19,9 @@ export interface PreAllocatedPresentation {
 
 const SHARED_PRESENTATION_POOL: PreAllocatedPresentation = {
 	hasMatch: false,
+	signature: "",
+	color: "",
+	backgroundColor: "",
 	classesCount: 0,
 	stylesCount: 0,
 	classes: new Array<string>(64).fill(""),       
@@ -39,12 +45,20 @@ export function populatePresentationPool(
 	}
 
 	pool.hasMatch = resolution.hasMatch;
+	pool.signature = resolution.signature;
 	pool.classesCount = 0;
 	pool.stylesCount = 0;
-
-	if (!resolution.hasMatch) return pool;
-
+	
+	if (!resolution.hasMatch) {
+		pool.color = "";
+		pool.backgroundColor = "";
+		return pool;
+	}
+	
 	const s = resolution.styles;
+
+	pool.color = s.color;
+	pool.backgroundColor = s.backgroundColor;
 
 	if (s.color.length > 0) {
 		pool.styleKeys[pool.stylesCount] = "--scl-color";

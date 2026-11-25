@@ -1,7 +1,7 @@
 // src/rendering/dom-writer.ts
 
 import ResuperchargedLinks from "../core/main";
-import { populatePresentationPool } from "../engine/flyweight-style-pool";
+import { populatePresentationPool, PreAllocatedPresentation } from "../engine/flyweight-style-pool";
 import { parseSpaceSeparatedTokens } from "../utils/shared-utils";
 
 export function clearExtraDOMAttributes(link: HTMLElement, plugin: ResuperchargedLinks): void {
@@ -94,27 +94,40 @@ export function applyStylesAndAttributesToLink(
 
 	const resolution = plugin.flyweightEngine.getResolution(pathKey, visibleText);
 
+	// 1. V8 INLINED EARLY EXIT (skjer FØR populatePresentationPool!)
 	if (link.getAttribute("data-scl-signature") === resolution.signature && link.classList.contains("scl-processed")) {
 		return; 
 	}
+	const presentation = populatePresentationPool(resolution);
+	applyPoolToLinkElement(link, presentation, plugin);
+}
+
+/**
+ * Påfører ferdig populert SHARED_PRESENTATION_POOL på et HTML-element.
+ * Skipper automatisk hvis signaturen allerede matcher og "scl-processed" er satt.
+ * Kan kalles direkte av både dom-writer og eksterne plugins (MyBrain).
+ */
+export function applyPoolToLinkElement(
+	link: HTMLElement,
+	presentation: PreAllocatedPresentation,
+	plugin: ResuperchargedLinks
+): void {
 
 	clearExtraDOMAttributes(link, plugin);
-	link.setAttribute("data-scl-signature", resolution.signature);
-
+	link.setAttribute("data-scl-signature", presentation.signature);
 	link.classList.add("scl-processed");
-	
-	const presentation = populatePresentationPool(resolution);
+
 	if (!presentation.hasMatch) return;
 
 	const inlineStyle = link.style;
 	const stylesCount = presentation.stylesCount;
-		for (let i = 0; i < stylesCount; i++) {
-			const key = presentation.styleKeys[i];
-			const val = presentation.styleValues[i];
-			if (key && val) {
-				inlineStyle.setProperty(key, val);
-			}
+	for (let i = 0; i < stylesCount; i++) {
+		const key = presentation.styleKeys[i];
+		const val = presentation.styleValues[i];
+		if (key && val) {
+			inlineStyle.setProperty(key, val);
 		}
+	}
 
 	const classesCount = presentation.classesCount;
 	for (let i = 0; i < classesCount; i++) {

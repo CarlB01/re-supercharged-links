@@ -3,7 +3,7 @@
 import { syntaxTree } from "@codemirror/language";
 import { Extension, Line, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { App, editorInfoField, MarkdownView, TFile } from "obsidian";
+import { App, editorInfoField, TFile } from "obsidian";
 import ResuperchargedLinks from "../core/main";
 import { extractCleanLinkPath, forceStyleUpdateEffect } from "../utils/shared-utils";
 import { populatePresentationPool } from "../engine/flyweight-style-pool";

@@ -5,21 +5,8 @@ import ResuperchargedLinks from "./main";
 import { fetchTargetAttributesCached } from "../metadata/metadata-extractor";
 import { compileSelectors, resolveRuleResolution } from "../engine/selector-compiler";
 import { cleanAttributeKey, extractCleanLinkPath } from "../utils/shared-utils";
-import { resolveVirtualPreviewResolution } from "../engine/flyweight-style-pool";
+import { populatePresentationPool, PreAllocatedPresentation, resolveVirtualPreviewResolution } from "../engine/flyweight-style-pool";
 import { CSSLink } from "../types/css-link";
-
-export interface ExternalNodeStyleFlyweight {
-	readonly hasMatch: boolean;
-	readonly signature: string;
-	readonly color: string;
-	readonly backgroundColor: string;
-	readonly iconBefore: string;
-	readonly iconAfter: string;
-	readonly classes: readonly string[];
-	readonly tags: readonly string[];
-}
-
-const EMPTY_STRING_ARRAY: readonly string[] = Object.freeze([]);
 
 export interface FlyweightResponse {
 	readonly hasMatch: boolean;
@@ -33,11 +20,6 @@ export interface FlyweightResponse {
 		readonly iconAfter: string;
 		readonly decorations: readonly string[];
 	};
-}
-
-export interface PresentationPayload {
-	readonly classes: string[];
-	readonly inlineStyles: Record<string, string>;
 }
 
 export class FlyweightEngine {
@@ -242,130 +224,41 @@ export class FlyweightEngine {
 	}
 
 	/**
-	 * Strengt typet, V8-vennlig batch-oppslag for eksterne plugins (myBrain).
-	 * Varmer opp intern attrCycleCache i tidsbudsjetterte chunks (uten å blokkere UI-tråden)
-	 * og deler frosne class-arrays mellom identiske regelkombinasjoner (ekte Flyweight).
+	 * Varmer opp cachen for en TFile, kjører regelmotor + ikon-deduplisering mot visibleText,
+	 * og returnerer pekeren til den statiske SHARED_PRESENTATION_POOL uten heap-allokering.
 	 */
-	public async resolveBatchForExternal(
-		files: readonly TFile[],
+	public prepareLinkPresentation(file: TFile, visibleText: string): PreAllocatedPresentation {
+		const rawProps = fetchTargetAttributesCached(
+			this.app,
+			this.plugin,
+			file,
+			this.plugin.attrCycleCache
+		);
+
+		const resolution = this.getResolutionFromAttrs(file, rawProps, visibleText, true);
+		return populatePresentationPool(resolution);
+	}
+
+	public async prepareBatchForExternal<T>(
+		items: Iterable<T>,
+		getFile: (item: T) => TFile,
+		getVisibleText: (item: T) => string,
+		onItemPrepared: (item: T, pool: PreAllocatedPresentation) => void,
 		budgetMs = 5
-	): Promise<Map<string, ExternalNodeStyleFlyweight>> {
-		const results = new Map<string, ExternalNodeStyleFlyweight>();
-		const total = files.length;
-		if (total === 0) return results;
+	): Promise<void> {
+		if (this.plugin.cacheManager.compiledRules.length === 0) return;
 
-		const ruleVersion: number = this.plugin.cacheManager.getRuleConfigVersion();
-		const isDark: boolean = document.body.classList.contains("theme-dark");
-		const compiledRules = this.plugin.cacheManager.compiledRules;
-		const attrCache = this.plugin.attrCycleCache;
+		let sliceStart = performance.now();
 
-		// Lokal flyweight-pool for denne batchen: identiske regelsett deler eksakt samme array-referanse
-		const sharedClassArrays = new Map<string, readonly string[]>();
+		for (const item of items) {
+			const pool = this.prepareLinkPresentation(getFile(item), getVisibleText(item));
+			onItemPrepared(item, pool);
 
-		let index = 0;
-
-		while (index < total) {
-			const frameStart: number = performance.now();
-
-			while (index < total && performance.now() - frameStart < budgetMs) {
-				const file: TFile | undefined = files[index];
-				index++;
-				if (file === undefined) continue;
-
-				// 1. Varmer opp Re-Supercharged Links sin egen cache for senere DOM-bruk
-				const rawProps: Record<string, string> = fetchTargetAttributesCached(
-					this.app,
-					this.plugin,
-					file,
-					attrCache
-				);
-
-				// 2. Ekstraher tags uten ekstra allokeringer dersom feltet er tomt
-				const rawTags: string = rawProps["tags"] ?? "";
-				const parsedTags: readonly string[] = rawTags.length > 0
-					? Object.freeze(rawTags.split(" ").filter((t: string) => t.length > 0))
-					: EMPTY_STRING_ARRAY;
-
-				// 3. Beregn stil-oppløsning
-				const resolution = resolveRuleResolution({
-					compiledRules,
-					resolvedAttrs: rawProps,
-					isDark,
-					includeTagMatchClasses: true,
-					visibleText: file.basename
-				});
-
-				if (!resolution.hasMatch) {
-					results.set(file.path, {
-						hasMatch: false,
-						signature: `${ruleVersion}||${file.path}`,
-						color: "",
-						backgroundColor: "",
-						iconBefore: "",
-						iconAfter: "",
-						classes: EMPTY_STRING_ARRAY,
-						tags: parsedTags
-					});
-					continue;
-				}
-
-				const hasBefore = resolution.iconBefore.length > 0 ? "1" : "0";
-				const hasAfter = resolution.iconAfter.length > 0 ? "1" : "0";
-				const ruleKey = `${resolution.matchedFlyweightIds.join(",")}|${hasBefore}${hasAfter}`;
-
-				let sharedClasses: readonly string[] | undefined = sharedClassArrays.get(ruleKey);
-
-				if (sharedClasses === undefined) {
-					// Bygg samlet klasseliste én gang per unik regelkombinasjon
-					const combined: string[] = [];
-					const s = resolution.style;
-
-					if (s.fontWeight === "bold") combined.push("scl-weight-bold");
-					else if (s.fontWeight === "lighter") combined.push("scl-weight-lighter");
-
-					const decos = s.decorations;
-					for (let d = 0; d < decos.length; d++) {
-						const dec: string | undefined = decos[d];
-						if (dec === "italic") combined.push("scl-style-italic");
-						else if (dec === "underline") combined.push("scl-decor-underline");
-						else if (dec === "line-through") combined.push("scl-decor-linethrough");
-					}
-
-					if (hasBefore) combined.push("scl-with-before");
-					if (hasAfter) combined.push("scl-with-after");
-
-					const baseClasses = resolution.classes;
-					for (let c = 0; c < baseClasses.length; c++) {
-						const cls: string | undefined = baseClasses[c];
-						if (cls !== undefined && cls.length > 0) {
-							combined.push(cls);
-						}
-					}
-
-					sharedClasses = Object.freeze(combined);
-					sharedClassArrays.set(ruleKey, sharedClasses);
-				}
-
-				results.set(file.path, {
-					hasMatch: true,
-					signature: `${ruleVersion}|${ruleKey}|${file.path}`,
-					color: resolution.style.color,
-					backgroundColor: resolution.style.backgroundColor,
-					iconBefore: resolution.iconBefore,
-					iconAfter: resolution.iconAfter,
-					classes: sharedClasses,
-					tags: parsedTags
-				});
-			}
-
-			if (index < total) {
-				await new Promise<void>((resolve) => {
-					window.requestAnimationFrame(() => resolve());
-				});
+			if (performance.now() - sliceStart >= budgetMs) {
+				await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+				sliceStart = performance.now();
 			}
 		}
-
-		return results;
 	}
 
 	public destroy(): void {
