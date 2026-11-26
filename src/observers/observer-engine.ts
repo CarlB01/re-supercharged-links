@@ -187,7 +187,6 @@ function watchContainer(
 			if (m.type === "childList") {
 				let hasSelfMutations = false;
 
-				// 1. Sjekk addedNodes lynraskt via ren indeks-aksess
 				const addedLen = m.addedNodes.length;
 				for (let j = 0; j < addedLen; j++) {
 					const node = m.addedNodes[j] ?? null;
@@ -197,7 +196,6 @@ function watchContainer(
 					}
 				}
 
-				// 2. Hvis vi ikke fant noe i addedNodes, sjekk removedNodes på samme måte
 				if (!hasSelfMutations) {
 					const removedLen = m.removedNodes.length;
 					for (let j = 0; j < removedLen; j++) {
@@ -209,7 +207,6 @@ function watchContainer(
 					}
 				}
 
-				// Hvis endringen kun bestod av våre egne modifiserte elementer, ignorerer vi den
 				if (hasSelfMutations) continue;
 
 				if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {

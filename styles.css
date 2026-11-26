@@ -20,7 +20,6 @@
   padding-left: var(--scl-padding);
   padding-right: var(--scl-padding);
 
-  color: var(--scl-color, inherit);
   background-color: var(--scl-bg, transparent);
 }
 
@@ -99,21 +98,20 @@
 }
 
 /* Color on links */ 
-.markdown-rendered a.internal-link,
-.markdown-rendered a.external-link,
-.suggestion-item.scl-processed,
-.suggestion-item [class*="scl-"],
-.search-result-file-matches [class*="scl-"],
-.workspace-tab-header-inner-title.scl-processed,
-body.is-focused .mod-active .workspace-tab-header-container .workspace-tab-header.is-active .workspace-tab-header-inner-title,
-.internal-link.scl-processed {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
+.scl-processed[style*="--scl-color"],
+.internal-link[style*="--scl-color"],
+.suggestion-item [style*="--scl-color"],
+.search-result-file-matches [style*="--scl-color"],
+.workspace-tab-header-inner-title[style*="--scl-color"] {
+  color: var(--scl-color);
 }
-a.tag.scl-processed,
-.scl-tag-chip.scl-processed {
-  color: var(--scl-color, inherit);
-  background-color: var(--scl-bg, transparent);
+
+.scl-processed[style*="--scl-bg"],
+.internal-link[style*="--scl-bg"],
+.suggestion-item [style*="--scl-bg"],
+.search-result-file-matches [style*="--scl-bg"],
+.workspace-tab-header-inner-title[style*="--scl-bg"] {
+  background-color: var(--scl-bg);
 }
 
 /* Icon safe inline-flex */
@@ -199,42 +197,6 @@ a.tag.scl-tag-chip.scl-has-border {
   border-color: var(--scl-color, currentColor);
 }
 
-/* 4. Live Preview tags (CM6 .cm-hashtag-begin + .cm-hashtag-end) */
-.cm-line .cm-hashtag[class*='scl-'] {
-  color: var(--scl-color, var(--tag-color));
-  background-color: var(--scl-bg, var(--tag-background));
-  padding-top: var(--tag-padding-y, 0.15em);
-  padding-bottom: var(--tag-padding-y, 0.15em);
-  border-top-width: var(--tag-border-width, var(--scl-border));
-  border-bottom-width: var(--tag-border-width, var(--scl-border));
-}
-
-.cm-line .cm-hashtag[class*='scl-'].scl-first {
-  border-top-left-radius: var(--tag-radius, 2em);
-  border-bottom-left-radius: var(--tag-radius, 2em);
-  border-left-width: var(--tag-border-width, var(--scl-border));
-  padding-left: var(--tag-padding-x, 0.65em);
-}
-
-.cm-line .cm-hashtag[class*='scl-'].scl-last {
-  border-top-right-radius: var(--tag-radius, 2em);
-  border-bottom-right-radius: var(--tag-radius, 2em);
-  border-right-width: var(--tag-border-width, var(--scl-border));
-  padding-right: var(--tag-padding-x, 0.65em);
-}
-
-.cm-line .cm-hashtag[class*='scl-'].scl-has-border {
-  border-top-color: var(--scl-color, currentColor);
-  border-bottom-color: var(--scl-color, currentColor);
-}
-
-.cm-line .cm-hashtag[class*='scl-'].scl-has-border.scl-first {
-  border-left-color: var(--scl-color, currentColor);
-}
-
-.cm-line .cm-hashtag[class*='scl-'].scl-has-border.scl-last {
-  border-right-color: var(--scl-color, currentColor);
-}
 /* 4. Live Preview tags (CM6: indre span med .scl-* inne i .cm-hashtag-begin / .cm-hashtag-end) */
 .markdown-source-view.mod-cm6 .cm-line .cm-hashtag > span[class*='scl-'] {
   display: inline-flex;

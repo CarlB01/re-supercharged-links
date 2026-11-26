@@ -231,7 +231,18 @@ export function updateDivExtraAttributes(
 	filterCollapsible = false
 ): void {
 	const parent: HTMLElement | null = link.parentElement ?? null;
-	if (filterCollapsible && parent !== null && parent.classList.contains("mod-collapsible")) return;
+	const isFolderTitle: boolean = parent !== null && parent.classList.contains("nav-folder-title");
+
+	if (isFolderTitle) {
+		if (!plugin.settings.enableFolderNotes) {
+			if (link.classList.contains("scl-processed")) {
+				clearExtraDOMAttributes(link, plugin);
+			}
+			return;
+		}
+	} else if (filterCollapsible && parent !== null && parent.classList.contains("mod-collapsible")) {
+		return;
+	}
 
 	let resolvedLinkName = linkName;
 	if (resolvedLinkName === null) {
@@ -252,7 +263,17 @@ export function updateDivExtraAttributes(
 	const cleanPath: string = extractCleanLinkPath(resolvedLinkName);
 	if (cleanPath.length === 0) return;
 
-	const dest: TFile | null = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
+	let dest: TFile | null = null;
+	if (isFolderTitle) {
+		const slashIdx: number = cleanPath.lastIndexOf("/");
+		const folderName: string = slashIdx !== -1 ? cleanPath.slice(slashIdx + 1) : cleanPath;
+		if (folderName.length > 0) {
+			dest = app.metadataCache.getFirstLinkpathDest(`${cleanPath}/${folderName}.md`, destName) ?? null;
+		}
+	} else {
+		dest = app.metadataCache.getFirstLinkpathDest(getLinkpath(cleanPath), destName) ?? null;
+	}
+
 	if (dest === null) return;
 
 	const visibleText: string = (link.textContent || "").trim();
@@ -625,6 +646,16 @@ export function updateVisibleLinks(
 		// Scrape and style background elements deterministically
 		totalNodesStyled += updateLeafTabHeader(app, plugin, trueViewFile, leaf);
 
+		// Sweep file-explorer leaves so folder notes and file items update immediately
+		if (leaf.view.getViewType() === "file-explorer") {
+			totalNodesStyled += updateContainer(
+				leaf.view.containerEl,
+				plugin,
+				".nav-file-title-content, .nav-folder-title-content"
+			);
+			return;
+		}
+
 		// Narrow down to markdown views only for the internal body content and properties panel sweeps
 		const mdView: MarkdownView | null = getAsMarkdownView(leaf);
 		if (mdView === null) return;
@@ -648,8 +679,6 @@ export function updateVisibleLinks(
 		}
 	});
 
-	// ✨ STRØMLINJEFORMET TELEMETRI: Siden trackeren vår nå er 100% ren, 
-	// returnerer vi bare tallet slik at main.ts kan registrere syklusen stabilt.
 	return totalNodesStyled;
 }
 

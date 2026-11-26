@@ -1,6 +1,7 @@
 {
   "getFromInlineField": false,
   "enableTagChips": true,
+  "enableFolderNotes": true,
   "selectors": [
     {
       "type": "tag",

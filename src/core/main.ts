@@ -119,9 +119,9 @@ export default class ResuperchargedLinks extends Plugin {
 						initModalObservers(this, ownerDoc);
 					}
 
-					// 2. Registrer view-observer for denne fanetypen
+					// 2. Registrer view-observer for denne fanetypen (file-explorer styres av initViewObservers)
 					const viewType = leaf.view?.getViewType() ?? "";
-					if (viewType.length > 0) {
+					if (viewType.length > 0 && viewType !== "file-explorer") {
 						registerViewType(viewType, this, ".tree-item-inner, .nav-file-title-content, .tab-header-inner-title", true);
 					}
 				}

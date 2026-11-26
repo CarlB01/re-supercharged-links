@@ -59,6 +59,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 		if (key === "scl_rules_search") return this.rulesSearchQuery;
 		
 		if (key === "enableTagChips") return this.plugin.settings.enableTagChips;
+		if (key === "enableFolderNotes") return this.plugin.settings.enableFolderNotes;
 		if (key === "getFromInlineField") return this.plugin.settings.getFromInlineField;
 
 		if (key.startsWith("scl_")) {
@@ -84,8 +85,8 @@ export default class SCLSettingTab extends PluginSettingTab {
 			this.handleRuleFieldUpdate(key, value);
 		} else {
 			this.handleGlobalSettingUpdate(key, value);
-			if (key === "enableTagChips" || key === "getFromInlineField") {
-				this.plugin.cacheManager.bumpRuleConfigVersion();
+			if (key === "enableTagChips" || key === "enableFolderNotes" || key === "getFromInlineField") {
+					this.plugin.cacheManager.bumpRuleConfigVersion();
 			}
 		}
 		await this.applyRuleMutationRefresh(silent);
@@ -173,6 +174,7 @@ export default class SCLSettingTab extends PluginSettingTab {
 						heading: "General Configurations",
 						items: [
 							{ name: "Style tag chips (a.tag)", desc: "Apply Supercharged styles to tag chips in supported views.", control: { type: "toggle", key: "enableTagChips" } },
+							{ name: "Folder notes", desc: "Apply note styles to folders when they contain a note with the same name (e.g. Folder/Folder.md).", control: { type: "toggle", key: "enableFolderNotes" } },
 							{ name: "Read inline fields", desc: "Enable Dataview inline field parsing.", control: { type: "toggle", key: "getFromInlineField" } }
 						]
 					}
